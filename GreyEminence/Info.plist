@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Grey Eminence</string>
+	<key>CFBundleDisplayName</key>
+	<string>Grey Eminence</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Grey Eminence needs microphone access to record meeting audio and provide live transcription.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Grey Eminence needs to capture system audio to transcribe meeting participants speaking through your speakers.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Grey Eminence uses on-device speech recognition to provide live transcription of your meetings.</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright 2024-2026. All rights reserved.</string>
+	<key>SUPublicEDKey</key>
+	<string></string>
+	<key>SUFeedURL</key>
+	<string></string>
+</dict>
+</plist>

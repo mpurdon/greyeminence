@@ -1,0 +1,14 @@
+# Xcode
+xcuserdata/
+*.xcscmblueprint
+DerivedData/
+
+# macOS
+.DS_Store
+
+# Dependencies
+.build/
+Packages/
+
+# Claude
+.claude/
