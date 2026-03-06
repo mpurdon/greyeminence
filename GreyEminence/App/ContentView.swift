@@ -60,25 +60,17 @@ struct ContentView: View {
             Divider()
             contentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.top, 8)
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                HStack(spacing: 8) {
+            if selectedDestination == .meetings || selectedDestination == .recording {
+                ToolbarItem(placement: .primaryAction) {
                     Button {
-                        sidebarExpanded.toggle()
+                        showInspector.toggle()
                     } label: {
-                        Label("Toggle Sidebar", systemImage: "sidebar.left")
+                        Label("Toggle Insights", systemImage: "sidebar.right")
                     }
-                    .keyboardShortcut("s", modifiers: .command)
-
-                    if selectedDestination == .meetings || selectedDestination == .recording {
-                        Button {
-                            showInspector.toggle()
-                        } label: {
-                            Label("Toggle Insights", systemImage: "sidebar.right")
-                        }
-                        .keyboardShortcut("i", modifiers: [.command, .shift])
-                    }
+                    .keyboardShortcut("i", modifiers: [.command, .shift])
                 }
             }
         }
@@ -104,11 +96,17 @@ struct ContentView: View {
                 MeetingListView(selectedMeeting: $selectedMeeting)
             } detail: {
                 if let meeting = selectedMeeting {
-                    MeetingDetailView(meeting: meeting)
-                        .inspector(isPresented: $showInspector) {
-                            MeetingIntelligenceView(meeting: meeting)
-                                .inspectorColumnWidth(min: 280, ideal: 320, max: 400)
+                    GeometryReader { geo in
+                        HStack(spacing: 0) {
+                            MeetingDetailView(meeting: meeting)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            if showInspector {
+                                Divider()
+                                MeetingIntelligenceView(meeting: meeting)
+                                    .frame(width: min(320, geo.size.width / 2))
+                            }
                         }
+                    }
                 } else {
                     ContentUnavailableView(
                         "No Meeting Selected",

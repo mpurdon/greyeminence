@@ -58,6 +58,7 @@ struct SidebarView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .keyboardShortcut("s", modifiers: .command)
             if !isExpanded { Spacer() }
         }
         .padding(.horizontal, 10)

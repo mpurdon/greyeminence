@@ -12,20 +12,25 @@ enum AIPromptTemplates {
         no explanation before or after:
 
         {
-          "summary": "2-4 sentence holistic summary of the meeting so far",
+          "summary": "Bullet-point list summarizing the key points of the meeting so far. Each bullet should be a concise, standalone insight.",
           "action_items": [{"text": "description of action", "assignee": "person or null"}],
           "follow_ups": ["question that should be followed up on"],
           "topics": ["key topic discussed"]
         }
 
         Rules:
-        - "summary" should capture the overall arc, not just the latest segment.
+        - "summary" must be a bullet-point list (each bullet starting with "- "). Capture the overall \
+        arc, not just the latest segment. Each bullet MUST describe a specific, concrete point with \
+        a clear subject — what was discussed, decided, or proposed. Never include meta-observations \
+        about the meeting itself (e.g. "Meeting is in early stages", "Participant mentioned wanting \
+        to discuss something"). If there is not enough substantive content yet, return an empty string \
+        for the summary rather than filler bullets.
         - "action_items" should only include concrete commitments or tasks, not vague statements. \
         Set "assignee" to the speaker's name if identifiable, otherwise null.
         - "follow_ups" are open questions or unresolved points that need attention after the meeting.
         - "topics" are the main subjects discussed, ordered by prominence.
-        - If there is not enough content to produce meaningful insights, return empty arrays and a \
-        brief summary noting the meeting is just starting.
+        - If there is not enough content to produce meaningful insights, return empty arrays and \
+        an empty string for the summary. Do not generate placeholder or filler text.
         - When updating a rolling analysis, ALWAYS preserve all previous action items, topics, \
         and follow-up questions. Your summary must be cumulative — include key information from \
         previous summaries plus new information. Never drop earlier insights unless they are \
@@ -116,7 +121,9 @@ enum AIPromptTemplates {
         during live analysis. Produce a final, polished version of the insights.
 
         Your tasks:
-        - Write a clean, comprehensive summary covering the entire meeting arc.
+        - Write a clean, comprehensive summary as a bullet-point list covering the entire meeting arc. \
+        Each bullet must describe a specific, concrete point with a clear subject. Remove any \
+        meta-observations about the meeting itself (e.g. "Meeting started with introductions").
         - Deduplicate action items — merge near-duplicates, remove redundant ones, \
         and keep the clearest phrasing.
         - Deduplicate follow-up questions — merge similar ones.
