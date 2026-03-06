@@ -17,6 +17,7 @@ final class Meeting {
     var audioFilePath: String?
     var systemAudioFilePath: String?
     var isExportedToObsidian: Bool
+    var isAnalyzing: Bool = false
     var createdAt: Date
 
     @Relationship(deleteRule: .cascade, inverse: \TranscriptSegment.meeting)
@@ -43,6 +44,7 @@ final class Meeting {
         self.duration = duration
         self.status = status
         self.isExportedToObsidian = false
+        self.isAnalyzing = false
         self.createdAt = .now
         self.segments = []
         self.actionItems = []

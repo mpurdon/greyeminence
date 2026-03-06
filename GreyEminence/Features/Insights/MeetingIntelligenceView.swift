@@ -23,6 +23,16 @@ struct MeetingIntelligenceView: View {
                     ActionItemsSection(items: meeting.actionItems)
                     FollowUpQuestionsSection(questions: insight.followUpQuestions)
                     KnowledgeLinksSection(topics: insight.topics)
+                } else if meeting.isAnalyzing {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text("Analyzing meeting...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.top, 60)
                 } else {
                     ContentUnavailableView(
                         "No Insights Yet",

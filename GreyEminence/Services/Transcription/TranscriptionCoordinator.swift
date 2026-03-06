@@ -1,4 +1,5 @@
 import AVFoundation
+import FluidAudio
 
 /// Orchestrates audio capture, speech recognition, and speaker diarization
 /// into a unified timeline of transcript segments.
@@ -7,11 +8,10 @@ import AVFoundation
 final class TranscriptionCoordinator {
     var segments: [TranscriptSegment] = []
     var isProcessing = false
-    var dictationDisabled = false
 
     private let formatConverter = AudioFormatConverter()
-    private let micRecognition = SpeechRecognitionService(source: "mic")
-    private let systemRecognition = SpeechRecognitionService(source: "sys")
+    private let micAsr = FluidAsrService(source: .microphone)
+    private let systemAsr = FluidAsrService(source: .system)
     private let diarization = SpeakerDiarizationService()
 
     private var processingTasks: [Task<Void, Never>] = []
@@ -30,40 +30,33 @@ final class TranscriptionCoordinator {
     private var currentMicDraftID: UUID?
     private var currentSystemDraftID: UUID?
 
+    /// Maximum gap (seconds) between consecutive confirmed results from the
+    /// same speaker before they are merged into a single segment.
+    private let segmentMergeWindow: TimeInterval = 5.0
+
     // MARK: - Lifecycle
 
     func start() async throws {
         // Clean up any lingering state from a previous run
-        micRecognition.stopRecognition()
-        systemRecognition.stopRecognition()
+        await micAsr.stopRecognition()
+        await systemAsr.stopRecognition()
 
         isProcessing = true
-        dictationDisabled = false
         segments = []
         systemAudioBuffer = []
         micAudioBuffer = []
         hasSystemSpeech = false
 
-        // Wire up dictation-disabled detection
-        micRecognition.onDictationDisabled = { @Sendable [weak self] in
-            Task { @MainActor in
-                self?.dictationDisabled = true
-            }
-        }
+        // Download and load ASR models (Parakeet TDT v2, English)
+        LogManager.shared.log("Loading ASR models…", category: .transcription)
+        let models = try await AsrModels.downloadAndLoad(version: .v2)
+        LogManager.shared.log("ASR models loaded", category: .transcription)
 
-        // Request speech recognition authorization
-        let authorized = await micRecognition.requestAuthorization()
-        guard authorized else {
-            LogManager.shared.log("Speech recognition authorization denied", category: .transcription, level: .error)
-            throw TranscriptionError.speechRecognitionDenied
-        }
-        LogManager.shared.log("Speech recognition authorized", category: .transcription)
-
-        // Start speech recognition streams
-        LogManager.shared.log("Starting speech recognition streams", category: .transcription)
-        let micStream = try micRecognition.startRecognition()
-        let sysStream = try systemRecognition.startRecognition()
-        LogManager.shared.log("Mic and system recognition streams active", category: .transcription)
+        // Start streaming ASR for both sources (sharing loaded models)
+        LogManager.shared.log("Starting streaming ASR", category: .transcription)
+        let micStream = try await micAsr.startRecognition(models: models)
+        let sysStream = try await systemAsr.startRecognition(models: models)
+        LogManager.shared.log("Mic and system ASR streams active", category: .transcription)
 
         // Prepare diarization (downloads models if needed)
         do {
@@ -94,8 +87,8 @@ final class TranscriptionCoordinator {
     func stop() async {
         // Stop recognition first — this finishes the AsyncStreams,
         // allowing the listener tasks to drain any buffered results and exit.
-        micRecognition.stopRecognition()
-        systemRecognition.stopRecognition()
+        await micAsr.stopRecognition()
+        await systemAsr.stopRecognition()
 
         // Wait for listener tasks to finish (they exit when streams end).
         // Fallback: cancel after a short deadline to avoid hanging.
@@ -124,7 +117,7 @@ final class TranscriptionCoordinator {
     /// Feed a microphone audio buffer into the pipeline.
     /// Called from the audio capture callback — must not cross actor boundaries.
     nonisolated func feedMicAudio(_ buffer: AVAudioPCMBuffer, at timestamp: TimeInterval) {
-        micRecognition.appendAudio(buffer)
+        micAsr.feedAudio(buffer)
 
         // Convert to float samples for mic diarization (used when system audio is silent)
         do {
@@ -139,7 +132,7 @@ final class TranscriptionCoordinator {
 
     /// Feed a system audio buffer into the pipeline.
     nonisolated func feedSystemAudio(_ buffer: AVAudioPCMBuffer, at timestamp: TimeInterval) {
-        systemRecognition.appendAudio(buffer)
+        systemAsr.feedAudio(buffer)
 
         // Convert to float samples for diarization
         do {
@@ -154,7 +147,7 @@ final class TranscriptionCoordinator {
 
     // MARK: - Speech Recognition Handlers
 
-    private func handleMicUpdate(_ update: SpeechRecognitionService.TranscriptUpdate) {
+    private func handleMicUpdate(_ update: FluidAsrService.TranscriptUpdate) {
         let textEmpty = update.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         // Empty final result — finalize existing draft instead of discarding it
@@ -173,25 +166,40 @@ final class TranscriptionCoordinator {
             segments.removeAll { $0.id == draftID }
         }
 
-        let segment = TranscriptSegment(
-            speaker: .me,
-            text: update.text,
-            startTime: update.timestamp,
-            endTime: update.timestamp,
-            isFinal: update.isFinal
-        )
-
         if update.isFinal {
             currentMicDraftID = nil
-            LogManager.shared.log("Mic segment finalized: \(update.text.prefix(80))", category: .transcription)
-        } else {
-            currentMicDraftID = segment.id
-        }
 
-        segments.append(segment)
+            // Try to merge with the most recent final segment from the same speaker
+            if let lastIdx = segments.lastIndex(where: { $0.speaker == .me && $0.isFinal }),
+               update.timestamp - segments[lastIdx].endTime <= segmentMergeWindow {
+                segments[lastIdx].text += " " + update.text
+                segments[lastIdx].endTime = update.timestamp
+                LogManager.shared.log("Mic segment merged: \(segments[lastIdx].text.prefix(80))", category: .transcription)
+            } else {
+                let segment = TranscriptSegment(
+                    speaker: .me,
+                    text: update.text,
+                    startTime: update.timestamp,
+                    endTime: update.timestamp,
+                    isFinal: true
+                )
+                segments.append(segment)
+                LogManager.shared.log("Mic segment finalized: \(update.text.prefix(80))", category: .transcription)
+            }
+        } else {
+            let segment = TranscriptSegment(
+                speaker: .me,
+                text: update.text,
+                startTime: update.timestamp,
+                endTime: update.timestamp,
+                isFinal: false
+            )
+            currentMicDraftID = segment.id
+            segments.append(segment)
+        }
     }
 
-    private func handleSystemUpdate(_ update: SpeechRecognitionService.TranscriptUpdate) {
+    private func handleSystemUpdate(_ update: FluidAsrService.TranscriptUpdate) {
         let textEmpty = update.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         if !textEmpty {
@@ -214,22 +222,40 @@ final class TranscriptionCoordinator {
             segments.removeAll { $0.id == draftID }
         }
 
-        let segment = TranscriptSegment(
-            speaker: .other("Other"),
-            text: update.text,
-            startTime: update.timestamp,
-            endTime: update.timestamp,
-            isFinal: update.isFinal
-        )
+        let defaultSpeaker = Speaker.other("Other")
 
         if update.isFinal {
             currentSystemDraftID = nil
-            LogManager.shared.log("System segment finalized: \(update.text.prefix(80))", category: .transcription)
-        } else {
-            currentSystemDraftID = segment.id
-        }
 
-        segments.append(segment)
+            // Try to merge with the most recent final segment from a system speaker
+            // (any speaker that isn't .me — system segments get relabeled by diarization later)
+            if let lastIdx = segments.lastIndex(where: { $0.speaker != .me && $0.isFinal }),
+               update.timestamp - segments[lastIdx].endTime <= segmentMergeWindow {
+                segments[lastIdx].text += " " + update.text
+                segments[lastIdx].endTime = update.timestamp
+                LogManager.shared.log("System segment merged: \(segments[lastIdx].text.prefix(80))", category: .transcription)
+            } else {
+                let segment = TranscriptSegment(
+                    speaker: defaultSpeaker,
+                    text: update.text,
+                    startTime: update.timestamp,
+                    endTime: update.timestamp,
+                    isFinal: true
+                )
+                segments.append(segment)
+                LogManager.shared.log("System segment finalized: \(update.text.prefix(80))", category: .transcription)
+            }
+        } else {
+            let segment = TranscriptSegment(
+                speaker: defaultSpeaker,
+                text: update.text,
+                startTime: update.timestamp,
+                endTime: update.timestamp,
+                isFinal: false
+            )
+            currentSystemDraftID = segment.id
+            segments.append(segment)
+        }
     }
 
     // MARK: - Diarization
@@ -340,13 +366,5 @@ final class TranscriptionCoordinator {
         let startTime = micBufferStartTime
         micAudioBuffer = []
         await processMicDiarizationChunk(chunk, startTime: startTime)
-    }
-}
-
-enum TranscriptionError: Error, LocalizedError {
-    case speechRecognitionDenied
-
-    var errorDescription: String? {
-        "Speech recognition permission is required for live transcription"
     }
 }

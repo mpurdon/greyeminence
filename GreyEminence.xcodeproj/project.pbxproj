@@ -46,11 +46,11 @@
 		9CAA57863B9D3DF1ADAAA09D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 176C0D546904574EAA12A436 /* ContentView.swift */; };
 		A173DAAD896AF99772AC00EA /* PeopleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0D2BB249FEACDA87A7EF0B /* PeopleView.swift */; };
 		A6084800D0732B67F76DA306 /* StorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0AF2329398C06BB75B022FF /* StorageManager.swift */; };
-		AACD074FF721A72AC9F51BBD /* SpeechRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760B76DFB19535C9F175CE5C /* SpeechRecognitionService.swift */; };
 		B0B93EBDC1B05304CFC289ED /* MeetingRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B86DBE859B4EF56428216AA /* MeetingRowView.swift */; };
 		B3D94C0FABCF7BCB4A419276 /* ContactDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D71B4ACDF2860C265D2E456 /* ContactDetailView.swift */; };
 		B61817A61C272312B58CEB5B /* MicLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCF870910A70FECDA4849F93 /* MicLevelMonitor.swift */; };
 		BBB05812E8776A60C628AD0B /* MeetingIntelligenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB5B7F2625CA891A0A4FE73 /* MeetingIntelligenceView.swift */; };
+		BCFE8F9A5D779015BD38FA97 /* FluidAsrService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0967272565AFAF7A394DB16E /* FluidAsrService.swift */; };
 		BD98B27D397675FC5ADCC4FC /* ActionItemsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C048A116939EC01A529A4FDC /* ActionItemsSection.swift */; };
 		C9EBA7BFEBA1F4DAC059CAD7 /* KnowledgeLinksSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B931FA0292EE0DF9C7F8A19 /* KnowledgeLinksSection.swift */; };
 		CA397207ABB9967B21A63E08 /* ContactPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1894E666B02691D0316570C /* ContactPicker.swift */; };
@@ -75,6 +75,7 @@
 		00113CB03ECCACD1B6516101 /* ModelDownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloadManager.swift; sourceTree = "<group>"; };
 		035F3AE9352BFA1B1EC72E90 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		06649713AEC967601987522A /* GreyEminence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GreyEminence.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0967272565AFAF7A394DB16E /* FluidAsrService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FluidAsrService.swift; sourceTree = "<group>"; };
 		10F8F5AD9A2BC34E742295DC /* APIKeySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeySettingsView.swift; sourceTree = "<group>"; };
 		130974A6F8E2B27E4705F6A3 /* RecordingToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingToolbar.swift; sourceTree = "<group>"; };
 		176C0D546904574EAA12A436 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -98,7 +99,6 @@
 		6D71B4ACDF2860C265D2E456 /* ContactDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactDetailView.swift; sourceTree = "<group>"; };
 		6EAE39B31598DBAB6A3CFFFB /* SpeakerDiarizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerDiarizationService.swift; sourceTree = "<group>"; };
 		74A9A340B566AD4ABDBB929D /* SystemAudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioCaptureService.swift; sourceTree = "<group>"; };
-		760B76DFB19535C9F175CE5C /* SpeechRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognitionService.swift; sourceTree = "<group>"; };
 		8141402D9688729287F5C68F /* MeetingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingStore.swift; sourceTree = "<group>"; };
 		8F93F2580A0F2585FD914629 /* TranscriptSegmentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSegmentRow.swift; sourceTree = "<group>"; };
 		8FFDC9ABAD40D943DE809198 /* Meeting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting.swift; sourceTree = "<group>"; };
@@ -380,9 +380,9 @@
 		C55C0EF6982FAB185A23C343 /* Transcription */ = {
 			isa = PBXGroup;
 			children = (
+				0967272565AFAF7A394DB16E /* FluidAsrService.swift */,
 				00113CB03ECCACD1B6516101 /* ModelDownloadManager.swift */,
 				6EAE39B31598DBAB6A3CFFFB /* SpeakerDiarizationService.swift */,
-				760B76DFB19535C9F175CE5C /* SpeechRecognitionService.swift */,
 				BD246F57B67011F22F1AF64A /* TranscriptionCoordinator.swift */,
 			);
 			path = Transcription;
@@ -525,6 +525,7 @@
 				2752C857ED799575298D2EE7 /* ContactRowView.swift in Sources */,
 				9CAA57863B9D3DF1ADAAA09D /* ContentView.swift in Sources */,
 				6B3B7042DBD6D529106704B5 /* DashboardView.swift in Sources */,
+				BCFE8F9A5D779015BD38FA97 /* FluidAsrService.swift in Sources */,
 				33715D44310936A4E6B8B6D0 /* FollowUpQuestionsSection.swift in Sources */,
 				EA1A3B8F35504E54F26166BA /* GeneralSettingsView.swift in Sources */,
 				EBDFB61941795F32A239C472 /* GreyEminenceApp.swift in Sources */,
@@ -556,7 +557,6 @@
 				82E0731B8F98E1C689F629DC /* SidebarView.swift in Sources */,
 				6FAA39AF5B2ECCCC58143107 /* Speaker.swift in Sources */,
 				77072DF00BC4524199A52DC2 /* SpeakerDiarizationService.swift in Sources */,
-				AACD074FF721A72AC9F51BBD /* SpeechRecognitionService.swift in Sources */,
 				A6084800D0732B67F76DA306 /* StorageManager.swift in Sources */,
 				FAF507B483908D2C3227910D /* SystemAudioCaptureService.swift in Sources */,
 				96FC88F4A50DBC442D684EA9 /* TaggedAudioBuffer.swift in Sources */,
@@ -779,7 +779,7 @@
 			repositoryURL = "https://github.com/FluidInference/FluidAudio.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.7.9;
+				minimumVersion = 0.12.0;
 			};
 		};
 		D6F1A7CCAA48EE7E20DE75AB /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {

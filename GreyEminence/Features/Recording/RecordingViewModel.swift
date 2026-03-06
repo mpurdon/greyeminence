@@ -31,7 +31,6 @@ final class RecordingViewModel {
     var errorMessage: String?
     var micLevel: Float = 0
     var systemLevel: Float = 0
-    var showDictationAlert = false
     var completedMeeting: Meeting?
 
     private let log = LogManager.shared
@@ -156,6 +155,10 @@ final class RecordingViewModel {
 
             try? modelContext.save()
 
+            // Mark as analyzing before navigating so the UI shows a spinner
+            meeting.isAnalyzing = true
+            try? modelContext.save()
+
             // Navigate to completed meeting
             self.completedMeeting = meeting
 
@@ -173,6 +176,9 @@ final class RecordingViewModel {
                     self.log.log("Final analysis failed (persisting existing insights): \(error.localizedDescription)", category: .ai, level: .warning)
                 }
             }
+
+            // Analysis complete
+            meeting.isAnalyzing = false
 
             // Always persist whatever insights we have from rolling analysis
             let summary = self.streamingSummary
@@ -236,10 +242,6 @@ final class RecordingViewModel {
                 try? await Task.sleep(for: .milliseconds(200))
                 await MainActor.run {
                     self.segments = self.coordinator.segments
-                    if self.coordinator.dictationDisabled && !self.showDictationAlert {
-                        self.showDictationAlert = true
-                        self.coordinator.dictationDisabled = false
-                    }
                 }
             }
         }

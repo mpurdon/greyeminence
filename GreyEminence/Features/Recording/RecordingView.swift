@@ -24,14 +24,6 @@ struct RecordingView: View {
             }
         }
         .navigationTitle(viewModel.currentMeeting?.title ?? "New Recording")
-        .alert("Dictation Required", isPresented: $viewModel.showDictationAlert) {
-            Button("Open Keyboard Settings") {
-                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!)
-            }
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Transcription requires Dictation to be enabled.\n\nGo to System Settings > Keyboard > Dictation and turn it on.")
-        }
     }
 
     private var idleState: some View {
