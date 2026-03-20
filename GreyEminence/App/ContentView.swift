@@ -49,6 +49,7 @@ struct ContentView: View {
     @State private var selectedMeeting: Meeting?
     @State private var showInspector = true
     @State private var sidebarExpanded = true
+    @State private var inspectorWidth: CGFloat?
     var recordingViewModel: RecordingViewModel
 
     var body: some View {
@@ -83,6 +84,30 @@ struct ContentView: View {
         }
     }
 
+    private func inspectorDragHandle(containerWidth: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 6)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        let newWidth = (inspectorWidth ?? containerWidth * 0.5) - value.translation.width
+                        inspectorWidth = min(max(newWidth, 280), containerWidth * 0.7)
+                    }
+            )
+            .overlay {
+                Divider()
+            }
+    }
+
     @ViewBuilder
     private var contentArea: some View {
         switch selectedDestination {
@@ -97,13 +122,17 @@ struct ContentView: View {
             } detail: {
                 if let meeting = selectedMeeting {
                     GeometryReader { geo in
+                        let defaultWidth = geo.size.width * 0.5
+                        let width = inspectorWidth ?? defaultWidth
+                        let clampedWidth = min(max(width, 280), geo.size.width * 0.7)
+
                         HStack(spacing: 0) {
                             MeetingDetailView(meeting: meeting)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                             if showInspector {
-                                Divider()
+                                inspectorDragHandle(containerWidth: geo.size.width)
                                 MeetingIntelligenceView(meeting: meeting)
-                                    .frame(width: min(320, geo.size.width / 2))
+                                    .frame(width: clampedWidth)
                             }
                         }
                     }
@@ -116,19 +145,25 @@ struct ContentView: View {
                 }
             }
         case .recording:
-            HStack(spacing: 0) {
-                RecordingView(viewModel: recordingViewModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if showInspector {
-                    Divider()
-                    LiveMeetingIntelligenceView(
-                        summary: recordingViewModel.streamingSummary,
-                        actionItems: recordingViewModel.actionItems,
-                        followUpQuestions: recordingViewModel.followUpQuestions,
-                        topics: recordingViewModel.topics,
-                        aiActivityState: recordingViewModel.aiActivityState
-                    )
-                    .frame(width: 320)
+            GeometryReader { geo in
+                let defaultWidth = geo.size.width * 0.5
+                let width = inspectorWidth ?? defaultWidth
+                let clampedWidth = min(max(width, 280), geo.size.width * 0.7)
+
+                HStack(spacing: 0) {
+                    RecordingView(viewModel: recordingViewModel)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if showInspector {
+                        inspectorDragHandle(containerWidth: geo.size.width)
+                        LiveMeetingIntelligenceView(
+                            summary: recordingViewModel.streamingSummary,
+                            actionItems: recordingViewModel.actionItems,
+                            followUpQuestions: recordingViewModel.followUpQuestions,
+                            topics: recordingViewModel.topics,
+                            aiActivityState: recordingViewModel.aiActivityState
+                        )
+                        .frame(width: clampedWidth)
+                    }
                 }
             }
         case .tasks:
@@ -150,24 +185,61 @@ struct ContentView: View {
 }
 
 struct AllTasksView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(filter: #Predicate<ActionItem> { !$0.isCompleted })
     private var pendingItems: [ActionItem]
 
     @Query(filter: #Predicate<ActionItem> { $0.isCompleted })
     private var completedItems: [ActionItem]
 
+    private var stalledItems: [StalledCommitment] {
+        CommitmentTrackingService().stalledCommitments(in: modelContext)
+    }
+
+    private var nonStalledPending: [ActionItem] {
+        let stalledIDs = Set(stalledItems.map(\.id))
+        return pendingItems.filter { !stalledIDs.contains($0.id) }
+    }
+
     var body: some View {
         List {
+            if !stalledItems.isEmpty {
+                Section {
+                    ForEach(stalledItems) { stalled in
+                        HStack {
+                            ActionItemRow(item: stalled.actionItem)
+                            Spacer()
+                            Text("\(stalled.daysStalled)d")
+                                .font(.caption2)
+                                .fontDesign(.monospaced)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    (stalled.daysStalled > 14 ? Color.red : .orange).opacity(0.15),
+                                    in: Capsule()
+                                )
+                                .foregroundStyle(stalled.daysStalled > 14 ? .red : .orange)
+                        }
+                    }
+                } header: {
+                    Label("Stalled (\(stalledItems.count))", systemImage: "exclamationmark.triangle")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.orange)
+                        .textCase(nil)
+                }
+            }
+
             Section {
-                ForEach(pendingItems) { item in
+                ForEach(nonStalledPending) { item in
                     ActionItemRow(item: item)
                 }
             } header: {
-                Label("Pending (\(pendingItems.count))", systemImage: "circle")
+                Label("Pending (\(nonStalledPending.count))", systemImage: "circle")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .textCase(nil)
             }
+
             if !completedItems.isEmpty {
                 Section {
                     ForEach(completedItems) { item in
@@ -219,30 +291,52 @@ struct ActionItemRow: View {
                 Text(item.text)
                     .strikethrough(item.isCompleted)
                     .foregroundStyle(item.isCompleted ? .secondary : .primary)
-                if let assignee = item.displayAssignee {
-                    HStack(spacing: 4) {
-                        if let contact = item.assignedContact {
-                            Text(contact.initials)
-                                .font(.system(size: 8, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 14, height: 14)
-                                .background(contact.avatarColor.gradient, in: Circle())
-                        }
+                    .textSelection(.enabled)
+                HStack(spacing: 4) {
+                    if let contact = item.assignedContact {
+                        Text(contact.initials)
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 14, height: 14)
+                            .background(contact.avatarColor.gradient, in: Circle())
+                        Text(contact.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if let assignee = item.assignee, !assignee.isEmpty {
                         Text(assignee)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+
+                    Button {
+                        showContactPicker = true
+                    } label: {
+                        Image(systemName: item.assignedContact != nil ? "person.crop.circle.badge.checkmark" : "person.crop.circle.badge.plus")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
         .contextMenu {
+            Button("Copy") {
+                NSPasteboard.general.clearContents()
+                let text = if let assignee = item.displayAssignee {
+                    "\(item.text) (\(assignee))"
+                } else {
+                    item.text
+                }
+                NSPasteboard.general.setString(text, forType: .string)
+            }
+            Divider()
+            Button("Assign Contact...") {
+                showContactPicker = true
+            }
             if item.assignedContact != nil {
                 Button("Unlink Contact") {
                     item.assignedContact = nil
                 }
-            }
-            Button("Assign Contact...") {
-                showContactPicker = true
             }
         }
         .popover(isPresented: $showContactPicker) {

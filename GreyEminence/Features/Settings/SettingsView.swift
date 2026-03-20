@@ -5,6 +5,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     case general
     case audio
     case ai
+    case vocabulary
     case obsidian
 
     var id: String { rawValue }
@@ -14,6 +15,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: "General"
         case .audio: "Audio"
         case .ai: "AI"
+        case .vocabulary: "Vocabulary"
         case .obsidian: "Obsidian"
         }
     }
@@ -23,6 +25,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: "gear"
         case .audio: "mic"
         case .ai: "brain"
+        case .vocabulary: "textformat.abc"
         case .obsidian: "doc.text"
         }
     }
@@ -32,6 +35,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: .gray
         case .audio: .blue
         case .ai: .purple
+        case .vocabulary: .teal
         case .obsidian: .indigo
         }
     }
@@ -69,6 +73,8 @@ struct SettingsView: View {
                 AudioSettingsView()
             case .ai:
                 APIKeySettingsView()
+            case .vocabulary:
+                VocabularySettingsView()
             case .obsidian:
                 ObsidianSettingsView()
             }

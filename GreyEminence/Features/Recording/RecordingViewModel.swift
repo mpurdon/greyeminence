@@ -32,6 +32,8 @@ final class RecordingViewModel {
     var micLevel: Float = 0
     var systemLevel: Float = 0
     var completedMeeting: Meeting?
+    var segmentConfidence: [UUID: Float] = [:]
+    var prepContext: MeetingPrepContext?
 
     private let log = LogManager.shared
     private var timer: Timer?
@@ -45,12 +47,54 @@ final class RecordingViewModel {
 
     // Transcription
     private let coordinator = TranscriptionCoordinator()
+    private let vocabularyManager = VocabularyManager()
+    let speakerContactMapper = SpeakerContactMapper()
+
+    // Calendar & Meeting Prep
+    let calendarService = CalendarService()
+    private let meetingPrepService = MeetingPrepService()
 
     // AI Intelligence
     private var intelligenceService: AIIntelligenceService?
 
     var isRecording: Bool { state == .recording }
     var isPaused: Bool { state == .paused }
+
+    /// Refresh meeting prep context based on detected calendar event and contacts.
+    func refreshPrepContext(in modelContext: ModelContext) {
+        guard let event = calendarService.currentEvent else {
+            prepContext = nil
+            return
+        }
+
+        let attendeeNames = calendarService.attendeeNames(for: event)
+        let descriptor = FetchDescriptor<Contact>()
+        let contacts = (try? modelContext.fetch(descriptor)) ?? []
+        let matched = calendarService.matchContacts(attendees: attendeeNames, existing: contacts)
+        let matchedContacts = matched.compactMap(\.contact)
+
+        guard !matchedContacts.isEmpty else {
+            prepContext = nil
+            return
+        }
+
+        let recurrenceID = calendarService.recurrenceID(for: event)
+        var seriesID: UUID?
+        if recurrenceID != nil {
+            let meetingDesc = FetchDescriptor<Meeting>(
+                predicate: #Predicate<Meeting> { $0.calendarEventID != nil }
+            )
+            if let meetings = try? modelContext.fetch(meetingDesc) {
+                seriesID = meetings.first(where: { $0.calendarEventID == recurrenceID })?.seriesID
+            }
+        }
+
+        prepContext = meetingPrepService.gatherPrepContext(
+            attendees: matchedContacts,
+            seriesID: seriesID,
+            in: modelContext
+        )
+    }
 
     var formattedTime: String {
         let hours = Int(elapsedTime) / 3600
@@ -64,6 +108,34 @@ final class RecordingViewModel {
 
     func startRecording(in modelContext: ModelContext) {
         let meeting = Meeting(title: "Meeting \(DateFormatter.shortDate.string(from: .now))")
+
+        // Calendar integration: auto-set title and match attendees
+        let calendarEnabled = UserDefaults.standard.bool(forKey: "calendarIntegration")
+        if calendarEnabled, let event = calendarService.currentOrUpcomingEvent() {
+            meeting.title = event.title ?? meeting.title
+            meeting.calendarEventID = event.calendarItemIdentifier
+            meeting.calendarEventTitle = event.title
+
+            // Match attendees to contacts
+            let attendeeNames = calendarService.attendeeNames(for: event)
+            let descriptor = FetchDescriptor<Contact>()
+            let contacts = (try? modelContext.fetch(descriptor)) ?? []
+            let matched = calendarService.matchContacts(attendees: attendeeNames, existing: contacts)
+            for (_, contact) in matched {
+                if let contact, !meeting.attendees.contains(where: { $0.id == contact.id }) {
+                    meeting.attendees.append(contact)
+                }
+            }
+
+            // Pre-populate speaker mapper from attendee aliases
+            speakerContactMapper.prepopulate(from: meeting.attendees)
+
+            // Match to recurring series
+            calendarService.matchToSeries(event: event, meeting: meeting, in: modelContext)
+
+            log.log("Calendar event matched: \(event.title ?? "untitled")", category: .general)
+        }
+
         modelContext.insert(meeting)
         currentMeeting = meeting
         state = .recording
@@ -149,6 +221,7 @@ final class RecordingViewModel {
                     endTime: segment.endTime,
                     isFinal: true
                 )
+                persistedSegment.confidence = self.segmentConfidence[segment.id] ?? 1.0
                 persistedSegment.meeting = meeting
                 meeting.segments.append(persistedSegment)
             }
@@ -219,6 +292,9 @@ final class RecordingViewModel {
     private func startRealCapture(meetingID: UUID) {
         let storageManager = StorageManager.shared
 
+        // Wire vocabulary manager into coordinator
+        coordinator.vocabularyManager = vocabularyManager
+
         // Start transcription coordinator
         let coordTask = Task {
             do {
@@ -235,13 +311,14 @@ final class RecordingViewModel {
         }
         processingTasks.append(coordTask)
 
-        // Observe coordinator segments
+        // Observe coordinator segments and confidence
         let observeTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(200))
                 await MainActor.run {
                     self.segments = self.coordinator.segments
+                    self.segmentConfidence = self.coordinator.segmentConfidence
                 }
             }
         }
@@ -323,20 +400,25 @@ final class RecordingViewModel {
     // MARK: - AI Intelligence
 
     private func startIntelligenceService() {
-        guard let apiKey = try? KeychainHelper.get(AIPromptTemplates.keychainKey),
-              !apiKey.isEmpty else {
-            log.log("AI key not configured — skipping intelligence", category: .ai, level: .warning)
-            return
-        }
-
-        let model = UserDefaults.standard.string(forKey: "claudeModel") ?? "claude-sonnet-4-20250514"
-        log.log("AI intelligence service starting (model: \(model))", category: .ai)
-        let client = ClaudeAPIClient(apiKey: apiKey, model: model)
-        let service = AIIntelligenceService(client: client)
-        intelligenceService = service
-
+        let prepCtx = prepContext
         let aiTask = Task { [weak self] in
             guard let self else { return }
+
+            guard let client = try? await AIClientFactory.makeClient() else {
+                await MainActor.run {
+                    self.log.log("AI not configured — skipping intelligence", category: .ai, level: .warning)
+                }
+                return
+            }
+
+            let model = UserDefaults.standard.string(forKey: "claudeModel") ?? "claude-sonnet-4-20250514"
+            await MainActor.run {
+                self.log.log("AI intelligence service starting (model: \(model))", category: .ai)
+            }
+            let service = AIIntelligenceService(client: client, prepContext: prepCtx)
+            await MainActor.run {
+                self.intelligenceService = service
+            }
 
             // Countdown before first analysis
             await self.countdown(seconds: 30, label: "first analysis")

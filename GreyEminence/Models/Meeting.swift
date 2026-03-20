@@ -20,6 +20,14 @@ final class Meeting {
     var isAnalyzing: Bool = false
     var createdAt: Date
 
+    // Calendar integration
+    var calendarEventID: String?
+    var calendarEventTitle: String?
+
+    // Recurring meeting tracking
+    var seriesID: UUID?
+    var seriesTitle: String?
+
     @Relationship(deleteRule: .cascade, inverse: \TranscriptSegment.meeting)
     var segments: [TranscriptSegment]
 

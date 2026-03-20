@@ -52,6 +52,13 @@ struct MeetingRowView: View {
                 }
             }
 
+            if meeting.seriesID != nil {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.teal)
+                    .help(meeting.seriesTitle ?? "Series")
+            }
+
             if meeting.isExportedToObsidian {
                 Image(systemName: "arrow.up.doc")
                     .font(.caption)

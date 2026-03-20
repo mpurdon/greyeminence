@@ -2,14 +2,18 @@ import SwiftUI
 
 struct LiveTranscriptView: View {
     let segments: [TranscriptSegment]
+    var segmentConfidence: [UUID: Float] = [:]
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(segments) { segment in
-                        TranscriptSegmentRow(segment: segment)
-                            .id(segment.id)
+                        TranscriptSegmentRow(
+                            segment: segment,
+                            confidence: segmentConfidence[segment.id]
+                        )
+                        .id(segment.id)
                     }
                 }
                 .padding()

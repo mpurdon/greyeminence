@@ -9,6 +9,10 @@ final class ActionItem {
     var isCompleted: Bool
     var createdAt: Date
 
+    // Commitment tracking
+    var dueDate: Date?
+    var sourceSegmentID: UUID?
+
     var meeting: Meeting?
     var assignedContact: Contact?
 

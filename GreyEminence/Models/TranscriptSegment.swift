@@ -11,6 +11,14 @@ final class TranscriptSegment {
     var isFinal: Bool
     var createdAt: Date
 
+    // Confidence indicator
+    var confidence: Float = 1.0
+
+    // Transcript corrections
+    var isEdited: Bool = false
+    var originalText: String?
+    var originalSpeakerData: Data?
+
     var meeting: Meeting?
 
     var speaker: Speaker {

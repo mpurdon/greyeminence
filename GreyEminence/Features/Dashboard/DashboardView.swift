@@ -4,9 +4,14 @@ import SwiftData
 struct DashboardView: View {
     var onMeetingSelected: (Meeting) -> Void = { _ in }
 
+    @Environment(\.modelContext) private var modelContext
     @Query private var allMeetings: [Meeting]
     @Query(filter: #Predicate<ActionItem> { !$0.isCompleted })
     private var pendingActions: [ActionItem]
+
+    private var stalledCount: Int {
+        CommitmentTrackingService().stalledCommitments(in: modelContext).count
+    }
 
     private var meetingsThisWeek: [Meeting] {
         let calendar = Calendar.current
@@ -54,11 +59,11 @@ struct DashboardView: View {
                         color: pendingActions.isEmpty ? .green : .orange
                     )
                     StatCard(
-                        title: "Recording Time",
-                        value: formattedTotalTime,
-                        subtitle: "total",
-                        icon: "waveform",
-                        color: .red
+                        title: "Stalled Items",
+                        value: "\(stalledCount)",
+                        subtitle: stalledCount == 0 ? "all clear" : "need attention",
+                        icon: "exclamationmark.triangle",
+                        color: stalledCount == 0 ? .green : .orange
                     )
                 }
                 .padding(.horizontal)

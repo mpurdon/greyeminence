@@ -1,6 +1,6 @@
 import Foundation
 
-struct ClaudeAPIClient: Sendable {
+struct ClaudeAPIClient: AIClient, Sendable {
     private let apiKey: String
     private let model: String
 

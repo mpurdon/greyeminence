@@ -6,6 +6,7 @@ struct GeneralSettingsView: View {
     @AppStorage("autoStartRecording") private var autoStart = false
     @AppStorage("showMenuBarIcon") private var showMenuBar = true
     @AppStorage("launchAtLogin") private var launchAtLogin = false
+    @AppStorage("calendarIntegration") private var calendarIntegration = false
 
     var body: some View {
         Form {
@@ -21,6 +22,7 @@ struct GeneralSettingsView: View {
 
             Section {
                 Toggle("Auto-start recording when meeting app detected", isOn: $autoStart)
+                Toggle("Auto-detect calendar events", isOn: $calendarIntegration)
             } header: {
                 Label("Recording", systemImage: "record.circle")
                     .font(.subheadline.weight(.semibold))

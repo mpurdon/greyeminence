@@ -155,4 +155,39 @@ enum AIPromptTemplates {
             .map { "[\($0.formattedTimestamp)] \($0.speaker.displayName): \($0.text)" }
             .joined(separator: "\n")
     }
+
+    /// Enriched system prompt with meeting prep context for cross-meeting intelligence.
+    static func systemPromptWithContext(prep: MeetingPrepContext?) -> String {
+        guard let prep, !prep.isEmpty else { return systemPrompt }
+
+        var contextBlock = "\n\nCONTEXT FROM PREVIOUS MEETINGS WITH THESE PARTICIPANTS:\n"
+
+        if !prep.unresolvedItems.isEmpty {
+            contextBlock += "\nUnresolved action items:\n"
+            for item in prep.unresolvedItems {
+                let assignee = item.assignee.map { " (assigned: \($0))" } ?? ""
+                contextBlock += "- \(item.text)\(assignee) [\(item.daysSinceCreated) days old]\n"
+            }
+        }
+
+        if !prep.followUps.isEmpty {
+            contextBlock += "\nOpen follow-up questions:\n"
+            for q in prep.followUps {
+                contextBlock += "- \(q)\n"
+            }
+        }
+
+        if !prep.previousTopics.isEmpty {
+            contextBlock += "\nPreviously discussed topics: \(prep.previousTopics.joined(separator: ", "))\n"
+        }
+
+        contextBlock += """
+
+        Watch for any of these items being discussed or resolved during the meeting. \
+        If an unresolved item is addressed, note it in the summary. If an open question \
+        is answered, remove it from follow_ups.
+        """
+
+        return systemPrompt + contextBlock
+    }
 }

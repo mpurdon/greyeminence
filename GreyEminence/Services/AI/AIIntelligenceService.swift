@@ -24,15 +24,21 @@ struct ParsedActionItem: Sendable {
 // MARK: - Intelligence Service
 
 actor AIIntelligenceService {
-    private let client: ClaudeAPIClient
+    private let client: any AIClient
+    private let prepContext: MeetingPrepContext?
     private var previousSummary: String = ""
     private var previousActionItems: [ParsedActionItem] = []
     private var previousFollowUps: [String] = []
     private var previousTopics: [String] = []
     private var lastAnalyzedSegmentCount: Int = 0
 
-    init(client: ClaudeAPIClient) {
+    init(client: any AIClient, prepContext: MeetingPrepContext? = nil) {
         self.client = client
+        self.prepContext = prepContext
+    }
+
+    private var effectiveSystemPrompt: String {
+        AIPromptTemplates.systemPromptWithContext(prep: prepContext)
     }
 
     func analyze(segments: [SegmentSnapshot]) async throws -> AnalysisResult? {
@@ -63,7 +69,7 @@ actor AIIntelligenceService {
 
         LogManager.send("AI analysis starting (\(nonEmpty.count) segments)", category: .ai)
         let response = try await client.sendMessage(
-            system: AIPromptTemplates.systemPrompt,
+            system: effectiveSystemPrompt,
             userContent: userPrompt
         )
 
@@ -101,7 +107,7 @@ actor AIIntelligenceService {
 
         LogManager.send("AI final cleanup starting (\(nonEmpty.count) segments)", category: .ai)
         let response = try await client.sendMessage(
-            system: AIPromptTemplates.systemPrompt,
+            system: effectiveSystemPrompt,
             userContent: userPrompt
         )
 

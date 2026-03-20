@@ -15,7 +15,10 @@ struct RecordingView: View {
             if viewModel.state == .idle {
                 idleState
             } else {
-                LiveTranscriptView(segments: viewModel.segments)
+                LiveTranscriptView(
+                    segments: viewModel.segments,
+                    segmentConfidence: viewModel.segmentConfidence
+                )
             }
 
             if viewModel.state != .idle {
@@ -24,11 +27,39 @@ struct RecordingView: View {
             }
         }
         .navigationTitle(viewModel.currentMeeting?.title ?? "New Recording")
+        .task {
+            await TranscriptionCoordinator.preloadModels()
+        }
     }
 
     private var idleState: some View {
         VStack(spacing: 20) {
             Spacer()
+
+            // Show detected calendar event
+            if let event = viewModel.calendarService.currentEvent {
+                HStack(spacing: 10) {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(event.title ?? "Meeting")
+                            .font(.headline)
+                        Text(event.startDate.formatted(date: .omitted, time: .shortened))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+            }
+
+            // Meeting prep view
+            if let prepContext = viewModel.prepContext, !prepContext.isEmpty {
+                MeetingPrepView(context: prepContext)
+                    .frame(maxWidth: 500)
+            }
+
             Image(systemName: "mic.badge.plus")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
@@ -57,5 +88,13 @@ struct RecordingView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
+        .task {
+            let calendarEnabled = UserDefaults.standard.bool(forKey: "calendarIntegration")
+            if calendarEnabled {
+                await viewModel.calendarService.requestAccess()
+                viewModel.calendarService.refreshCurrentEvent()
+                viewModel.refreshPrepContext(in: modelContext)
+            }
+        }
     }
 }

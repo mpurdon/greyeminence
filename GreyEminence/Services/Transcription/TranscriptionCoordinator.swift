@@ -30,9 +30,60 @@ final class TranscriptionCoordinator {
     private var currentMicDraftID: UUID?
     private var currentSystemDraftID: UUID?
 
+    // Track live confidence per segment (in-memory only, not persisted)
+    private(set) var segmentConfidence: [UUID: Float] = [:]
+
+    // Vocabulary manager for custom term boosting
+    var vocabularyManager: VocabularyManager?
+
     /// Maximum gap (seconds) between consecutive confirmed results from the
     /// same speaker before they are merged into a single segment.
     private let segmentMergeWindow: TimeInterval = 5.0
+
+    /// Cached ASR models — survives across recordings so only the first load is slow.
+    private static var cachedModels: AsrModels?
+
+    /// In-flight model loading task — prevents duplicate concurrent downloads.
+    private static var modelLoadingTask: Task<AsrModels, Error>?
+
+    /// Pre-load ASR models (call early, e.g. when recording view appears).
+    static func preloadModels() async {
+        guard cachedModels == nil else { return }
+        do {
+            let models = try await loadModels()
+            _ = models // preloaded into cache
+        } catch {
+            LogManager.send("ASR model pre-load failed: \(error.localizedDescription)", category: .transcription, level: .warning)
+        }
+    }
+
+    /// Shared model loading — ensures only one download runs at a time.
+    private static func loadModels() async throws -> AsrModels {
+        if let cached = cachedModels { return cached }
+
+        // Join in-flight download if one is already running
+        if let existing = modelLoadingTask {
+            return try await existing.value
+        }
+
+        let task = Task {
+            LogManager.send("Downloading ASR models…", category: .transcription)
+            let models = try await AsrModels.downloadAndLoad(version: .v2)
+            LogManager.send("ASR models ready", category: .transcription)
+            return models
+        }
+        modelLoadingTask = task
+
+        do {
+            let models = try await task.value
+            cachedModels = models
+            modelLoadingTask = nil
+            return models
+        } catch {
+            modelLoadingTask = nil
+            throw error
+        }
+    }
 
     // MARK: - Lifecycle
 
@@ -43,29 +94,38 @@ final class TranscriptionCoordinator {
 
         isProcessing = true
         segments = []
+        segmentConfidence = [:]
         systemAudioBuffer = []
         micAudioBuffer = []
         hasSystemSpeech = false
 
-        // Download and load ASR models (Parakeet TDT v2, English)
-        LogManager.shared.log("Loading ASR models…", category: .transcription)
-        let models = try await AsrModels.downloadAndLoad(version: .v2)
-        LogManager.shared.log("ASR models loaded", category: .transcription)
+        // Prepare diarization concurrently with model loading
+        let diarizationTask = Task {
+            do {
+                try await diarization.prepare()
+                try await diarization.startStreaming()
+                LogManager.send("Diarization ready", category: .transcription)
+            } catch {
+                LogManager.send("Diarization setup failed (non-fatal): \(error.localizedDescription)", category: .transcription, level: .warning)
+            }
+        }
+
+        // Load ASR models (uses cache, or joins in-flight preload download)
+        let models = try await Self.loadModels()
+
+        await diarizationTask.value
+
+        // Build vocabulary context if available
+        let vocabContext = vocabularyManager?.buildContext()
+        if let vocabContext {
+            LogManager.shared.log("Vocabulary boosting: \(vocabContext.terms.count) terms", category: .transcription)
+        }
 
         // Start streaming ASR for both sources (sharing loaded models)
         LogManager.shared.log("Starting streaming ASR", category: .transcription)
-        let micStream = try await micAsr.startRecognition(models: models)
-        let sysStream = try await systemAsr.startRecognition(models: models)
+        let micStream = try await micAsr.startRecognition(models: models, vocabularyContext: vocabContext)
+        let sysStream = try await systemAsr.startRecognition(models: models, vocabularyContext: vocabContext)
         LogManager.shared.log("Mic and system ASR streams active", category: .transcription)
-
-        // Prepare diarization (downloads models if needed)
-        do {
-            try await diarization.prepare()
-            try await diarization.startStreaming()
-            LogManager.shared.log("Diarization ready", category: .transcription)
-        } catch {
-            LogManager.shared.log("Diarization setup failed (non-fatal): \(error.localizedDescription)", category: .transcription, level: .warning)
-        }
 
         // Process mic recognition updates
         let micTask = Task { [weak self] in
@@ -163,6 +223,7 @@ final class TranscriptionCoordinator {
 
         // Remove previous draft (will be replaced with updated text below)
         if let draftID = currentMicDraftID {
+            segmentConfidence.removeValue(forKey: draftID)
             segments.removeAll { $0.id == draftID }
         }
 
@@ -174,6 +235,9 @@ final class TranscriptionCoordinator {
                update.timestamp - segments[lastIdx].endTime <= segmentMergeWindow {
                 segments[lastIdx].text += " " + update.text
                 segments[lastIdx].endTime = update.timestamp
+                // Average confidence on merge
+                let existing = segmentConfidence[segments[lastIdx].id] ?? 1.0
+                segmentConfidence[segments[lastIdx].id] = (existing + update.confidence) / 2.0
                 LogManager.shared.log("Mic segment merged: \(segments[lastIdx].text.prefix(80))", category: .transcription)
             } else {
                 let segment = TranscriptSegment(
@@ -183,6 +247,7 @@ final class TranscriptionCoordinator {
                     endTime: update.timestamp,
                     isFinal: true
                 )
+                segmentConfidence[segment.id] = update.confidence
                 segments.append(segment)
                 LogManager.shared.log("Mic segment finalized: \(update.text.prefix(80))", category: .transcription)
             }
@@ -194,6 +259,7 @@ final class TranscriptionCoordinator {
                 endTime: update.timestamp,
                 isFinal: false
             )
+            segmentConfidence[segment.id] = update.confidence
             currentMicDraftID = segment.id
             segments.append(segment)
         }
@@ -219,6 +285,7 @@ final class TranscriptionCoordinator {
 
         // Remove previous draft (will be replaced with updated text below)
         if let draftID = currentSystemDraftID {
+            segmentConfidence.removeValue(forKey: draftID)
             segments.removeAll { $0.id == draftID }
         }
 
@@ -233,6 +300,8 @@ final class TranscriptionCoordinator {
                update.timestamp - segments[lastIdx].endTime <= segmentMergeWindow {
                 segments[lastIdx].text += " " + update.text
                 segments[lastIdx].endTime = update.timestamp
+                let existing = segmentConfidence[segments[lastIdx].id] ?? 1.0
+                segmentConfidence[segments[lastIdx].id] = (existing + update.confidence) / 2.0
                 LogManager.shared.log("System segment merged: \(segments[lastIdx].text.prefix(80))", category: .transcription)
             } else {
                 let segment = TranscriptSegment(
@@ -242,6 +311,7 @@ final class TranscriptionCoordinator {
                     endTime: update.timestamp,
                     isFinal: true
                 )
+                segmentConfidence[segment.id] = update.confidence
                 segments.append(segment)
                 LogManager.shared.log("System segment finalized: \(update.text.prefix(80))", category: .transcription)
             }
@@ -253,6 +323,7 @@ final class TranscriptionCoordinator {
                 endTime: update.timestamp,
                 isFinal: false
             )
+            segmentConfidence[segment.id] = update.confidence
             currentSystemDraftID = segment.id
             segments.append(segment)
         }

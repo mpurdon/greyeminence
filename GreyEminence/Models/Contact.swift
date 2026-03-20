@@ -13,6 +13,9 @@ final class Contact {
     var externalID: String?
     var externalSource: String?
 
+    // Speaker label aliases for auto-linking
+    var speakerAliases: [String] = []
+
     @Relationship(inverse: \Meeting.attendees)
     var meetings: [Meeting] = []
 
