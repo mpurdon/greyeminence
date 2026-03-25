@@ -34,6 +34,7 @@
 		50F1D888439483986E026777 /* ClaudeAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57B9AB151CD1BBDDDCB15B67 /* ClaudeAPIClient.swift */; };
 		55A2068CDD71B2430C84E5DE /* MeetingAttendeesRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18B5B7B23A1F23EB5D7BFCA /* MeetingAttendeesRow.swift */; };
 		55A5B3B4215E63B6E5107C20 /* APIKeySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F8F5AD9A2BC34E742295DC /* APIKeySettingsView.swift */; };
+		5B0D134A768087BDA747466F /* TranscriptDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3808CC293C20D0583278C3F9 /* TranscriptDeduplicator.swift */; };
 		6428B269561C1610AE114AB8 /* RecordingToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130974A6F8E2B27E4705F6A3 /* RecordingToolbar.swift */; };
 		645FB051CDDEF1925D77944A /* BedrockAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59A4997345983696DC9017FF /* BedrockAPIClient.swift */; };
 		6632545DC3BCE1347E7D2AAF /* VocabularyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A49043AC4DC48EF88C729BE /* VocabularyManager.swift */; };
@@ -101,6 +102,7 @@
 		2B931FA0292EE0DF9C7F8A19 /* KnowledgeLinksSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeLinksSection.swift; sourceTree = "<group>"; };
 		3064E03937611C03B74553CD /* AudioFormatConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFormatConverter.swift; sourceTree = "<group>"; };
 		355D52E442FFB5C7B6F89C4F /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		3808CC293C20D0583278C3F9 /* TranscriptDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDeduplicator.swift; sourceTree = "<group>"; };
 		3A49043AC4DC48EF88C729BE /* VocabularyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyManager.swift; sourceTree = "<group>"; };
 		3AE45FF59C2AC3113F02C4CC /* TranscriptSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSegment.swift; sourceTree = "<group>"; };
 		415A0246E468B367021CD3C0 /* ObsidianSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObsidianSettingsView.swift; sourceTree = "<group>"; };
@@ -114,6 +116,7 @@
 		5C0D2BB249FEACDA87A7EF0B /* PeopleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeopleView.swift; sourceTree = "<group>"; };
 		657275C542280701138F3D42 /* AudioSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSettingsView.swift; sourceTree = "<group>"; };
 		69AB1E3DF6577FB00871B539 /* AIPromptTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPromptTemplates.swift; sourceTree = "<group>"; };
+		69C5FDC952292078A71B2650 /* FluidAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FluidAudio; path = LocalPackages/FluidAudio; sourceTree = SOURCE_ROOT; };
 		6CA97EAE00616CBA74905937 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6D71B4ACDF2860C265D2E456 /* ContactDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactDetailView.swift; sourceTree = "<group>"; };
 		6EAE39B31598DBAB6A3CFFFB /* SpeakerDiarizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerDiarizationService.swift; sourceTree = "<group>"; };
@@ -423,6 +426,7 @@
 				00113CB03ECCACD1B6516101 /* ModelDownloadManager.swift */,
 				8F5B5497FD93F6C7BFE23CE6 /* SpeakerContactMapper.swift */,
 				6EAE39B31598DBAB6A3CFFFB /* SpeakerDiarizationService.swift */,
+				3808CC293C20D0583278C3F9 /* TranscriptDeduplicator.swift */,
 				BD246F57B67011F22F1AF64A /* TranscriptionCoordinator.swift */,
 				3A49043AC4DC48EF88C729BE /* VocabularyManager.swift */,
 			);
@@ -458,6 +462,7 @@
 			isa = PBXGroup;
 			children = (
 				9C5775164E7144B72E1C6C32 /* GreyEminence */,
+				F81B1B7AF5A8A3C9789B1F3B /* Packages */,
 				8FF4E8906A35E93D6FCC395C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -473,6 +478,14 @@
 				E1623F804DDEF0B92D3B6A41 /* VocabularySettingsView.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		F81B1B7AF5A8A3C9789B1F3B /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				69C5FDC952292078A71B2650 /* FluidAudio */,
+			);
+			name = Packages;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -526,10 +539,10 @@
 			mainGroup = F3BD6BBD57ADE683F8CBDED5;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				5FF511C481837262FA356C35 /* XCRemoteSwiftPackageReference "FluidAudio" */,
 				D6F1A7CCAA48EE7E20DE75AB /* XCRemoteSwiftPackageReference "KeychainAccess" */,
 				5389355E913BC6F7F2610057 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				4AD7498102CB31237F9A261B /* XCRemoteSwiftPackageReference "WhisperKit" */,
+				91DE630A608607CE0F5D4A40 /* XCLocalSwiftPackageReference "LocalPackages/FluidAudio" */,
 			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
@@ -622,6 +635,7 @@
 				FAF507B483908D2C3227910D /* SystemAudioCaptureService.swift in Sources */,
 				96FC88F4A50DBC442D684EA9 /* TaggedAudioBuffer.swift in Sources */,
 				D844A67123CE2E80F33DA503 /* TrajectorSettings.swift in Sources */,
+				5B0D134A768087BDA747466F /* TranscriptDeduplicator.swift in Sources */,
 				2A3497DC017555A3BE9E29C3 /* TranscriptSegment.swift in Sources */,
 				F15D9A6FD119A8B208111A26 /* TranscriptSegmentRow.swift in Sources */,
 				1E9491591B4678CBCE46C8E2 /* TranscriptionCoordinator.swift in Sources */,
@@ -706,16 +720,17 @@
 				CODE_SIGN_ENTITLEMENTS = GreyEminence/GreyEminence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
 			};
 			name = Debug;
 		};
@@ -727,16 +742,17 @@
 				CODE_SIGN_ENTITLEMENTS = GreyEminence/GreyEminence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.4.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = complete;
 			};
 			name = Release;
 		};
@@ -821,6 +837,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		91DE630A608607CE0F5D4A40 /* XCLocalSwiftPackageReference "LocalPackages/FluidAudio" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = LocalPackages/FluidAudio;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		4AD7498102CB31237F9A261B /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -836,14 +859,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.6.0;
-			};
-		};
-		5FF511C481837262FA356C35 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/FluidInference/FluidAudio.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.12.0;
 			};
 		};
 		D6F1A7CCAA48EE7E20DE75AB /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {
@@ -874,7 +889,6 @@
 		};
 		E73B3D65573E84BFDA22E0FA /* FluidAudio */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 5FF511C481837262FA356C35 /* XCRemoteSwiftPackageReference "FluidAudio" */;
 			productName = FluidAudio;
 		};
 /* End XCSwiftPackageProductDependency section */

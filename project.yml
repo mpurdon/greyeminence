@@ -11,8 +11,8 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "14.2"
-    SWIFT_STRICT_CONCURRENCY: complete
     ENABLE_USER_SCRIPT_SANDBOXING: false
+    SWIFT_STRICT_CONCURRENCY: complete
 
 packages:
   WhisperKit:
@@ -25,8 +25,7 @@ packages:
     url: https://github.com/kishikawakatsumi/KeychainAccess
     from: "4.2.2"
   FluidAudio:
-    url: https://github.com/FluidInference/FluidAudio.git
-    from: "0.12.0"
+    path: LocalPackages/FluidAudio
 
 targets:
   GreyEminence:
@@ -38,12 +37,13 @@ targets:
       - path: GreyEminence/Resources
     settings:
       base:
+        SWIFT_STRICT_CONCURRENCY: complete
         PRODUCT_BUNDLE_IDENTIFIER: com.greyeminence.app
         INFOPLIST_FILE: GreyEminence/Info.plist
         CODE_SIGN_ENTITLEMENTS: GreyEminence/GreyEminence.entitlements
         PRODUCT_NAME: Grey Eminence
-        MARKETING_VERSION: "0.4.0"
-        CURRENT_PROJECT_VERSION: "9"
+        MARKETING_VERSION: "0.4.1"
+        CURRENT_PROJECT_VERSION: "10"
         COMBINE_HIDPI_IMAGES: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
