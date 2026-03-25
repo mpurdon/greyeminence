@@ -209,8 +209,15 @@ final class RecordingViewModel {
             await coordinator.stop()
 
             // Read segments AFTER coordinator is fully stopped
-            self.segments = self.coordinator.segments
-            self.log.log("Recording stopped (\(self.segments.count) segments)", category: .audio)
+            let rawSegments = self.coordinator.segments
+            self.log.log("Recording stopped (\(rawSegments.count) raw segments)", category: .audio)
+
+            // Deduplicate mic echo segments before persisting
+            let dedupResult = TranscriptDeduplicator.deduplicate(rawSegments)
+            self.segments = dedupResult.segments
+            if dedupResult.removedCount > 0 {
+                self.log.log("Deduplication removed \(dedupResult.removedCount) echo segment(s)", category: .transcription)
+            }
 
             // Save segments to the meeting (mark all as final since recording ended)
             for segment in self.segments {
@@ -244,6 +251,9 @@ final class RecordingViewModel {
                         self.actionItems = result.actionItems.map { ActionItem(text: $0.text, assignee: $0.assignee) }
                         self.followUpQuestions = result.followUps
                         self.topics = result.topics
+                        if let title = result.title, !title.isEmpty {
+                            meeting.title = title
+                        }
                     }
                 } catch {
                     self.log.log("Final analysis failed (persisting existing insights): \(error.localizedDescription)", category: .ai, level: .warning)
