@@ -11,7 +11,7 @@ struct SegmentSnapshot: Sendable {
 
 struct AnalysisResult: Sendable {
     let title: String?
-    let summary: String
+    let summary: String          // JSON-encoded [SummarySection], or legacy "- bullet" string
     let actionItems: [ParsedActionItem]
     let followUps: [String]
     let topics: [String]
@@ -20,6 +20,33 @@ struct AnalysisResult: Sendable {
 struct ParsedActionItem: Sendable {
     let text: String
     let assignee: String?
+}
+
+// MARK: - Structured Summary Types
+
+struct SummaryPoint: Sendable, Codable {
+    let label: String
+    let detail: String
+}
+
+struct SummarySection: Sendable, Codable {
+    let title: String
+    let intro: String?
+    let points: [SummaryPoint]
+}
+
+extension SummarySection {
+    /// Parse a stored summary string into structured sections.
+    /// Returns nil for legacy flat-string summaries (backward compat).
+    static func parse(_ raw: String) -> [SummarySection]? {
+        guard raw.hasPrefix("["),
+              let data = raw.data(using: .utf8),
+              let sections = try? JSONDecoder().decode([SummarySection].self, from: data),
+              !sections.isEmpty else {
+            return nil
+        }
+        return sections
+    }
 }
 
 // MARK: - Intelligence Service
@@ -145,7 +172,17 @@ actor AIIntelligenceService {
         }
 
         let title = json["title"] as? String
-        let summary = json["summary"] as? String ?? ""
+
+        // summary is now a JSON array of section objects; re-encode to string for storage.
+        // Fall back to plain string for any model that returns the old format.
+        let summary: String
+        if let sectionsArray = json["summary"] as? [[String: Any]],
+           let reEncoded = try? JSONSerialization.data(withJSONObject: sectionsArray),
+           let jsonString = String(data: reEncoded, encoding: .utf8) {
+            summary = jsonString
+        } else {
+            summary = json["summary"] as? String ?? ""
+        }
 
         var actionItems: [ParsedActionItem] = []
         if let items = json["action_items"] as? [[String: Any]] {

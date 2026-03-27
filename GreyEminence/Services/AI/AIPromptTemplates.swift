@@ -13,29 +13,40 @@ enum AIPromptTemplates {
 
         {
           "title": "Short descriptive meeting title (5-8 words, final analysis only, omit during rolling analysis)",
-          "summary": "Bullet-point list summarizing the key points of the meeting so far. Each bullet should be a concise, standalone insight.",
+          "summary": [
+            {
+              "title": "Section title (2-5 words, sentence case, no period)",
+              "intro": "One optional sentence framing this section. Omit key if not needed.",
+              "points": [
+                { "label": "Subject (1-4 words)", "detail": "1-3 sentence explanation of this point." }
+              ]
+            }
+          ],
           "action_items": [{"text": "description of action", "assignee": "person or null"}],
           "follow_ups": ["question that should be followed up on"],
           "topics": ["key topic discussed"]
         }
 
         Rules:
-        - "summary" must be a bullet-point list (each bullet starting with "- "). Capture the overall \
-        arc, not just the latest segment. Each bullet MUST describe a specific, concrete point with \
-        a clear subject — what was discussed, decided, or proposed. Never include meta-observations \
-        about the meeting itself (e.g. "Meeting is in early stages", "Participant mentioned wanting \
-        to discuss something"). If there is not enough substantive content yet, return an empty string \
-        for the summary rather than filler bullets.
+        - "summary" MUST be a JSON array of section objects as shown above. Return [] if there \
+        is not enough substantive content yet — never return filler sections.
+        - Group related points into coherent sections. Aim for 2-5 sections with 2-6 points each. \
+        Each section covers one theme or topic area from the meeting.
+        - Each point's "label" is the subject (1-4 words, title case). "detail" is 1-3 sentences \
+        of specific, concrete information — what was discussed, decided, or proposed.
+        - Never include meta-observations about the meeting itself (e.g. "Meeting covered several topics").
+        - The "intro" field is optional — include it only when a sentence of context genuinely helps \
+        frame the points below it. Otherwise omit the key entirely.
         - "action_items" should only include concrete commitments or tasks, not vague statements. \
         Set "assignee" to the speaker's name if identifiable, otherwise null.
         - "follow_ups" are open questions or unresolved points that need attention after the meeting.
         - "topics" are the main subjects discussed, ordered by prominence.
         - If there is not enough content to produce meaningful insights, return empty arrays and \
-        an empty string for the summary. Do not generate placeholder or filler text.
+        [] for summary. Do not generate placeholder or filler text.
         - When updating a rolling analysis, ALWAYS preserve all previous action items, topics, \
-        and follow-up questions. Your summary must be cumulative — include key information from \
-        previous summaries plus new information. Never drop earlier insights unless they are \
-        explicitly resolved or contradicted in the conversation.
+        and follow-up questions. The PREVIOUS SUMMARY is a JSON array — parse it, keep all existing \
+        sections and points, add new points to the relevant sections or add new sections for new topics. \
+        Never drop earlier insights unless explicitly resolved or contradicted.
         """
     }
 
@@ -73,7 +84,7 @@ enum AIPromptTemplates {
         return """
         Here is your complete previous analysis of this meeting:
 
-        PREVIOUS SUMMARY:
+        PREVIOUS SUMMARY (JSON array of section objects — parse and extend this):
         \(previousSummary)
 
         PREVIOUS ACTION ITEMS:
@@ -86,9 +97,9 @@ enum AIPromptTemplates {
         \(topicsText)
 
         New transcript segments have been recorded since then. Extend your previous analysis \
-        with the new content. Keep ALL existing action items, follow-ups, and topics. Add new \
-        ones from the new transcript. Your summary should be cumulative — incorporate both \
-        previous and new information.
+        with the new content. For the summary: keep all existing sections and points, add new \
+        points to relevant existing sections, and add new sections for genuinely new topics. \
+        Keep ALL existing action items, follow-ups, and topics. Add new ones from the new transcript.
 
         NEW TRANSCRIPT:
         \(newTranscript)
@@ -125,9 +136,10 @@ enum AIPromptTemplates {
         - Generate a short, descriptive title for this meeting (5-8 words max, no quotes). \
         The title should capture the main topic or purpose, e.g. "Sprint Planning - Auth Service Redesign" \
         or "Q1 Budget Review with Finance". Return it in the "title" field.
-        - Write a clean, comprehensive summary as a bullet-point list covering the entire meeting arc. \
-        Each bullet must describe a specific, concrete point with a clear subject. Remove any \
-        meta-observations about the meeting itself (e.g. "Meeting started with introductions").
+        - Produce a clean, comprehensive summary as a JSON array of section objects (same schema \
+        as always). The CURRENT SUMMARY below is already in this JSON format — refine it: \
+        merge redundant points, tighten wording, reorder sections by importance, remove any \
+        meta-observations. Cover the full meeting arc.
         - Deduplicate action items — merge near-duplicates, remove redundant ones, \
         and keep the clearest phrasing.
         - Deduplicate follow-up questions — merge similar ones.
