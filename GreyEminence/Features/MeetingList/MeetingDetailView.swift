@@ -300,14 +300,13 @@ struct MeetingDetailView: View {
                 }
                 .toggleStyle(.checkbox)
                 .controlSize(.small)
-            }
 
-            // Remove duplicates
-            Button("Remove Duplicates") {
-                deduplicateTranscript()
+                Button("Remove Duplicates") {
+                    deduplicateTranscript()
+                }
+                .controlSize(.small)
+                .foregroundStyle(.secondary)
             }
-            .controlSize(.small)
-            .foregroundStyle(.secondary)
 
             // Revert all edits
             if editedCount > 0 {
