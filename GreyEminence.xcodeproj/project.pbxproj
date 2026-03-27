@@ -29,6 +29,7 @@
 		390FF076D5D31B58C391477A /* VocabularySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1623F804DDEF0B92D3B6A41 /* VocabularySettingsView.swift */; };
 		3BFAC0DA58C2B59A7B9DDADC /* MeetingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB956B7F4F0CA68BF37E5F5 /* MeetingListView.swift */; };
 		468D89A5C59728BCF165C8B5 /* MicrophoneCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFC782BC165D3DA75DFE688 /* MicrophoneCaptureService.swift */; };
+		487BD675B1D14E5FDE9AE4D7 /* StalledNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02E7B6743C5DE21C7E30951 /* StalledNotificationService.swift */; };
 		4A68EC33839FE5093B329490 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B83B40FCCFC9C150D3A4578 /* KeychainHelper.swift */; };
 		4B2EF779DCD9865FDCCF6D77 /* CommitmentTrackingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066FDCBC8824BB15CDDC73B0 /* CommitmentTrackingService.swift */; };
 		50F1D888439483986E026777 /* ClaudeAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57B9AB151CD1BBDDDCB15B67 /* ClaudeAPIClient.swift */; };
@@ -162,6 +163,7 @@
 		DBAB1E4C042E177AB57AA5C0 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		E1623F804DDEF0B92D3B6A41 /* VocabularySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularySettingsView.swift; sourceTree = "<group>"; };
 		E1894E666B02691D0316570C /* ContactPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactPicker.swift; sourceTree = "<group>"; };
+		F02E7B6743C5DE21C7E30951 /* StalledNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StalledNotificationService.swift; sourceTree = "<group>"; };
 		F441D2EB2BBE4A6F48F3B85C /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		FCA07D6809E46B405979C97F /* ContactRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactRowView.swift; sourceTree = "<group>"; };
 		FCF870910A70FECDA4849F93 /* MicLevelMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicLevelMonitor.swift; sourceTree = "<group>"; };
@@ -210,6 +212,14 @@
 			path = Dashboard;
 			sourceTree = "<group>";
 		};
+		2B0BC925F3D13DF8E9E62A87 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				F02E7B6743C5DE21C7E30951 /* StalledNotificationService.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
 		2C4A67C8092DBDF2AE78791E /* MenuBar */ = {
 			isa = PBXGroup;
 			children = (
@@ -225,6 +235,7 @@
 				392B84D25C99CD062D834C3B /* Audio */,
 				EE84E467662981650763E881 /* Calendar */,
 				986DADAEC1A5FF0C0B6D0B44 /* Logging */,
+				2B0BC925F3D13DF8E9E62A87 /* Notifications */,
 				8FE72467F7F1DEAB283B230B /* Obsidian */,
 				659932D8AA986AA0029A97B2 /* Persistence */,
 				C55C0EF6982FAB185A23C343 /* Transcription */,
@@ -635,6 +646,7 @@
 				6FAA39AF5B2ECCCC58143107 /* Speaker.swift in Sources */,
 				35E1728D83EE5E36848E0733 /* SpeakerContactMapper.swift in Sources */,
 				77072DF00BC4524199A52DC2 /* SpeakerDiarizationService.swift in Sources */,
+				487BD675B1D14E5FDE9AE4D7 /* StalledNotificationService.swift in Sources */,
 				A6084800D0732B67F76DA306 /* StorageManager.swift in Sources */,
 				FAF507B483908D2C3227910D /* SystemAudioCaptureService.swift in Sources */,
 				96FC88F4A50DBC442D684EA9 /* TaggedAudioBuffer.swift in Sources */,

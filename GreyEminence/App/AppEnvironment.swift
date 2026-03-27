@@ -13,6 +13,10 @@ final class AppEnvironment {
 
     func configure(modelContext: ModelContext) {
         self.meetingStore = MeetingStore(modelContext: modelContext)
+        Task {
+            await StalledNotificationService.shared.requestAuthorization()
+            StalledNotificationService.shared.refresh(in: modelContext)
+        }
     }
 }
 
