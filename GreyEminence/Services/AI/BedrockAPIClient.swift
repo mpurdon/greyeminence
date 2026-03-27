@@ -15,7 +15,7 @@ struct BedrockAPIClient: AIClient, Sendable {
     func sendMessage(
         system: String,
         userContent: String,
-        maxTokens: Int = 2048
+        maxTokens: Int = 4096
     ) async throws -> String {
         let body = RequestBody(
             anthropic_version: "bedrock-2023-05-31",

@@ -127,8 +127,10 @@ struct ContentView: View {
                         let clampedWidth = min(max(width, 280), geo.size.width * 0.7)
 
                         HStack(spacing: 0) {
-                            MeetingDetailView(meeting: meeting)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            MeetingDetailView(meeting: meeting, onSplitMeeting: { newMeeting in
+                                selectedMeeting = newMeeting
+                            })
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             if showInspector {
                                 inspectorDragHandle(containerWidth: geo.size.width)
                                 MeetingIntelligenceView(meeting: meeting)

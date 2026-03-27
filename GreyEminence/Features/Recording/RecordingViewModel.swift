@@ -327,8 +327,13 @@ final class RecordingViewModel {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(200))
                 await MainActor.run {
-                    self.segments = self.coordinator.segments
-                    self.segmentConfidence = self.coordinator.segmentConfidence
+                    let rawSegments = self.coordinator.segments
+                    let newConfidence = self.coordinator.segmentConfidence
+                    guard rawSegments.count != self.segments.count
+                        || newConfidence.count != self.segmentConfidence.count else { return }
+                    let dedupResult = TranscriptDeduplicator.deduplicate(rawSegments)
+                    self.segments = dedupResult.segments
+                    self.segmentConfidence = newConfidence
                 }
             }
         }
@@ -425,7 +430,8 @@ final class RecordingViewModel {
             await MainActor.run {
                 self.log.log("AI intelligence service starting (model: \(model))", category: .ai)
             }
-            let service = AIIntelligenceService(client: client, prepContext: prepCtx)
+            let meetingID = await MainActor.run { self.currentMeeting?.id }
+            let service = AIIntelligenceService(client: client, prepContext: prepCtx, meetingID: meetingID)
             await MainActor.run {
                 self.intelligenceService = service
             }

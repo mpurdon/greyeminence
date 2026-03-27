@@ -10,6 +10,7 @@ struct SegmentSnapshot: Sendable {
 }
 
 struct AnalysisResult: Sendable {
+    let title: String?
     let summary: String
     let actionItems: [ParsedActionItem]
     let followUps: [String]
@@ -26,15 +27,17 @@ struct ParsedActionItem: Sendable {
 actor AIIntelligenceService {
     private let client: any AIClient
     private let prepContext: MeetingPrepContext?
+    private let meetingID: UUID?
     private var previousSummary: String = ""
     private var previousActionItems: [ParsedActionItem] = []
     private var previousFollowUps: [String] = []
     private var previousTopics: [String] = []
     private var lastAnalyzedSegmentCount: Int = 0
 
-    init(client: any AIClient, prepContext: MeetingPrepContext? = nil) {
+    init(client: any AIClient, prepContext: MeetingPrepContext? = nil, meetingID: UUID? = nil) {
         self.client = client
         self.prepContext = prepContext
+        self.meetingID = meetingID
     }
 
     private var effectiveSystemPrompt: String {
@@ -67,11 +70,12 @@ actor AIIntelligenceService {
             )
         }
 
-        LogManager.send("AI analysis starting (\(nonEmpty.count) segments)", category: .ai)
+        LogManager.send("AI analysis starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)
         let response = try await client.sendMessage(
             system: effectiveSystemPrompt,
             userContent: userPrompt
         )
+        LogManager.send("AI raw response (\(response.count) chars): \(response.prefix(500))", category: .ai, meetingID: meetingID)
 
         let result = try parseResponse(response)
         previousSummary = result.summary
@@ -79,7 +83,7 @@ actor AIIntelligenceService {
         previousFollowUps = result.followUps
         previousTopics = result.topics
         lastAnalyzedSegmentCount = nonEmpty.count
-        LogManager.send("AI analysis complete", category: .ai)
+        LogManager.send("AI analysis complete", category: .ai, meetingID: meetingID)
         return result
     }
 
@@ -105,14 +109,15 @@ actor AIIntelligenceService {
             currentTopics: previousTopics
         )
 
-        LogManager.send("AI final cleanup starting (\(nonEmpty.count) segments)", category: .ai)
+        LogManager.send("AI final cleanup starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)
         let response = try await client.sendMessage(
             system: effectiveSystemPrompt,
             userContent: userPrompt
         )
+        LogManager.send("AI final cleanup raw response (\(response.count) chars): \(response.prefix(500))", category: .ai, meetingID: meetingID)
 
         let result = try parseResponse(response)
-        LogManager.send("AI final cleanup complete", category: .ai)
+        LogManager.send("AI final cleanup complete", category: .ai, meetingID: meetingID)
         return result
     }
 
@@ -133,9 +138,11 @@ actor AIIntelligenceService {
 
         guard let data = cleaned.data(using: .utf8),
               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            LogManager.send("AI parse failed — raw response: \(cleaned.prefix(1000))", category: .ai, level: .error, meetingID: meetingID)
             throw AIParseError.invalidJSON
         }
 
+        let title = json["title"] as? String
         let summary = json["summary"] as? String ?? ""
 
         var actionItems: [ParsedActionItem] = []
@@ -152,6 +159,7 @@ actor AIIntelligenceService {
         let topics = json["topics"] as? [String] ?? []
 
         return AnalysisResult(
+            title: title,
             summary: summary,
             actionItems: actionItems,
             followUps: followUps,

@@ -12,6 +12,7 @@ enum AIPromptTemplates {
         no explanation before or after:
 
         {
+          "title": "Short descriptive meeting title (5-8 words, final analysis only, omit during rolling analysis)",
           "summary": "Bullet-point list summarizing the key points of the meeting so far. Each bullet should be a concise, standalone insight.",
           "action_items": [{"text": "description of action", "assignee": "person or null"}],
           "follow_ups": ["question that should be followed up on"],
@@ -121,6 +122,9 @@ enum AIPromptTemplates {
         during live analysis. Produce a final, polished version of the insights.
 
         Your tasks:
+        - Generate a short, descriptive title for this meeting (5-8 words max, no quotes). \
+        The title should capture the main topic or purpose, e.g. "Sprint Planning - Auth Service Redesign" \
+        or "Q1 Budget Review with Finance". Return it in the "title" field.
         - Write a clean, comprehensive summary as a bullet-point list covering the entire meeting arc. \
         Each bullet must describe a specific, concrete point with a clear subject. Remove any \
         meta-observations about the meeting itself (e.g. "Meeting started with introductions").

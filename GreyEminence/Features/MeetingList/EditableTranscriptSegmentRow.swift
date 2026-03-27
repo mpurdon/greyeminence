@@ -3,11 +3,13 @@ import SwiftData
 
 struct EditableTranscriptSegmentRow: View {
     @Bindable var segment: TranscriptSegment
-    let allSegments: [TranscriptSegment]
+    var hasNext: Bool
     var isSelected: Bool = false
     var onDelete: (() -> Void)?
     var onMergeWithNext: (() -> Void)?
     var onSplit: ((String, String) -> Void)?
+    var onSplitMeeting: (() -> Void)?
+    var onChangeSpeakerForAll: ((Speaker) -> Void)?
     var onToggleSelection: (() -> Void)?
 
     @State private var isEditingText = false
@@ -16,15 +18,6 @@ struct EditableTranscriptSegmentRow: View {
     @State private var showSpeakerRename = false
     @State private var speakerName: String = ""
     @State private var showDeleteConfirmation = false
-
-    private var segmentIndex: Int? {
-        allSegments.firstIndex(where: { $0.id == segment.id })
-    }
-
-    private var hasNext: Bool {
-        guard let idx = segmentIndex else { return false }
-        return idx < allSegments.count - 1
-    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -198,6 +191,12 @@ struct EditableTranscriptSegmentRow: View {
 
         Divider()
 
+        Button("Split Into New Meeting") {
+            onSplitMeeting?()
+        }
+
+        Divider()
+
         Button("Delete Segment", role: .destructive) {
             showDeleteConfirmation = true
         }
@@ -264,15 +263,7 @@ struct EditableTranscriptSegmentRow: View {
     }
 
     private func changeSpeakerForAll(to newSpeaker: Speaker) {
-        let currentSpeaker = segment.speaker
-        for seg in allSegments where seg.speaker == currentSpeaker {
-            if !seg.isEdited {
-                seg.originalText = seg.text
-                seg.originalSpeakerData = seg.speakerData
-            }
-            seg.speaker = newSpeaker
-            seg.isEdited = true
-        }
+        onChangeSpeakerForAll?(newSpeaker)
     }
 
     private func commitSpeakerRename(applyToAll: Bool) {

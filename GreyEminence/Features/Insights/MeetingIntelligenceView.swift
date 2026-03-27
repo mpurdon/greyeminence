@@ -94,7 +94,7 @@ struct MeetingIntelligenceView: View {
                 reanalysisError = "AI not configured. Check Settings."
                 return
             }
-            let service = AIIntelligenceService(client: client)
+            let service = AIIntelligenceService(client: client, meetingID: meeting.id)
 
             let snapshots: [SegmentSnapshot] = meeting.segments
                 .sorted { $0.startTime < $1.startTime }
@@ -109,6 +109,11 @@ struct MeetingIntelligenceView: View {
             guard let result = try await service.performFinalAnalysis(segments: snapshots) else {
                 reanalysisError = "Analysis returned no results."
                 return
+            }
+
+            // Update meeting title if generated
+            if let title = result.title, !title.isEmpty {
+                meeting.title = title
             }
 
             // Persist new insight

@@ -6,22 +6,65 @@ import Foundation
 /// segment is removed.
 struct TranscriptDeduplicator {
 
-    /// Minimum fraction of time overlap between two segments to consider them
-    /// temporally coincident. Based on the shorter segment's duration.
-    static let timeOverlapThreshold: Double = 0.3
-
     /// Minimum text similarity (0–1) to consider two segments as duplicates.
     /// Uses bigram similarity which is robust to minor ASR differences.
     static let textSimilarityThreshold: Double = 0.45
 
-    /// Maximum allowed time gap (seconds) between segment midpoints to even
-    /// attempt similarity comparison. Avoids comparing distant segments.
-    static let maxMidpointGap: Double = 10.0
+    /// Maximum allowed time gap (seconds) between segment midpoints.
+    static let maxMidpointGap: Double = 15.0
+
+    /// Maximum seconds the mic segment's start time can lag behind the system
+    /// segment's start time. Echo always arrives after the source, so we allow
+    /// up to this much delay. A small negative value allows for ASR timing jitter.
+    static let maxEchoDelay: Double = 8.0
+
+    /// How far before the system segment's start the mic can begin (ASR jitter).
+    static let maxLeadTime: Double = 2.0
 
     struct DeduplicationResult {
         let segments: [TranscriptSegment]
         let removedCount: Int
         let removedSegments: [TranscriptSegment]
+    }
+
+    /// Scores for the best-matching system segment against a mic segment.
+    /// Used for debug display — shows why a segment was or wasn't removed.
+    struct MatchDebugInfo {
+        let systemText: String
+        let midpointGap: Double       // seconds between midpoints
+        let echoDelay: Double         // mic.startTime - sys.startTime (positive = mic is later)
+        let textSimilarity: Double    // 0–1, threshold: 0.45
+        let wouldRemove: Bool
+    }
+
+    /// Returns debug scoring info for a single mic segment against all system segments.
+    /// Returns the best candidate (highest text similarity among those passing midpoint check).
+    static func debugMatch(mic: TranscriptSegment, systemSegments: [TranscriptSegment]) -> MatchDebugInfo? {
+        guard !mic.text.hasPrefix("[Note]") else { return nil }
+        let micMid = (mic.startTime + mic.endTime) / 2.0
+
+        var best: MatchDebugInfo?
+        for sys in systemSegments {
+            let sysMid = (sys.startTime + sys.endTime) / 2.0
+            let gap = abs(micMid - sysMid)
+            guard gap <= maxMidpointGap else { continue }
+
+            let delay = mic.startTime - sys.startTime
+            let similarity = textSimilarity(mic.text, sys.text)
+            let timingOk = delay >= -maxLeadTime && delay <= maxEchoDelay
+            let wouldRemove = timingOk && similarity >= textSimilarityThreshold
+
+            if best == nil || similarity > best!.textSimilarity {
+                best = MatchDebugInfo(
+                    systemText: sys.text,
+                    midpointGap: gap,
+                    echoDelay: delay,
+                    textSimilarity: similarity,
+                    wouldRemove: wouldRemove
+                )
+            }
+        }
+        return best
     }
 
     /// Deduplicate segments by removing mic echo segments that match system
@@ -51,9 +94,10 @@ struct TranscriptDeduplicator {
                 let sysMid = (sys.startTime + sys.endTime) / 2.0
                 guard abs(micMid - sysMid) <= maxMidpointGap else { continue }
 
-                // Check time overlap
-                let overlap = timeOverlap(mic, sys)
-                guard overlap >= timeOverlapThreshold else { continue }
+                // Check echo timing: mic must start within the allowed delay window
+                // after the system segment (positive delay = mic is later, as expected for echo)
+                let delay = mic.startTime - sys.startTime
+                guard delay >= -maxLeadTime && delay <= maxEchoDelay else { continue }
 
                 // Check text similarity
                 let similarity = textSimilarity(mic.text, sys.text)
@@ -72,22 +116,6 @@ struct TranscriptDeduplicator {
             removedCount: removed.count,
             removedSegments: removed
         )
-    }
-
-    // MARK: - Time Overlap
-
-    /// Returns the fraction of overlap relative to the shorter segment's duration.
-    /// 0 = no overlap, 1 = complete overlap.
-    static func timeOverlap(_ a: TranscriptSegment, _ b: TranscriptSegment) -> Double {
-        let overlapStart = max(a.startTime, b.startTime)
-        let overlapEnd = min(a.endTime, b.endTime)
-        let overlapDuration = max(0, overlapEnd - overlapStart)
-
-        let aDuration = max(a.endTime - a.startTime, 0.1) // avoid div by zero
-        let bDuration = max(b.endTime - b.startTime, 0.1)
-        let shorter = min(aDuration, bDuration)
-
-        return overlapDuration / shorter
     }
 
     // MARK: - Text Similarity (Bigram / Dice coefficient)
