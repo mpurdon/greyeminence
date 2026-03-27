@@ -71,10 +71,12 @@ actor AIIntelligenceService {
         }
 
         LogManager.send("AI analysis starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)
-        let response = try await client.sendMessage(
-            system: effectiveSystemPrompt,
-            userContent: userPrompt
-        )
+        let response = try await withTimeout(seconds: 90) {
+            try await self.client.sendMessage(
+                system: self.effectiveSystemPrompt,
+                userContent: userPrompt
+            )
+        }
         LogManager.send("AI raw response (\(response.count) chars): \(response.prefix(500))", category: .ai, meetingID: meetingID)
 
         let result = try parseResponse(response)
@@ -91,13 +93,11 @@ actor AIIntelligenceService {
         let nonEmpty = segments.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         guard !nonEmpty.isEmpty else { return nil }
 
-        // If there are unanalyzed segments, run a rolling analysis first
-        if nonEmpty.count > lastAnalyzedSegmentCount {
-            _ = try await analyze(segments: segments)
+        // Single final pass with the full transcript. If we have prior accumulated context,
+        // use the cleanup prompt; otherwise fall back to initial analysis.
+        guard !previousSummary.isEmpty else {
+            return try await analyze(segments: segments)
         }
-
-        // Nothing accumulated — skip cleanup
-        guard !previousSummary.isEmpty else { return nil }
 
         // Final cleanup pass: send full transcript + all accumulated insights
         let fullTranscript = AIPromptTemplates.formatSegments(nonEmpty)
@@ -110,10 +110,12 @@ actor AIIntelligenceService {
         )
 
         LogManager.send("AI final cleanup starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)
-        let response = try await client.sendMessage(
-            system: effectiveSystemPrompt,
-            userContent: userPrompt
-        )
+        let response = try await withTimeout(seconds: 90) {
+            try await self.client.sendMessage(
+                system: self.effectiveSystemPrompt,
+                userContent: userPrompt
+            )
+        }
         LogManager.send("AI final cleanup raw response (\(response.count) chars): \(response.prefix(500))", category: .ai, meetingID: meetingID)
 
         let result = try parseResponse(response)
@@ -176,5 +178,30 @@ enum AIParseError: LocalizedError {
         case .invalidJSON:
             "Failed to parse AI response as JSON"
         }
+    }
+}
+
+enum AITimeoutError: LocalizedError {
+    case timedOut(seconds: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .timedOut(let seconds):
+            "AI request timed out after \(seconds) seconds"
+        }
+    }
+}
+
+/// Runs the given async throwing closure with a timeout. Throws `AITimeoutError.timedOut` if exceeded.
+private func withTimeout<T: Sendable>(seconds: Int, operation: @escaping @Sendable () async throws -> T) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask { try await operation() }
+        group.addTask {
+            try await Task.sleep(for: .seconds(seconds))
+            throw AITimeoutError.timedOut(seconds: seconds)
+        }
+        let result = try await group.next()!
+        group.cancelAll()
+        return result
     }
 }
