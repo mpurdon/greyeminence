@@ -24,16 +24,26 @@ struct MeetingIntelligenceView: View {
 
                     Spacer()
 
-                    if meeting.status == .completed && !meeting.segments.isEmpty && !isReanalyzing && !meeting.isAnalyzing {
-                        Button {
-                            Task { await reanalyze() }
-                        } label: {
-                            Label("Reanalyze", systemImage: "arrow.clockwise")
-                                .font(.caption)
+                    if meeting.status == .completed && !meeting.segments.isEmpty {
+                        if isReanalyzing || meeting.isAnalyzing {
+                            HStack(spacing: 4) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Analyzing...")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Button {
+                                Task { await reanalyze() }
+                            } label: {
+                                Label("Reanalyze", systemImage: "arrow.clockwise")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .help("Re-run AI analysis on this transcript")
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .help("Re-run AI analysis on this transcript")
                     }
                 }
                 .padding(.horizontal)

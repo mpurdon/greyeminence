@@ -49,7 +49,7 @@ struct ContentView: View {
     @State private var selectedDestination: SidebarDestination? = .dashboard
     @State private var selectedMeeting: Meeting?
     @State private var showInspector = true
-    @State private var sidebarExpanded = true
+    @State private var sidebarExpanded = false
     @State private var inspectorWidth: CGFloat?
     var recordingViewModel: RecordingViewModel
 
@@ -145,6 +145,7 @@ struct ContentView: View {
         case .meetings:
             NavigationSplitView {
                 MeetingListView(selectedMeeting: $selectedMeeting)
+                    .navigationSplitViewColumnWidth(min: 280, ideal: 300)
             } detail: {
                 if let meeting = selectedMeeting {
                     GeometryReader { geo in
