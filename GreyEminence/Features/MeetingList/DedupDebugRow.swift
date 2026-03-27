@@ -5,7 +5,7 @@ struct DedupDebugRow: View {
     let systemSegments: [TranscriptSegment]
 
     private var info: TranscriptDeduplicator.MatchDebugInfo? {
-        TranscriptDeduplicator.debugMatch(mic: mic, systemSegments: systemSegments)
+        TranscriptDeduplicator.debugMatch(mic: mic, sortedSystemSegments: systemSegments)
     }
 
     var body: some View {

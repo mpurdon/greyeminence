@@ -8,6 +8,7 @@ final class StalledNotificationService {
 
     private let center = UNUserNotificationCenter.current()
     private let notificationID = "com.greyeminence.stalled-summary"
+    private let commitmentService = CommitmentTrackingService()
 
     private init() {}
 
@@ -45,12 +46,8 @@ final class StalledNotificationService {
 
     /// Refresh the daily notification based on current stalled items in the model context.
     func refresh(in modelContext: ModelContext) {
-        let threshold = UserDefaults.standard.integer(forKey: "stalledThresholdDays")
-        let effectiveThreshold = threshold > 0 ? threshold : 7
-        let stalled = CommitmentTrackingService().stalledCommitments(
-            in: modelContext,
-            threshold: effectiveThreshold
-        )
+        let threshold = max(UserDefaults.standard.integer(forKey: "stalledThresholdDays"), 1)
+        let stalled = commitmentService.stalledCommitments(in: modelContext, threshold: threshold)
         scheduleDailySummary(stalledCount: stalled.count)
     }
 }

@@ -61,9 +61,7 @@ final class CalendarService {
     func matchContacts(attendees: [String], existing: [Contact]) -> [(name: String, contact: Contact?)] {
         attendees.map { name in
             let lowered = name.lowercased()
-            let firstName = lowered.components(separatedBy: " ").first ?? lowered
 
-            // Exact match: full name, email, or alias
             let exact = existing.first { contact in
                 contact.name.lowercased() == lowered ||
                 contact.email?.lowercased() == lowered ||
@@ -71,13 +69,18 @@ final class CalendarService {
             }
             if let exact { return (name, exact) }
 
-            // Fallback: first-name match (handles "Bob" / "Robert" if one is registered as "Bob Smith")
+            // Fallback: first-name match (handles "Bob" matching "Bob Smith")
+            let fn = firstName(from: lowered)
+            guard fn.count >= 3 else { return (name, nil) }
             let firstNameMatch = existing.first { contact in
-                let contactFirst = contact.name.lowercased().components(separatedBy: " ").first ?? ""
-                return contactFirst == firstName && contactFirst.count >= 3
+                firstName(from: contact.name.lowercased()) == fn
             }
             return (name, firstNameMatch)
         }
+    }
+
+    private func firstName(from fullName: String) -> String {
+        fullName.components(separatedBy: " ").first ?? fullName
     }
 
     /// Get the recurrence identifier for detecting recurring events.

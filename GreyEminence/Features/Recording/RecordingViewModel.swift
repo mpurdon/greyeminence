@@ -23,7 +23,6 @@ final class RecordingViewModel {
     var elapsedTime: TimeInterval = 0
     var segments: [TranscriptSegment] = []
 
-    // P1-A: Track real recording time to avoid drift on pause/resume
     private var recordingStartDate: Date?
     private var accumulatedPauseDuration: TimeInterval = 0
     private var pauseStartDate: Date?

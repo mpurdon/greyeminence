@@ -39,20 +39,20 @@ struct TranscriptDeduplicator {
 
     /// Returns debug scoring info for a single mic segment against all system segments.
     /// Returns the best candidate (highest text similarity among those passing midpoint check).
-    static func debugMatch(mic: TranscriptSegment, systemSegments: [TranscriptSegment]) -> MatchDebugInfo? {
+    /// `systemSegments` must be sorted by `startTime` ascending.
+    static func debugMatch(mic: TranscriptSegment, sortedSystemSegments: [TranscriptSegment]) -> MatchDebugInfo? {
         guard !mic.text.hasPrefix("[Note]") else { return nil }
         let micMid = (mic.startTime + mic.endTime) / 2.0
         let windowLow  = micMid - maxMidpointGap
         let windowHigh = micMid + maxMidpointGap
 
-        let sortedSys = systemSegments.sorted { $0.startTime < $1.startTime }
-        let sysMids = sortedSys.map { ($0.startTime + $0.endTime) / 2.0 }
+        let sysMids = sortedSystemSegments.map { ($0.startTime + $0.endTime) / 2.0 }
         let lo = lowerBound(sysMids, target: windowLow)
 
         var best: MatchDebugInfo?
         var idx = lo
-        while idx < sortedSys.count && sysMids[idx] <= windowHigh {
-            let sys = sortedSys[idx]
+        while idx < sortedSystemSegments.count && sysMids[idx] <= windowHigh {
+            let sys = sortedSystemSegments[idx]
             let gap = abs(micMid - sysMids[idx])
             let delay = mic.startTime - sys.startTime
             let similarity = textSimilarity(mic.text, sys.text)
