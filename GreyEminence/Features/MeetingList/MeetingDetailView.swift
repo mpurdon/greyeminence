@@ -293,12 +293,14 @@ struct MeetingDetailView: View {
 
             Spacer()
 
-            // Dedup debug mode
+            // Dedup debug mode (dev builds only)
+            #if DEBUG
             Toggle(isOn: $showDedupDebug) {
                 Label("Dedup Debug", systemImage: "magnifyingglass")
             }
             .toggleStyle(.checkbox)
             .controlSize(.small)
+            #endif
 
             // Remove duplicates
             Button("Remove Duplicates") {
@@ -530,6 +532,9 @@ struct MeetingDetailView: View {
             status: .completed
         )
         modelContext.insert(newMeeting)
+
+        // Copy attendees to the new meeting
+        newMeeting.attendees = meeting.attendees
 
         // Move segments: re-offset timestamps so the new meeting starts at 0.
         // Set segment.meeting — SwiftData automatically updates both sides of the relationship.
