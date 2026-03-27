@@ -57,15 +57,26 @@ final class CalendarService {
     }
 
     /// Match event attendees to existing Contact records.
+    /// Tries exact name/email/alias match first, then falls back to first-name match.
     func matchContacts(attendees: [String], existing: [Contact]) -> [(name: String, contact: Contact?)] {
         attendees.map { name in
             let lowered = name.lowercased()
-            let match = existing.first { contact in
+            let firstName = lowered.components(separatedBy: " ").first ?? lowered
+
+            // Exact match: full name, email, or alias
+            let exact = existing.first { contact in
                 contact.name.lowercased() == lowered ||
                 contact.email?.lowercased() == lowered ||
                 contact.speakerAliases.contains(where: { $0.lowercased() == lowered })
             }
-            return (name, match)
+            if let exact { return (name, exact) }
+
+            // Fallback: first-name match (handles "Bob" / "Robert" if one is registered as "Bob Smith")
+            let firstNameMatch = existing.first { contact in
+                let contactFirst = contact.name.lowercased().components(separatedBy: " ").first ?? ""
+                return contactFirst == firstName && contactFirst.count >= 3
+            }
+            return (name, firstNameMatch)
         }
     }
 
