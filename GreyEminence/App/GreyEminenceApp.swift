@@ -12,7 +12,7 @@ struct GreyEminenceApp: App {
         userDriverDelegate: nil
     )
 
-    var sharedModelContainer: ModelContainer = {
+    var sharedModelContainer: ModelContainer? = {
         let schema = Schema([
             Meeting.self,
             TranscriptSegment.self,
@@ -25,11 +25,7 @@ struct GreyEminenceApp: App {
             schema: schema,
             isStoredInMemoryOnly: false
         )
-        do {
-            return try ModelContainer(for: schema, configurations: [config])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
+        return try? ModelContainer(for: schema, configurations: [config])
     }()
 
     private var menuBarIcon: String {
@@ -42,26 +38,67 @@ struct GreyEminenceApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(recordingViewModel: recordingViewModel)
-                .environment(appEnvironment)
-                .onAppear {
-                    appEnvironment.configure(
-                        modelContext: sharedModelContainer.mainContext
-                    )
-                }
+            if let container = sharedModelContainer {
+                ContentView(recordingViewModel: recordingViewModel)
+                    .environment(appEnvironment)
+                    .onAppear {
+                        appEnvironment.configure(modelContext: container.mainContext)
+                    }
+                    .modelContainer(container)
+            } else {
+                DatabaseErrorView()
+            }
         }
-        .modelContainer(sharedModelContainer)
         .defaultSize(width: 1200, height: 800)
 
         MenuBarExtra("Grey Eminence", systemImage: menuBarIcon) {
-            MenuBarView(viewModel: recordingViewModel)
-                .modelContainer(sharedModelContainer)
+            if let container = sharedModelContainer {
+                MenuBarView(viewModel: recordingViewModel)
+                    .modelContainer(container)
+            }
         }
 
         Settings {
-            SettingsView(updater: updaterController.updater)
-                .environment(appEnvironment)
-                .modelContainer(sharedModelContainer)
+            if let container = sharedModelContainer {
+                SettingsView(updater: updaterController.updater)
+                    .environment(appEnvironment)
+                    .modelContainer(container)
+            }
         }
+    }
+}
+
+struct DatabaseErrorView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
+            Text("Could Not Open Database")
+                .font(.title2.weight(.semibold))
+            Text("Grey Eminence was unable to open its data store. This can happen after a corrupted update.\n\nYou can try deleting the database and restarting, or contact support.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 400)
+            HStack(spacing: 12) {
+                Button("Quit") {
+                    NSApp.terminate(nil)
+                }
+                Button("Reset Database…") {
+                    resetDatabase()
+                }
+                .foregroundStyle(.red)
+            }
+        }
+        .padding(40)
+        .frame(minWidth: 500, minHeight: 300)
+    }
+
+    private func resetDatabase() {
+        let fm = FileManager.default
+        guard let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+        let dbDir = appSupport.appendingPathComponent("GreyEminence")
+        try? fm.removeItem(at: dbDir)
+        NSApp.terminate(nil)
     }
 }
