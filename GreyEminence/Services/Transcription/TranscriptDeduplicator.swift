@@ -42,13 +42,18 @@ struct TranscriptDeduplicator {
     static func debugMatch(mic: TranscriptSegment, systemSegments: [TranscriptSegment]) -> MatchDebugInfo? {
         guard !mic.text.hasPrefix("[Note]") else { return nil }
         let micMid = (mic.startTime + mic.endTime) / 2.0
+        let windowLow  = micMid - maxMidpointGap
+        let windowHigh = micMid + maxMidpointGap
+
+        let sortedSys = systemSegments.sorted { $0.startTime < $1.startTime }
+        let sysMids = sortedSys.map { ($0.startTime + $0.endTime) / 2.0 }
+        let lo = lowerBound(sysMids, target: windowLow)
 
         var best: MatchDebugInfo?
-        for sys in systemSegments {
-            let sysMid = (sys.startTime + sys.endTime) / 2.0
-            let gap = abs(micMid - sysMid)
-            guard gap <= maxMidpointGap else { continue }
-
+        var idx = lo
+        while idx < sortedSys.count && sysMids[idx] <= windowHigh {
+            let sys = sortedSys[idx]
+            let gap = abs(micMid - sysMids[idx])
             let delay = mic.startTime - sys.startTime
             let similarity = textSimilarity(mic.text, sys.text)
             let timingOk = delay >= -maxLeadTime && delay <= maxEchoDelay
@@ -63,6 +68,7 @@ struct TranscriptDeduplicator {
                     wouldRemove: wouldRemove
                 )
             }
+            idx += 1
         }
         return best
     }
@@ -81,30 +87,33 @@ struct TranscriptDeduplicator {
             return DeduplicationResult(segments: sorted, removedCount: 0, removedSegments: [])
         }
 
+        // Pre-extract midpoints for binary search (both arrays are startTime-sorted)
+        let sysMids = systemSegments.map { ($0.startTime + $0.endTime) / 2.0 }
+
         var micIDsToRemove = Set<UUID>()
 
         for mic in micSegments {
-            // Skip manual notes
             if mic.text.hasPrefix("[Note]") { continue }
 
             let micMid = (mic.startTime + mic.endTime) / 2.0
+            let windowLow  = micMid - maxMidpointGap
+            let windowHigh = micMid + maxMidpointGap
 
-            for sys in systemSegments {
-                // Quick distance check before expensive similarity
-                let sysMid = (sys.startTime + sys.endTime) / 2.0
-                guard abs(micMid - sysMid) <= maxMidpointGap else { continue }
-
-                // Check echo timing: mic must start within the allowed delay window
-                // after the system segment (positive delay = mic is later, as expected for echo)
+            // Binary-search for the first system segment whose midpoint >= windowLow
+            let lo = lowerBound(sysMids, target: windowLow)
+            // Scan forward until midpoint exceeds windowHigh
+            var idx = lo
+            while idx < systemSegments.count && sysMids[idx] <= windowHigh {
+                let sys = systemSegments[idx]
                 let delay = mic.startTime - sys.startTime
-                guard delay >= -maxLeadTime && delay <= maxEchoDelay else { continue }
-
-                // Check text similarity
-                let similarity = textSimilarity(mic.text, sys.text)
-                if similarity >= textSimilarityThreshold {
-                    micIDsToRemove.insert(mic.id)
-                    break // This mic segment is a duplicate, no need to check more
+                if delay >= -maxLeadTime && delay <= maxEchoDelay {
+                    let similarity = textSimilarity(mic.text, sys.text)
+                    if similarity >= textSimilarityThreshold {
+                        micIDsToRemove.insert(mic.id)
+                        break
+                    }
                 }
+                idx += 1
             }
         }
 
@@ -116,6 +125,16 @@ struct TranscriptDeduplicator {
             removedCount: removed.count,
             removedSegments: removed
         )
+    }
+
+    /// Returns the index of the first element in `array` that is >= `target`.
+    private static func lowerBound(_ array: [Double], target: Double) -> Int {
+        var lo = 0, hi = array.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if array[mid] < target { lo = mid + 1 } else { hi = mid }
+        }
+        return lo
     }
 
     // MARK: - Text Similarity (Bigram / Dice coefficient)
