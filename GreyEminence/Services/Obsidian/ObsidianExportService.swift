@@ -49,8 +49,8 @@ enum ObsidianExportService {
         )
 
         let dateString = formatDate(meeting.date)
-        let filename = sanitizeFilename("\(meeting.title) — \(dateString).md")
-        let fileURL = folderURL.appendingPathComponent(filename)
+        let baseName = sanitizeFilename("\(meeting.title) — \(dateString)")
+        let fileURL = uniqueURL(in: folderURL, baseName: baseName, suffix: meeting.id)
 
         do {
             try markdown.write(to: fileURL, atomically: true, encoding: .utf8)
@@ -147,6 +147,17 @@ enum ObsidianExportService {
     }
 
     // MARK: - Helpers
+
+    /// Returns a URL that doesn't collide with existing files. If `baseName.md` exists,
+    /// appends a short UUID prefix: `baseName — abc123.md`.
+    private static func uniqueURL(in folder: URL, baseName: String, suffix: UUID) -> URL {
+        let candidate = folder.appendingPathComponent("\(baseName).md")
+        guard FileManager.default.fileExists(atPath: candidate.path) else {
+            return candidate
+        }
+        let shortID = String(suffix.uuidString.prefix(6).lowercased())
+        return folder.appendingPathComponent("\(baseName) — \(shortID).md")
+    }
 
     private static func sanitizeFilename(_ name: String) -> String {
         let illegal = CharacterSet(charactersIn: "/:\\?\"<>|*")
