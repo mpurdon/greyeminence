@@ -22,6 +22,11 @@ final class RecordingViewModel {
     var aiActivityState: AIActivityState = .idle
     var elapsedTime: TimeInterval = 0
     var segments: [TranscriptSegment] = []
+
+    // P1-A: Track real recording time to avoid drift on pause/resume
+    private var recordingStartDate: Date?
+    private var accumulatedPauseDuration: TimeInterval = 0
+    private var pauseStartDate: Date?
     var currentMeeting: Meeting?
     var streamingSummary: String = ""
     var actionItems: [ActionItem] = []
@@ -140,6 +145,9 @@ final class RecordingViewModel {
         currentMeeting = meeting
         state = .recording
         elapsedTime = 0
+        recordingStartDate = Date()
+        accumulatedPauseDuration = 0
+        pauseStartDate = nil
         segments = []
         actionItems = []
         followUpQuestions = []
@@ -157,12 +165,26 @@ final class RecordingViewModel {
     func pauseRecording() {
         state = .paused
         timer?.invalidate()
+        pauseStartDate = Date()
+        Task {
+            await micCapture.suspendCapture()
+            await systemCapture.suspendCapture()
+        }
         log.log("Recording paused", category: .audio)
     }
 
     func resumeRecording() {
+        // Accumulate the pause duration before restarting timer
+        if let pauseStart = pauseStartDate {
+            accumulatedPauseDuration += Date().timeIntervalSince(pauseStart)
+            pauseStartDate = nil
+        }
         state = .recording
         startTimer()
+        Task {
+            await micCapture.resumeCapture()
+            await systemCapture.resumeCapture()
+        }
         log.log("Recording resumed", category: .audio)
     }
 
@@ -480,10 +502,16 @@ final class RecordingViewModel {
             self.log.log("AI waiting \(seconds)s before \(label)", category: .ai)
             self.aiActivityState = .waiting(secondsRemaining: seconds)
         }
-        for remaining in stride(from: seconds, through: 1, by: -1) {
+        var remaining = seconds
+        while remaining > 0 {
             guard !Task.isCancelled else { return }
-            await MainActor.run {
-                self.aiActivityState = .waiting(secondsRemaining: remaining)
+            // Don't count down while paused
+            let isPaused = await MainActor.run { self.state == .paused }
+            if !isPaused {
+                remaining -= 1
+                await MainActor.run {
+                    self.aiActivityState = .waiting(secondsRemaining: remaining)
+                }
             }
             try? await Task.sleep(for: .seconds(1))
         }
@@ -505,7 +533,8 @@ final class RecordingViewModel {
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.elapsedTime += 1
+                guard let self, let start = self.recordingStartDate else { return }
+                self.elapsedTime = Date().timeIntervalSince(start) - self.accumulatedPauseDuration
             }
         }
     }

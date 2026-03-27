@@ -62,6 +62,18 @@ actor MicrophoneCaptureService {
         return stream
     }
 
+    func suspendCapture() {
+        guard isCapturing else { return }
+        audioEngine?.pause()
+        LogManager.send("Microphone capture suspended", category: .audio)
+    }
+
+    func resumeCapture() {
+        guard isCapturing, let engine = audioEngine else { return }
+        try? engine.start()
+        LogManager.send("Microphone capture resumed", category: .audio)
+    }
+
     func stopCapture() {
         guard isCapturing else { return }
 

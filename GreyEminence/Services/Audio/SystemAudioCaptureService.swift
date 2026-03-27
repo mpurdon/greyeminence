@@ -144,6 +144,18 @@ actor SystemAudioCaptureService {
         return stream
     }
 
+    func suspendCapture() {
+        guard isCapturing, let procID = deviceProcID, aggregateDeviceID != kAudioObjectUnknown else { return }
+        AudioDeviceStop(aggregateDeviceID, procID)
+        LogManager.send("System audio capture suspended", category: .audio)
+    }
+
+    func resumeCapture() {
+        guard isCapturing, let procID = deviceProcID, aggregateDeviceID != kAudioObjectUnknown else { return }
+        AudioDeviceStart(aggregateDeviceID, procID)
+        LogManager.send("System audio capture resumed", category: .audio)
+    }
+
     func stopCapture() {
         guard isCapturing else { return }
 
