@@ -16,6 +16,8 @@ struct APIKeySettingsView: View {
     @State private var hasAWSAccess = false
     @State private var hasClaudeConfig = false
     @State private var isSSOLoggingIn = false
+    @State private var keychainSaveError: String?
+    @State private var keyIsMemoryOnly = false
 
     private enum ValidationResult {
         case success
@@ -54,6 +56,15 @@ struct APIKeySettingsView: View {
             loadAPIKey()
             refreshAWSProfiles()
         }
+        .alert("Keychain Error", isPresented: Binding(
+            get: { keychainSaveError != nil },
+            set: { if !$0 { keychainSaveError = nil } }
+        )) {
+            Button("OK", role: .cancel) { keychainSaveError = nil }
+        } message: {
+            Text(keychainSaveError ?? "")
+                + Text("\n\nThe API key is held in memory for this session but will not persist after you quit.")
+        }
     }
 
     // MARK: - Anthropic
@@ -88,6 +99,10 @@ struct APIKeySettingsView: View {
                     Label("Saved", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                         .font(.caption)
+                } else if keyIsMemoryOnly {
+                    Label("Not saved to Keychain", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.caption)
                 }
 
                 Spacer()
@@ -98,6 +113,12 @@ struct APIKeySettingsView: View {
                     validateAnthropic()
                 }
                 .disabled(apiKey.isEmpty || isValidating)
+            }
+
+            if keyIsMemoryOnly {
+                Text("The API key could not be saved to Keychain. It will work this session but will be lost when you quit the app.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
 
             Text("Your API key is stored securely in the macOS Keychain and never transmitted except to the Claude API.")
@@ -282,12 +303,16 @@ struct APIKeySettingsView: View {
         do {
             try KeychainHelper.set(trimmed, key: AIPromptTemplates.keychainKey)
             isSaved = true
+            keyIsMemoryOnly = false
+            keychainSaveError = nil
             Task {
                 try? await Task.sleep(for: .seconds(2))
                 isSaved = false
             }
         } catch {
-            // Keychain save failed silently — key stays in memory only
+            keyIsMemoryOnly = true
+            keychainSaveError = "Keychain error: \(error.localizedDescription)"
+            LogManager.send("Keychain save failed: \(error.localizedDescription)", category: .general, level: .error)
         }
     }
 
@@ -342,7 +367,11 @@ struct APIKeySettingsView: View {
     }
 
     private func loadAPIKey() {
-        apiKey = (try? KeychainHelper.get(AIPromptTemplates.keychainKey)) ?? ""
+        let stored = try? KeychainHelper.get(AIPromptTemplates.keychainKey)
+        apiKey = stored ?? ""
+        // If no key is stored in keychain but apiKey somehow has a value (e.g., prior session memory-only),
+        // that's fine — keyIsMemoryOnly will only be set if a save attempt explicitly fails.
+        keyIsMemoryOnly = false
     }
 
     private func validateAnthropic() {
