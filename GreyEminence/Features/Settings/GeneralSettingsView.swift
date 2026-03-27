@@ -7,6 +7,7 @@ struct GeneralSettingsView: View {
     @AppStorage("showMenuBarIcon") private var showMenuBar = true
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("calendarIntegration") private var calendarIntegration = false
+    @AppStorage("stalledThresholdDays") private var stalledThresholdDays = 7
 
     var body: some View {
         Form {
@@ -25,6 +26,22 @@ struct GeneralSettingsView: View {
                 Toggle("Auto-detect calendar events", isOn: $calendarIntegration)
             } header: {
                 Label("Recording", systemImage: "record.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .textCase(nil)
+            }
+
+            Section {
+                Stepper(
+                    "Stalled threshold: \(stalledThresholdDays) day\(stalledThresholdDays == 1 ? "" : "s")",
+                    value: $stalledThresholdDays,
+                    in: 1...90
+                )
+                Text("Action items older than this are flagged as stalled in the Tasks view.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Label("Tasks", systemImage: "checkmark.circle")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .textCase(nil)

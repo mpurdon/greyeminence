@@ -45,7 +45,7 @@ final class CommitmentTrackingService {
     }
 
     /// Find stalled items assigned to a specific contact.
-    func stalledCommitments(for contact: Contact) -> [StalledCommitment] {
+    func stalledCommitments(for contact: Contact, threshold: Int = 7) -> [StalledCommitment] {
         let now = Date.now
         let calendar = Calendar.current
 
@@ -53,7 +53,7 @@ final class CommitmentTrackingService {
             .filter { !$0.isCompleted }
             .compactMap { item in
                 let days = calendar.dateComponents([.day], from: item.createdAt, to: now).day ?? 0
-                guard days >= 7 else { return nil }
+                guard days >= threshold else { return nil }
                 return StalledCommitment(
                     id: item.id,
                     actionItem: item,

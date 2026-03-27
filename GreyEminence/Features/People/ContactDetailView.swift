@@ -3,6 +3,7 @@ import SwiftData
 
 struct ContactDetailView: View {
     @Bindable var contact: Contact
+    @AppStorage("stalledThresholdDays") private var stalledThresholdDays = 7
 
     var body: some View {
         List {
@@ -59,7 +60,7 @@ struct ContactDetailView: View {
                     Text("Commitments (\(contact.assignedActionItems.count))")
                 }
 
-                let stalled = commitmentService.stalledCommitments(for: contact)
+                let stalled = commitmentService.stalledCommitments(for: contact, threshold: stalledThresholdDays)
                 if !stalled.isEmpty {
                     Section("Stalled (\(stalled.count))") {
                         ForEach(stalled) { item in
