@@ -51,6 +51,7 @@ struct ContentView: View {
     @State private var showInspector = true
     @State private var sidebarExpanded = false
     @State private var inspectorWidth: CGFloat?
+    @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
     var recordingViewModel: RecordingViewModel
 
     var body: some View {
@@ -82,6 +83,11 @@ struct ContentView: View {
             selectedDestination = .meetings
             showInspector = true
             recordingViewModel.completedMeeting = nil
+        }
+        .onChange(of: developerToolsEnabled) { _, enabled in
+            if !enabled && selectedDestination == .activityLog {
+                selectedDestination = .dashboard
+            }
         }
         .onAppear {
             recoverOrphanedMeetings()

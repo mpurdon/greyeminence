@@ -72,6 +72,7 @@
 		D59E4FDE79625794D5A8A32E /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6774606B2258926F847E4C4 /* AppEnvironment.swift */; };
 		D844A67123CE2E80F33DA503 /* TrajectorSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93C28939DE9447A9DCE2636A /* TrajectorSettings.swift */; };
 		DBDF5229655F6F36425F0F6F /* ObsidianSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 415A0246E468B367021CD3C0 /* ObsidianSettingsView.swift */; };
+		A1B2C3D4E5F60001A1B2C3D4 /* DeveloperSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002A1B2C3D4 /* DeveloperSettingsView.swift */; };
 		DFD5D83CB62AE26B8D30DEFA /* AISummarySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F179608AFFAA08AE6B8ADE1 /* AISummarySection.swift */; };
 		E2632D99502C0B96E12734AF /* AddContactSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABFD6367AB1A91EBD9D2A865 /* AddContactSheet.swift */; };
 		E70B167BE10778113358F597 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 343CDDEE0B27FAA559721E19 /* Sparkle */; };
@@ -108,6 +109,7 @@
 		3A49043AC4DC48EF88C729BE /* VocabularyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyManager.swift; sourceTree = "<group>"; };
 		3AE45FF59C2AC3113F02C4CC /* TranscriptSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSegment.swift; sourceTree = "<group>"; };
 		415A0246E468B367021CD3C0 /* ObsidianSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObsidianSettingsView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60002A1B2C3D4 /* DeveloperSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperSettingsView.swift; sourceTree = "<group>"; };
 		4B86DBE859B4EF56428216AA /* MeetingRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRowView.swift; sourceTree = "<group>"; };
 		4D73DBC02E9A067276E806B8 /* AIClientFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClientFactory.swift; sourceTree = "<group>"; };
 		4DAA9CB7A537E882B021ABF4 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -488,6 +490,7 @@
 				657275C542280701138F3D42 /* AudioSettingsView.swift */,
 				97149F3BA600B75B86FBBC1A /* GeneralSettingsView.swift */,
 				415A0246E468B367021CD3C0 /* ObsidianSettingsView.swift */,
+				A1B2C3D4E5F60002A1B2C3D4 /* DeveloperSettingsView.swift */,
 				4DAA9CB7A537E882B021ABF4 /* SettingsView.swift */,
 				E1623F804DDEF0B92D3B6A41 /* VocabularySettingsView.swift */,
 			);
@@ -637,6 +640,7 @@
 				98A16A6B0DB5EA0266B8FDA4 /* NoteInputBar.swift in Sources */,
 				24283F84D0FD2716A6806F48 /* ObsidianExportService.swift in Sources */,
 				DBDF5229655F6F36425F0F6F /* ObsidianSettingsView.swift in Sources */,
+				A1B2C3D4E5F60001A1B2C3D4 /* DeveloperSettingsView.swift in Sources */,
 				A173DAAD896AF99772AC00EA /* PeopleView.swift in Sources */,
 				6428B269561C1610AE114AB8 /* RecordingToolbar.swift in Sources */,
 				166B9F5D6DE977883E7A1EC7 /* RecordingView.swift in Sources */,

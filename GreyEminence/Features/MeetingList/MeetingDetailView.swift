@@ -17,6 +17,7 @@ struct MeetingDetailView: View {
     @State private var isSplittingMeeting = false
     @State private var sortedSegments: [TranscriptSegment] = []
     @State private var showDedupDebug = false
+    @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
 
     var onSplitMeeting: ((Meeting) -> Void)?
 
@@ -293,14 +294,13 @@ struct MeetingDetailView: View {
 
             Spacer()
 
-            // Dedup debug mode (dev builds only)
-            #if DEBUG
-            Toggle(isOn: $showDedupDebug) {
-                Label("Dedup Debug", systemImage: "magnifyingglass")
+            if developerToolsEnabled {
+                Toggle(isOn: $showDedupDebug) {
+                    Label("Dedup Debug", systemImage: "magnifyingglass")
+                }
+                .toggleStyle(.checkbox)
+                .controlSize(.small)
             }
-            .toggleStyle(.checkbox)
-            .controlSize(.small)
-            #endif
 
             // Remove duplicates
             Button("Remove Duplicates") {

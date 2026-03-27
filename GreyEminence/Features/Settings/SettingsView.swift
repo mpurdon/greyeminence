@@ -7,6 +7,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     case ai
     case vocabulary
     case obsidian
+    case developer
 
     var id: String { rawValue }
 
@@ -17,6 +18,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .ai: "AI"
         case .vocabulary: "Vocabulary"
         case .obsidian: "Obsidian"
+        case .developer: "Developer"
         }
     }
 
@@ -27,6 +29,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .ai: "brain"
         case .vocabulary: "textformat.abc"
         case .obsidian: "doc.text"
+        case .developer: "hammer"
         }
     }
 
@@ -37,6 +40,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .ai: .purple
         case .vocabulary: .teal
         case .obsidian: .indigo
+        case .developer: .brown
         }
     }
 
@@ -77,6 +81,8 @@ struct SettingsView: View {
                 VocabularySettingsView()
             case .obsidian:
                 ObsidianSettingsView()
+            case .developer:
+                DeveloperSettingsView()
             }
         }
         .modifier(SettingsToolbarModifier())

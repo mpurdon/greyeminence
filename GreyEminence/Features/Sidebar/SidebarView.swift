@@ -4,6 +4,7 @@ import SwiftData
 struct SidebarView: View {
     @Binding var selection: SidebarDestination?
     @Binding var isExpanded: Bool
+    @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
     @Query(filter: #Predicate<ActionItem> { !$0.isCompleted })
     private var pendingActions: [ActionItem]
 
@@ -27,7 +28,9 @@ struct SidebarView: View {
                     sidebarItem(.meetings)
                     tasksItem
                     sidebarItem(.people)
-                    sidebarItem(.activityLog)
+                    if developerToolsEnabled {
+                        sidebarItem(.activityLog)
+                    }
                 }
                 .padding(.horizontal, 6)
             }
