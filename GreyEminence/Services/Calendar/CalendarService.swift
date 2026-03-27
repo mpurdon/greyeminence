@@ -83,20 +83,13 @@ final class CalendarService {
     ) {
         guard let recurrenceID = recurrenceID(for: event) else { return }
 
-        // Look for existing meetings with this calendar event series
+        // Look for existing meetings with this specific recurrence ID
         let descriptor = FetchDescriptor<Meeting>(
             predicate: #Predicate<Meeting> { m in
-                m.calendarEventID != nil
+                m.calendarEventID == recurrenceID
             }
         )
-        guard let existingMeetings = try? context.fetch(descriptor) else { return }
-
-        // Find meetings from the same recurring event
-        let seriesMeetings = existingMeetings.filter { m in
-            guard let eventID = m.calendarEventID else { return false }
-            // EventKit uses the same calendarItemIdentifier for recurring instances
-            return eventID == recurrenceID || m.seriesID != nil
-        }
+        guard let seriesMeetings = try? context.fetch(descriptor) else { return }
 
         if let existingSeries = seriesMeetings.first(where: { $0.seriesID != nil }) {
             // Join existing series
