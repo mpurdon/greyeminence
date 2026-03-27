@@ -45,6 +45,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
 
 struct ContentView: View {
     @Environment(AppEnvironment.self) private var appEnvironment
+    @Environment(\.modelContext) private var modelContext
     @State private var selectedDestination: SidebarDestination? = .dashboard
     @State private var selectedMeeting: Meeting?
     @State private var showInspector = true
@@ -82,6 +83,31 @@ struct ContentView: View {
             showInspector = true
             recordingViewModel.completedMeeting = nil
         }
+        .onAppear {
+            recoverOrphanedMeetings()
+        }
+    }
+
+    /// On launch, mark any meetings still stuck in .recording or .paused as .completed.
+    /// These are meetings from a previous session that was interrupted before stopRecording ran.
+    private func recoverOrphanedMeetings() {
+        let statusRecording = MeetingStatus.recording
+        let statusPaused = MeetingStatus.paused
+        let descriptor = FetchDescriptor<Meeting>(
+            predicate: #Predicate { $0.status == statusRecording || $0.status == statusPaused }
+        )
+        guard let orphans = try? modelContext.fetch(descriptor), !orphans.isEmpty else { return }
+        for meeting in orphans {
+            meeting.status = .completed
+            if meeting.title.hasPrefix("Meeting ") {
+                meeting.title += " (interrupted)"
+            }
+            // Clear stale audio file paths — the files are likely incomplete
+            meeting.audioFilePath = nil
+            meeting.systemAudioFilePath = nil
+        }
+        try? modelContext.save()
+        LogManager.send("Recovered \(orphans.count) interrupted recording(s)", category: .general)
     }
 
     private func inspectorDragHandle(containerWidth: CGFloat) -> some View {
@@ -188,6 +214,7 @@ struct ContentView: View {
 
 struct AllTasksView: View {
     @Environment(\.modelContext) private var modelContext
+    @AppStorage("stalledThresholdDays") private var stalledThresholdDays = 7
     @Query(filter: #Predicate<ActionItem> { !$0.isCompleted })
     private var pendingItems: [ActionItem]
 
@@ -195,7 +222,7 @@ struct AllTasksView: View {
     private var completedItems: [ActionItem]
 
     private var stalledItems: [StalledCommitment] {
-        CommitmentTrackingService().stalledCommitments(in: modelContext)
+        CommitmentTrackingService().stalledCommitments(in: modelContext, threshold: stalledThresholdDays)
     }
 
     private var nonStalledPending: [ActionItem] {
