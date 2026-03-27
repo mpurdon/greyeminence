@@ -105,8 +105,14 @@ struct MeetingIntelligenceView: View {
                 return
             }
 
-            // Run a full initial analysis (no rolling state), then final cleanup
-            guard let result = try await service.performFinalAnalysis(segments: snapshots) else {
+            // Seed with analyze() first; performFinalAnalysis needs a prior summary to produce output.
+            let firstPass = try await service.analyze(segments: snapshots)
+            let result: AnalysisResult
+            if let r = firstPass {
+                result = r
+            } else if let r = try await service.performFinalAnalysis(segments: snapshots) {
+                result = r
+            } else {
                 reanalysisError = "Analysis returned no results."
                 return
             }
