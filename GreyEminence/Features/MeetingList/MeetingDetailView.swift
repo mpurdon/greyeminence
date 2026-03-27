@@ -590,6 +590,9 @@ struct MeetingDetailView: View {
 
         let service = AIIntelligenceService(client: client, meetingID: target.id)
         do {
+            // Seed the service with an initial pass so performFinalAnalysis has prior context
+            // and will produce a title (the title field is only populated on final analysis).
+            _ = try await service.analyze(segments: snapshots)
             if let result = try await service.performFinalAnalysis(segments: snapshots) {
                 if let title = result.title, !title.isEmpty {
                     target.title = title
