@@ -13,9 +13,10 @@ struct ContactChip: View {
                 .frame(width: 18, height: 18)
                 .background(contact.avatarColor.gradient, in: Circle())
 
-            Text(contact.name)
+            Text(contact.displayNickname)
                 .font(.caption)
                 .lineLimit(1)
+                .help(contact.name)
         }
         .padding(.leading, 2)
         .padding(.trailing, 8)

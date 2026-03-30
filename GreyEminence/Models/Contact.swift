@@ -6,6 +6,7 @@ import SwiftUI
 final class Contact {
     var id: UUID
     var name: String
+    var nickname: String?
     var email: String?
     var createdAt: Date
 
@@ -27,6 +28,15 @@ final class Contact {
         self.name = name
         self.email = email
         self.createdAt = .now
+    }
+
+    var firstName: String {
+        String(name.split(separator: " ").first ?? Substring(name))
+    }
+
+    var displayNickname: String {
+        if let nickname, !nickname.isEmpty { return nickname }
+        return firstName
     }
 
     var initials: String {

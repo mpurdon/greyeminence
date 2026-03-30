@@ -13,6 +13,7 @@ struct PeopleView: View {
         let query = searchText.lowercased()
         return contacts.filter {
             $0.name.lowercased().contains(query) ||
+            ($0.nickname?.lowercased().contains(query) ?? false) ||
             ($0.email?.lowercased().contains(query) ?? false)
         }
     }

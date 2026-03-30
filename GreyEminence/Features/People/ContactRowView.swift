@@ -13,8 +13,15 @@ struct ContactRowView: View {
                 .background(contact.avatarColor.gradient, in: Circle())
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(contact.name)
-                    .font(.body)
+                HStack(spacing: 4) {
+                    Text(contact.name)
+                        .font(.body)
+                    if contact.nickname != nil {
+                        Text("\u{201C}\(contact.displayNickname)\u{201D}")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 if let email = contact.email, !email.isEmpty {
                     Text(email)
                         .font(.caption)

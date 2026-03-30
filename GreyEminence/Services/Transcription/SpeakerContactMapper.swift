@@ -40,9 +40,13 @@ final class SpeakerContactMapper {
             }
         }
 
-        // Name contains match
+        // Name or nickname contains match
         for contact in contacts {
             if contact.name.lowercased().contains(lowered) || lowered.contains(contact.name.lowercased()) {
+                return contact
+            }
+            if let nickname = contact.nickname?.lowercased(),
+               nickname.contains(lowered) || lowered.contains(nickname) {
                 return contact
             }
         }

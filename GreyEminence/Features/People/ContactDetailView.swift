@@ -9,6 +9,13 @@ struct ContactDetailView: View {
         List {
             Section("Details") {
                 TextField("Name", text: $contact.name)
+                TextField("Nickname", text: Binding(
+                    get: { contact.nickname ?? contact.firstName },
+                    set: { new in
+                        let trimmed = new.trimmingCharacters(in: .whitespaces)
+                        contact.nickname = trimmed == contact.firstName ? nil : (trimmed.isEmpty ? nil : trimmed)
+                    }
+                ), prompt: Text(contact.firstName))
                 TextField("Email", text: Binding(
                     get: { contact.email ?? "" },
                     set: { contact.email = $0.isEmpty ? nil : $0 }
