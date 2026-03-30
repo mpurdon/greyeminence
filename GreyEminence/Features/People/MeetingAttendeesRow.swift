@@ -32,6 +32,27 @@ struct ContactChip: View {
     }
 }
 
+struct CompactContactDot: View {
+    let contact: Contact
+    var onRemove: (() -> Void)?
+
+    var body: some View {
+        Text(contact.initials)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 18, height: 18)
+            .background(contact.avatarColor.gradient, in: Circle())
+            .help(contact.name)
+            .contextMenu {
+                if let onRemove {
+                    Button("Remove", role: .destructive) {
+                        onRemove()
+                    }
+                }
+            }
+    }
+}
+
 struct MeetingAttendeesRow: View {
     @Bindable var meeting: Meeting
     @State private var showPicker = false
@@ -52,9 +73,16 @@ struct MeetingAttendeesRow: View {
                     .foregroundStyle(.secondary)
             } else {
                 let sorted = meeting.attendees.sorted { $0.name < $1.name }
+                let compact = sorted.count > 4
                 ForEach(sorted) { contact in
-                    ContactChip(contact: contact) {
-                        meeting.attendees.removeAll { $0.id == contact.id }
+                    if compact {
+                        CompactContactDot(contact: contact) {
+                            meeting.attendees.removeAll { $0.id == contact.id }
+                        }
+                    } else {
+                        ContactChip(contact: contact) {
+                            meeting.attendees.removeAll { $0.id == contact.id }
+                        }
                     }
                 }
             }
