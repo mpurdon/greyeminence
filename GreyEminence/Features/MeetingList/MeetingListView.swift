@@ -8,7 +8,8 @@ struct MeetingListView: View {
 
     private var groupedMeetings: [(String, [Meeting])] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: meetings) { meeting -> String in
+        let regularMeetings = meetings.filter { !$0.isInterviewMeeting }
+        let grouped = Dictionary(grouping: regularMeetings) { meeting -> String in
             if calendar.isDateInToday(meeting.date) {
                 return "Today"
             } else if calendar.isDateInYesterday(meeting.date) {
