@@ -146,13 +146,19 @@ private struct AddRubricSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \InterviewRole.createdAt) private var roles: [InterviewRole]
+    @Query(sort: \Rubric.createdAt, order: .reverse) private var existingRubrics: [Rubric]
     @State private var name = ""
     @State private var selectedRole: InterviewRole?
+    @State private var sourceRubric: Rubric?
     var onCreated: (Rubric) -> Void
 
     private var defaultName: String {
         guard let role = selectedRole else { return "Interview Rubric" }
         return "\(role.displayTitle) Interview"
+    }
+
+    private var activeRubrics: [Rubric] {
+        existingRubrics.filter { !$0.isArchived }
     }
 
     var body: some View {
@@ -169,10 +175,16 @@ private struct AddRubricSheet: View {
                     }
                 }
                 TextField("Name (optional)", text: $name, prompt: Text(defaultName))
+                Picker("Copy from (optional)", selection: $sourceRubric) {
+                    Text("Start blank").tag(nil as Rubric?)
+                    ForEach(activeRubrics) { rubric in
+                        Text(rubric.name).tag(rubric as Rubric?)
+                    }
+                }
             }
             .formStyle(.grouped)
             .scrollDisabled(true)
-            .frame(height: 130)
+            .frame(height: 180)
 
             HStack {
                 Button("Cancel") { dismiss() }
@@ -183,6 +195,9 @@ private struct AddRubricSheet: View {
                     let rubric = Rubric(name: trimmed.isEmpty ? defaultName : trimmed)
                     rubric.role = selectedRole
                     modelContext.insert(rubric)
+                    if let source = sourceRubric {
+                        copyContents(from: source, to: rubric)
+                    }
                     onCreated(rubric)
                     dismiss()
                 }
@@ -192,5 +207,34 @@ private struct AddRubricSheet: View {
             .padding()
         }
         .frame(width: 400)
+    }
+
+    private func copyContents(from source: Rubric, to target: Rubric) {
+        for section in source.sections.sorted(by: { $0.sortOrder < $1.sortOrder }) {
+            let newSection = RubricSection(
+                title: section.title,
+                description: section.sectionDescription,
+                sortOrder: section.sortOrder,
+                weight: section.weight
+            )
+            newSection.rubric = target
+            for criterion in section.criteria.sorted(by: { $0.sortOrder < $1.sortOrder }) {
+                let newCriterion = RubricCriterion(
+                    signal: criterion.signal,
+                    sortOrder: criterion.sortOrder,
+                    evaluationNotes: criterion.evaluationNotes
+                )
+                newCriterion.section = newSection
+            }
+            for signal in section.bonusSignals.sorted(by: { $0.sortOrder < $1.sortOrder }) {
+                let newSignal = RubricBonusSignal(
+                    label: signal.label,
+                    expectedAnswer: signal.expectedAnswer,
+                    bonusValue: signal.bonusValue,
+                    sortOrder: signal.sortOrder
+                )
+                newSignal.section = newSection
+            }
+        }
     }
 }
