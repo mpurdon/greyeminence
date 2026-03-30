@@ -6,6 +6,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     case audio
     case ai
     case vocabulary
+    case organization
     case obsidian
     case developer
 
@@ -17,6 +18,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .audio: "Audio"
         case .ai: "AI"
         case .vocabulary: "Vocabulary"
+        case .organization: "Organization"
         case .obsidian: "Obsidian"
         case .developer: "Developer"
         }
@@ -28,6 +30,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .audio: "mic"
         case .ai: "brain"
         case .vocabulary: "textformat.abc"
+        case .organization: "building.2"
         case .obsidian: "doc.text"
         case .developer: "hammer"
         }
@@ -39,6 +42,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .audio: .blue
         case .ai: .purple
         case .vocabulary: .teal
+        case .organization: .cyan
         case .obsidian: .indigo
         case .developer: .brown
         }
@@ -79,6 +83,8 @@ struct SettingsView: View {
                 APIKeySettingsView()
             case .vocabulary:
                 VocabularySettingsView()
+            case .organization:
+                OrganizationSettingsView()
             case .obsidian:
                 ObsidianSettingsView()
             case .developer:

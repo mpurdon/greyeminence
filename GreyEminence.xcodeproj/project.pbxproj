@@ -57,6 +57,7 @@
 		818879FDFE90846E3A165E26 /* AIIntelligenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66D41A4DDC8876D46E90AD7 /* AIIntelligenceService.swift */; };
 		82E0731B8F98E1C689F629DC /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035F3AE9352BFA1B1EC72E90 /* SidebarView.swift */; };
 		86D3B5E6153AE30228461601 /* AudioFormatConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3064E03937611C03B74553CD /* AudioFormatConverter.swift */; };
+		87041339499E41CA9C187A95 /* OrganizationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAE2A31F9F164242D15B47A /* OrganizationSettingsView.swift */; };
 		8B007657E79B35D0EE9E89A3 /* AIClientFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D73DBC02E9A067276E806B8 /* AIClientFactory.swift */; };
 		8C6B05D3E05E3B1B03E2C29A /* RubricSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF52CED04CA1D2F4347E1DED /* RubricSection.swift */; };
 		9612CE638E6815D0234D9A09 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FACAFB70049A918A9CC576F /* CalendarService.swift */; };
@@ -193,6 +194,7 @@
 		E016B91CDEA91AF1DF999437 /* RoleLevel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoleLevel.swift; sourceTree = "<group>"; };
 		E1623F804DDEF0B92D3B6A41 /* VocabularySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularySettingsView.swift; sourceTree = "<group>"; };
 		E1894E666B02691D0316570C /* ContactPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactPicker.swift; sourceTree = "<group>"; };
+		EAAE2A31F9F164242D15B47A /* OrganizationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationSettingsView.swift; sourceTree = "<group>"; };
 		F02E7B6743C5DE21C7E30951 /* StalledNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StalledNotificationService.swift; sourceTree = "<group>"; };
 		F441D2EB2BBE4A6F48F3B85C /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		FCA07D6809E46B405979C97F /* ContactRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactRowView.swift; sourceTree = "<group>"; };
@@ -533,6 +535,7 @@
 				A9CE69F8422EE39E764DCC50 /* DeveloperSettingsView.swift */,
 				97149F3BA600B75B86FBBC1A /* GeneralSettingsView.swift */,
 				415A0246E468B367021CD3C0 /* ObsidianSettingsView.swift */,
+				EAAE2A31F9F164242D15B47A /* OrganizationSettingsView.swift */,
 				4DAA9CB7A537E882B021ABF4 /* SettingsView.swift */,
 				E1623F804DDEF0B92D3B6A41 /* VocabularySettingsView.swift */,
 			);
@@ -691,6 +694,7 @@
 				98A16A6B0DB5EA0266B8FDA4 /* NoteInputBar.swift in Sources */,
 				24283F84D0FD2716A6806F48 /* ObsidianExportService.swift in Sources */,
 				DBDF5229655F6F36425F0F6F /* ObsidianSettingsView.swift in Sources */,
+				87041339499E41CA9C187A95 /* OrganizationSettingsView.swift in Sources */,
 				A173DAAD896AF99772AC00EA /* PeopleView.swift in Sources */,
 				6428B269561C1610AE114AB8 /* RecordingToolbar.swift in Sources */,
 				166B9F5D6DE977883E7A1EC7 /* RecordingView.swift in Sources */,
