@@ -30,8 +30,8 @@ final class InterviewRole {
 
     var fullDescription: String {
         var parts: [String] = []
-        if let dept = department?.name { parts.append(dept) }
-        if let t = team?.name { parts.append(t) }
+        if let dept = department { parts.append(dept.name) }
+        if let t = team { parts.append(t.name) }
         parts.append(displayTitle)
         return parts.joined(separator: " — ")
     }

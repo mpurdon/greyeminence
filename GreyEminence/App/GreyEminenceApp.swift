@@ -137,16 +137,22 @@ private func seedOrganizationAndRubrics(in context: ModelContext) {
     let appEng = Department(name: "Application Engineering", sortOrder: 0)
     context.insert(appEng)
     let ipp = Team(name: "IPP", sortOrder: 0)
+    context.insert(ipp)
     ipp.department = appEng
     let platform = Team(name: "Platform", sortOrder: 1)
+    context.insert(platform)
     platform.department = appEng
 
     let dataSvc = Department(name: "Data Services", sortOrder: 1)
     context.insert(dataSvc)
     let dataScience = Team(name: "Data Science", sortOrder: 0)
+    context.insert(dataScience)
     dataScience.department = dataSvc
     let dataEng = Team(name: "Data Engineering", sortOrder: 1)
+    context.insert(dataEng)
     dataEng.department = dataSvc
+
+    try? context.save()
 
     // --- Roles ---
 
