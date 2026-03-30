@@ -150,6 +150,11 @@ private struct AddRubricSheet: View {
     @State private var selectedRole: InterviewRole?
     var onCreated: (Rubric) -> Void
 
+    private var defaultName: String {
+        guard let role = selectedRole else { return "Interview Rubric" }
+        return "\(role.displayTitle) Interview"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Text("New Rubric")
@@ -157,13 +162,13 @@ private struct AddRubricSheet: View {
                 .padding()
 
             Form {
-                TextField("Rubric name", text: $name)
-                Picker("Role (optional)", selection: $selectedRole) {
-                    Text("None").tag(nil as InterviewRole?)
+                Picker("Role", selection: $selectedRole) {
+                    Text("Select a role...").tag(nil as InterviewRole?)
                     ForEach(roles) { role in
                         Text(role.fullDescription).tag(role as InterviewRole?)
                     }
                 }
+                TextField("Name (optional)", text: $name, prompt: Text(defaultName))
             }
             .formStyle(.grouped)
             .scrollDisabled(true)
@@ -174,14 +179,15 @@ private struct AddRubricSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Create") {
-                    let rubric = Rubric(name: name.trimmingCharacters(in: .whitespaces))
+                    let trimmed = name.trimmingCharacters(in: .whitespaces)
+                    let rubric = Rubric(name: trimmed.isEmpty ? defaultName : trimmed)
                     rubric.role = selectedRole
                     modelContext.insert(rubric)
                     onCreated(rubric)
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(selectedRole == nil)
             }
             .padding()
         }
