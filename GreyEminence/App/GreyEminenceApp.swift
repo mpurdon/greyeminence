@@ -119,8 +119,17 @@ private func seedInterviewDefaults(in context: ModelContext) {
 
     // One-time repair: wipe broken org seed data and re-seed properly
     let seedVersion = UserDefaults.standard.integer(forKey: "interviewSeedVersion")
-    if seedVersion < 3 {
-        // Delete in reverse-dependency order (leaves meetings, contacts, etc. untouched)
+    if seedVersion < 4 {
+        // Unlink candidates from roles (keep the candidates)
+        for candidate in (try? context.fetch(FetchDescriptor<Candidate>())) ?? [] {
+            candidate.role = nil
+        }
+        // Delete interview-related objects that reference roles/rubrics
+        for item in (try? context.fetch(FetchDescriptor<InterviewSectionScore>())) ?? [] { context.delete(item) }
+        for item in (try? context.fetch(FetchDescriptor<InterviewImpression>())) ?? [] { context.delete(item) }
+        for item in (try? context.fetch(FetchDescriptor<InterviewBookmark>())) ?? [] { context.delete(item) }
+        for item in (try? context.fetch(FetchDescriptor<Interview>())) ?? [] { context.delete(item) }
+        // Delete org seed data in reverse-dependency order
         for item in (try? context.fetch(FetchDescriptor<RubricBonusSignal>())) ?? [] { context.delete(item) }
         for item in (try? context.fetch(FetchDescriptor<RubricCriterion>())) ?? [] { context.delete(item) }
         for item in (try? context.fetch(FetchDescriptor<RubricSection>())) ?? [] { context.delete(item) }
@@ -131,7 +140,7 @@ private func seedInterviewDefaults(in context: ModelContext) {
         try? context.save()
 
         seedOrganizationAndRubrics(in: context)
-        UserDefaults.standard.set(3, forKey: "interviewSeedVersion")
+        UserDefaults.standard.set(4, forKey: "interviewSeedVersion")
     }
 }
 

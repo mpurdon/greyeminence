@@ -25,13 +25,15 @@ final class InterviewRole {
     }
 
     var displayTitle: String {
-        customTitle ?? level?.name ?? "Unknown"
+        if let title = customTitle { return title }
+        if let lvl = level, !lvl.isDeleted { return lvl.name }
+        return "Unknown"
     }
 
     var fullDescription: String {
         var parts: [String] = []
-        if let dept = department { parts.append(dept.name) }
-        if let t = team { parts.append(t.name) }
+        if let dept = department, !dept.isDeleted { parts.append(dept.name) }
+        if let t = team, !t.isDeleted { parts.append(t.name) }
         parts.append(displayTitle)
         return parts.joined(separator: " — ")
     }
