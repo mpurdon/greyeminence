@@ -119,7 +119,7 @@ private func seedInterviewDefaults(in context: ModelContext) {
 
     // One-time repair: wipe broken org seed data and re-seed properly
     let seedVersion = UserDefaults.standard.integer(forKey: "interviewSeedVersion")
-    if seedVersion < 2 {
+    if seedVersion < 3 {
         // Delete in reverse-dependency order (leaves meetings, contacts, etc. untouched)
         for item in (try? context.fetch(FetchDescriptor<RubricBonusSignal>())) ?? [] { context.delete(item) }
         for item in (try? context.fetch(FetchDescriptor<RubricCriterion>())) ?? [] { context.delete(item) }
@@ -131,7 +131,7 @@ private func seedInterviewDefaults(in context: ModelContext) {
         try? context.save()
 
         seedOrganizationAndRubrics(in: context)
-        UserDefaults.standard.set(2, forKey: "interviewSeedVersion")
+        UserDefaults.standard.set(3, forKey: "interviewSeedVersion")
     }
 }
 
@@ -145,23 +145,33 @@ private func seedOrganizationAndRubrics(in context: ModelContext) {
 
     // --- Departments & Teams ---
 
+    func insertTeam(_ name: String, sortOrder: Int, department: Department) -> Team {
+        let t = Team(name: name, sortOrder: sortOrder)
+        context.insert(t)
+        t.department = department
+        return t
+    }
+
     let appEng = Department(name: "Application Engineering", sortOrder: 0)
     context.insert(appEng)
-    let ipp = Team(name: "IPP", sortOrder: 0)
-    context.insert(ipp)
-    ipp.department = appEng
-    let platform = Team(name: "Platform", sortOrder: 1)
-    context.insert(platform)
-    platform.department = appEng
+    let ipp = insertTeam("IPP", sortOrder: 0, department: appEng)
+    _ = insertTeam("Nexus", sortOrder: 1, department: appEng)
+    _ = insertTeam("Atomic Forms", sortOrder: 2, department: appEng)
+    _ = insertTeam("OLP", sortOrder: 3, department: appEng)
+    _ = insertTeam("Milo - Medical", sortOrder: 4, department: appEng)
+    _ = insertTeam("Milo - Disability", sortOrder: 5, department: appEng)
+    _ = insertTeam("Milo - Outreach Legal", sortOrder: 6, department: appEng)
+    _ = insertTeam("Benefit Karma", sortOrder: 7, department: appEng)
 
     let dataSvc = Department(name: "Data Services", sortOrder: 1)
     context.insert(dataSvc)
-    let dataScience = Team(name: "Data Science", sortOrder: 0)
-    context.insert(dataScience)
-    dataScience.department = dataSvc
-    let dataEng = Team(name: "Data Engineering", sortOrder: 1)
-    context.insert(dataEng)
-    dataEng.department = dataSvc
+    let dataScience = insertTeam("Data Science", sortOrder: 0, department: dataSvc)
+    let dataEng = insertTeam("Data Engineering", sortOrder: 1, department: dataSvc)
+
+    let platEng = Department(name: "Platform Engineering", sortOrder: 2)
+    context.insert(platEng)
+    let platform = insertTeam("Platform", sortOrder: 0, department: platEng)
+    _ = insertTeam("Support", sortOrder: 1, department: platEng)
 
     try? context.save()
 
@@ -171,7 +181,7 @@ private func seedOrganizationAndRubrics(in context: ModelContext) {
     context.insert(roleEngII_IPP)
     let roleEngIII_IPP = InterviewRole(level: level("Engineer III"), department: appEng, team: ipp)
     context.insert(roleEngIII_IPP)
-    let roleSrFE = InterviewRole(level: level("Engineer III"), department: appEng, team: platform, customTitle: "Senior Frontend Engineer")
+    let roleSrFE = InterviewRole(level: level("Engineer III"), department: platEng, team: platform, customTitle: "Senior Frontend Engineer")
     context.insert(roleSrFE)
     let roleEM_AppEng = InterviewRole(level: level("Engineering Manager I"), department: appEng)
     context.insert(roleEM_AppEng)
