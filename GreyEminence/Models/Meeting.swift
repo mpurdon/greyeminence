@@ -19,6 +19,7 @@ final class Meeting {
     var isExportedToObsidian: Bool
     var isAnalyzing: Bool = false
     var analysisError: String?
+    var isInterviewMeeting: Bool = false
     var createdAt: Date
 
     // Calendar integration

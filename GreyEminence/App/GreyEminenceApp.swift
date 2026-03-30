@@ -19,6 +19,21 @@ struct GreyEminenceApp: App {
             ActionItem.self,
             MeetingInsight.self,
             Contact.self,
+            // Interview feature
+            Department.self,
+            Team.self,
+            RoleLevel.self,
+            InterviewRole.self,
+            Rubric.self,
+            RubricSection.self,
+            RubricCriterion.self,
+            RubricBonusSignal.self,
+            Candidate.self,
+            Interview.self,
+            InterviewSectionScore.self,
+            InterviewImpression.self,
+            InterviewImpressionTrait.self,
+            InterviewBookmark.self,
         ])
         let config = ModelConfiguration(
             "GreyEminence",
@@ -43,6 +58,7 @@ struct GreyEminenceApp: App {
                     .environment(appEnvironment)
                     .onAppear {
                         appEnvironment.configure(modelContext: container.mainContext)
+                        seedInterviewDefaults(in: container.mainContext)
                     }
                     .modelContainer(container)
             } else {
@@ -65,6 +81,28 @@ struct GreyEminenceApp: App {
                     .modelContainer(container)
             }
         }
+    }
+}
+
+private func seedInterviewDefaults(in context: ModelContext) {
+    // Seed role levels if empty
+    let roleLevelDescriptor = FetchDescriptor<RoleLevel>()
+    if (try? context.fetchCount(roleLevelDescriptor)) == 0 {
+        for (name, category, order) in RoleLevel.defaultLevels {
+            context.insert(RoleLevel(name: name, category: category, sortOrder: order))
+        }
+        try? context.save()
+    }
+
+    // Seed impression traits if empty
+    let traitDescriptor = FetchDescriptor<InterviewImpressionTrait>()
+    if (try? context.fetchCount(traitDescriptor)) == 0 {
+        for (name, l1, l2, l3, l4, l5, order) in InterviewImpressionTrait.defaultTraits {
+            context.insert(InterviewImpressionTrait(
+                name: name, label1: l1, label2: l2, label3: l3, label4: l4, label5: l5, sortOrder: order
+            ))
+        }
+        try? context.save()
     }
 }
 
