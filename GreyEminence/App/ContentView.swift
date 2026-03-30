@@ -6,6 +6,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
     case meetings = "Meetings"
     case recording = "New Recording"
     case tasks = "Tasks"
+    case interviews = "Interviews"
     case people = "People"
     case activityLog = "Activity Log"
     case settings = "Settings"
@@ -16,6 +17,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .meetings: "list.bullet.rectangle"
         case .recording: "record.circle"
         case .tasks: "checkmark.circle"
+        case .interviews: "person.badge.shield.checkmark"
         case .people: "person.2"
         case .activityLog: "list.bullet.clipboard"
         case .settings: "gear"
@@ -28,6 +30,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .meetings: .indigo
         case .recording: .red
         case .tasks: .orange
+        case .interviews: .cyan
         case .people: .green
         case .activityLog: .gray
         case .settings: .gray
@@ -66,7 +69,7 @@ struct ContentView: View {
                 .padding(.top, 8)
         }
         .toolbar {
-            if selectedDestination == .meetings || selectedDestination == .recording {
+            if selectedDestination == .meetings || selectedDestination == .recording || selectedDestination == .interviews {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showInspector.toggle()
@@ -201,6 +204,8 @@ struct ContentView: View {
                     }
                 }
             }
+        case .interviews:
+            InterviewHubView(showInspector: $showInspector, inspectorWidth: $inspectorWidth)
         case .tasks:
             AllTasksView()
         case .people:
