@@ -517,7 +517,7 @@ final class RecordingViewModel {
         }
     }
 
-    private func snapshotSegments() -> [SegmentSnapshot] {
+    func snapshotSegments() -> [SegmentSnapshot] {
         segments.map { segment in
             SegmentSnapshot(
                 speaker: segment.speaker,

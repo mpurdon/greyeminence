@@ -20,9 +20,8 @@ final class InterviewRecordingViewModel {
     var redFlags: [String] = []
     var overallAssessment: String = ""
 
-    // Interview intelligence service task
+    // Interview intelligence service
     private var rubricAnalysisTask: Task<Void, Never>?
-    private var interviewIntelligenceService: AnyObject? // Will be InterviewIntelligenceService once built
 
     var isInterviewActive: Bool {
         interview != nil && recordingViewModel.state != .idle
@@ -98,6 +97,9 @@ final class InterviewRecordingViewModel {
             }
             try? modelContext.save()
         }
+
+        // Start rubric analysis loop (offset from standard AI by ~20s)
+        startRubricAnalysis(rubric: rubric)
     }
 
     func stopInterview(in modelContext: ModelContext) {
@@ -151,6 +153,104 @@ final class InterviewRecordingViewModel {
         if let idx = sectionScores.firstIndex(where: { $0.rubricSectionID == sectionID }) {
             sectionScores[idx].interviewerNotes = notes.isEmpty ? nil : notes
         }
+    }
+
+    // MARK: - Rubric Analysis Loop
+
+    private func startRubricAnalysis(rubric: Rubric) {
+        let rubricSnapshot = makeRubricSnapshot(rubric)
+
+        rubricAnalysisTask = Task { [weak self] in
+            guard let self else { return }
+
+            guard let client = try? await AIClientFactory.makeClient() else {
+                await MainActor.run {
+                    LogManager.shared.log("AI not configured — skipping rubric analysis", category: .ai, level: .warning)
+                }
+                return
+            }
+
+            let meetingID = await MainActor.run { self.recordingViewModel.currentMeeting?.id }
+            let service = InterviewIntelligenceService(
+                client: client,
+                rubricContext: rubricSnapshot,
+                meetingID: meetingID
+            )
+
+            // Wait 50s before first rubric analysis (offset from standard 30s)
+            await self.waitSeconds(50)
+
+            while !Task.isCancelled {
+                await MainActor.run {
+                    self.rubricAnalysisState = .analyzing
+                }
+
+                let snapshots = await MainActor.run { self.recordingViewModel.snapshotSegments() }
+
+                do {
+                    if let result = try await service.analyzeAgainstRubric(segments: snapshots) {
+                        await MainActor.run {
+                            self.applyAnalysisResult(result)
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        LogManager.shared.log("Rubric analysis error: \(error.localizedDescription)", category: .ai, level: .error)
+                    }
+                }
+
+                // Wait 45s before next analysis
+                await self.waitSeconds(45)
+            }
+        }
+    }
+
+    private func waitSeconds(_ seconds: Int) async {
+        for i in (0..<seconds).reversed() {
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self.rubricAnalysisState = .waiting(secondsRemaining: i)
+            }
+            try? await Task.sleep(for: .seconds(1))
+        }
+    }
+
+    private func applyAnalysisResult(_ result: InterviewAnalysisResult) {
+        // Update section scores from AI
+        for aiScore in result.sectionScores {
+            if let idx = sectionScores.firstIndex(where: { $0.rubricSectionID == aiScore.sectionID }) {
+                if let gradeStr = aiScore.grade {
+                    sectionScores[idx].aiGrade = LetterGrade(rawValue: gradeStr)
+                }
+                sectionScores[idx].aiConfidence = aiScore.confidence
+                if let evidenceData = try? JSONSerialization.data(withJSONObject: aiScore.evidence),
+                   let evidenceStr = String(data: evidenceData, encoding: .utf8) {
+                    sectionScores[idx].aiEvidence = evidenceStr
+                }
+                sectionScores[idx].aiRationale = aiScore.rationale
+            }
+        }
+
+        strengths = result.strengths
+        weaknesses = result.weaknesses
+        redFlags = result.redFlags
+        overallAssessment = result.overallAssessment
+    }
+
+    private func makeRubricSnapshot(_ rubric: Rubric) -> RubricSnapshot {
+        let sections = rubric.sections.sorted { $0.sortOrder < $1.sortOrder }.map { section in
+            RubricSectionSnapshot(
+                id: section.id,
+                title: section.title,
+                description: section.sectionDescription,
+                criteria: section.criteria.sorted { $0.sortOrder < $1.sortOrder }.map(\.signal),
+                bonusSignals: section.bonusSignals.sorted { $0.sortOrder < $1.sortOrder }.map { signal in
+                    BonusSignalSnapshot(label: signal.label, expected: signal.expectedAnswer, value: signal.bonusValue)
+                },
+                weight: section.weight
+            )
+        }
+        return RubricSnapshot(name: rubric.name, sections: sections)
     }
 
     // MARK: - Cleanup

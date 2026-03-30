@@ -37,6 +37,7 @@
 		3AA83AF5E55969C40719957C /* RubricListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47BC52049DFA6A2808B1FC6 /* RubricListView.swift */; };
 		3BFAC0DA58C2B59A7B9DDADC /* MeetingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB956B7F4F0CA68BF37E5F5 /* MeetingListView.swift */; };
 		3FAC8EEE1160183F8FF49BA1 /* InterviewRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9332875D8DF9786389A129 /* InterviewRole.swift */; };
+		4049FE1019DF0F0079883216 /* InterviewIntelligenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8363D29DBB4CADCC8DD08381 /* InterviewIntelligenceService.swift */; };
 		468D89A5C59728BCF165C8B5 /* MicrophoneCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFC782BC165D3DA75DFE688 /* MicrophoneCaptureService.swift */; };
 		487BD675B1D14E5FDE9AE4D7 /* StalledNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02E7B6743C5DE21C7E30951 /* StalledNotificationService.swift */; };
 		495F4E2FEEAC19E852271002 /* InterviewBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7878D6C9C0D5359FBE2ED513 /* InterviewBookmark.swift */; };
@@ -91,6 +92,7 @@
 		C9EBA7BFEBA1F4DAC059CAD7 /* KnowledgeLinksSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B931FA0292EE0DF9C7F8A19 /* KnowledgeLinksSection.swift */; };
 		CA397207ABB9967B21A63E08 /* ContactPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1894E666B02691D0316570C /* ContactPicker.swift */; };
 		CA4D93E6FAEA9C013721DD8D /* AIPromptTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69AB1E3DF6577FB00871B539 /* AIPromptTemplates.swift */; };
+		CAE631B21FD4390A98F4BD5E /* InterviewPromptTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9A10AF91F15CA169F503A2 /* InterviewPromptTemplates.swift */; };
 		D0D02AD902D348ADFE6F2935 /* InterviewListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1883C32FA38176C32ED9B57 /* InterviewListView.swift */; };
 		D15B92644A209FBBF7B31D8D /* MeetingPrepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A449FC8E55341990C8A3A7A /* MeetingPrepView.swift */; };
 		D59E4FDE79625794D5A8A32E /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6774606B2258926F847E4C4 /* AppEnvironment.swift */; };
@@ -158,6 +160,7 @@
 		657275C542280701138F3D42 /* AudioSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSettingsView.swift; sourceTree = "<group>"; };
 		69AB1E3DF6577FB00871B539 /* AIPromptTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPromptTemplates.swift; sourceTree = "<group>"; };
 		69C5FDC952292078A71B2650 /* FluidAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FluidAudio; path = LocalPackages/FluidAudio; sourceTree = SOURCE_ROOT; };
+		6A9A10AF91F15CA169F503A2 /* InterviewPromptTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewPromptTemplates.swift; sourceTree = "<group>"; };
 		6CA97EAE00616CBA74905937 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6D71B4ACDF2860C265D2E456 /* ContactDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactDetailView.swift; sourceTree = "<group>"; };
 		6EAE39B31598DBAB6A3CFFFB /* SpeakerDiarizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerDiarizationService.swift; sourceTree = "<group>"; };
@@ -166,6 +169,7 @@
 		7EE35BB1B53FA715D0E3B606 /* CandidateListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateListView.swift; sourceTree = "<group>"; };
 		7FACAFB70049A918A9CC576F /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
 		8141402D9688729287F5C68F /* MeetingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingStore.swift; sourceTree = "<group>"; };
+		8363D29DBB4CADCC8DD08381 /* InterviewIntelligenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewIntelligenceService.swift; sourceTree = "<group>"; };
 		85571895F31B17D9B41094BB /* LiveInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveInterviewView.swift; sourceTree = "<group>"; };
 		8D5C025F672896B9EBCD995D /* AIClientProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClientProtocol.swift; sourceTree = "<group>"; };
 		8F5B5497FD93F6C7BFE23CE6 /* SpeakerContactMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerContactMapper.swift; sourceTree = "<group>"; };
@@ -331,6 +335,8 @@
 				59A4997345983696DC9017FF /* BedrockAPIClient.swift */,
 				57B9AB151CD1BBDDDCB15B67 /* ClaudeAPIClient.swift */,
 				066FDCBC8824BB15CDDC73B0 /* CommitmentTrackingService.swift */,
+				8363D29DBB4CADCC8DD08381 /* InterviewIntelligenceService.swift */,
+				6A9A10AF91F15CA169F503A2 /* InterviewPromptTemplates.swift */,
 				B844FF1A1E3ECA5753702A38 /* MeetingPrepService.swift */,
 				93C28939DE9447A9DCE2636A /* TrajectorSettings.swift */,
 			);
@@ -715,7 +721,9 @@
 				0ADAF5362F0166CB7AA9E9C0 /* InterviewHubView.swift in Sources */,
 				3052BD7FCCDE88CE3C036561 /* InterviewImpression.swift in Sources */,
 				C74BE4826517F3C84D70DB3B /* InterviewImpressionTrait.swift in Sources */,
+				4049FE1019DF0F0079883216 /* InterviewIntelligenceService.swift in Sources */,
 				D0D02AD902D348ADFE6F2935 /* InterviewListView.swift in Sources */,
+				CAE631B21FD4390A98F4BD5E /* InterviewPromptTemplates.swift in Sources */,
 				3191CB3A44A1238D798130F5 /* InterviewRecordingViewModel.swift in Sources */,
 				3FAC8EEE1160183F8FF49BA1 /* InterviewRole.swift in Sources */,
 				28C92B79DE182F4A9FFE4F80 /* InterviewSectionScore.swift in Sources */,
