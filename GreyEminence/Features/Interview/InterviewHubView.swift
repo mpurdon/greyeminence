@@ -18,8 +18,22 @@ struct InterviewHubView: View {
 
     var body: some View {
         if interviewViewModel.isInterviewActive {
-            // Live interview recording
-            LiveInterviewView(interviewViewModel: interviewViewModel)
+            // Live interview recording with inspector
+            GeometryReader { geo in
+                let defaultWidth = geo.size.width * 0.4
+                let width = inspectorWidth ?? defaultWidth
+                let clampedWidth = min(max(width, 280), geo.size.width * 0.6)
+
+                HStack(spacing: 0) {
+                    LiveInterviewView(interviewViewModel: interviewViewModel)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if showInspector {
+                        Divider()
+                        LiveInterviewIntelligenceView(interviewViewModel: interviewViewModel)
+                            .frame(width: clampedWidth)
+                    }
+                }
+            }
         } else {
             VStack(spacing: 0) {
                 // Tab bar
