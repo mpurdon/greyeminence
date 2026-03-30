@@ -207,11 +207,25 @@ final class TranscriptionCoordinator {
 
     // MARK: - Speech Recognition Handlers
 
-    private func handleMicUpdate(_ update: FluidAsrService.TranscriptUpdate) {
-        let textEmpty = update.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private static let leadingJunkCharacters: CharacterSet = {
+        var cs = CharacterSet.whitespacesAndNewlines
+        cs.formUnion(.punctuationCharacters)
+        cs.formUnion(.symbols)
+        return cs
+    }()
 
-        // Empty final result — finalize existing draft instead of discarding it
-        if textEmpty {
+    /// Strip leading whitespace, punctuation, and symbols from text.
+    /// Returns nil if the result is empty.
+    private func cleanedText(_ raw: String) -> String? {
+        let cleaned = raw
+            .drop(while: { $0.unicodeScalars.allSatisfy(Self.leadingJunkCharacters.contains) })
+        let result = String(cleaned)
+        return result.isEmpty ? nil : result
+    }
+
+    private func handleMicUpdate(_ update: FluidAsrService.TranscriptUpdate) {
+        guard let text = cleanedText(update.text) else {
+            // Empty after cleaning — finalize existing draft instead of discarding it
             if update.isFinal, let draftID = currentMicDraftID,
                let idx = segments.firstIndex(where: { $0.id == draftID }) {
                 segments[idx].isFinal = true
@@ -233,7 +247,7 @@ final class TranscriptionCoordinator {
             // Try to merge with the most recent final segment from the same speaker
             if let lastIdx = segments.lastIndex(where: { $0.speaker == .me && $0.isFinal }),
                update.timestamp - segments[lastIdx].endTime <= segmentMergeWindow {
-                segments[lastIdx].text += " " + update.text
+                segments[lastIdx].text += " " + text
                 segments[lastIdx].endTime = update.timestamp
                 // Average confidence on merge
                 let existing = segmentConfidence[segments[lastIdx].id] ?? 1.0
@@ -242,19 +256,19 @@ final class TranscriptionCoordinator {
             } else {
                 let segment = TranscriptSegment(
                     speaker: .me,
-                    text: update.text,
+                    text: text,
                     startTime: update.timestamp,
                     endTime: update.timestamp,
                     isFinal: true
                 )
                 segmentConfidence[segment.id] = update.confidence
                 segments.append(segment)
-                LogManager.shared.log("Mic segment finalized: \(update.text.prefix(80))", category: .transcription)
+                LogManager.shared.log("Mic segment finalized: \(text.prefix(80))", category: .transcription)
             }
         } else {
             let segment = TranscriptSegment(
                 speaker: .me,
-                text: update.text,
+                text: text,
                 startTime: update.timestamp,
                 endTime: update.timestamp,
                 isFinal: false
@@ -266,14 +280,8 @@ final class TranscriptionCoordinator {
     }
 
     private func handleSystemUpdate(_ update: FluidAsrService.TranscriptUpdate) {
-        let textEmpty = update.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-
-        if !textEmpty {
-            hasSystemSpeech = true
-        }
-
-        // Empty final result — finalize existing draft instead of discarding it
-        if textEmpty {
+        guard let text = cleanedText(update.text) else {
+            // Empty after cleaning — finalize existing draft instead of discarding it
             if update.isFinal, let draftID = currentSystemDraftID,
                let idx = segments.firstIndex(where: { $0.id == draftID }) {
                 segments[idx].isFinal = true
@@ -282,6 +290,8 @@ final class TranscriptionCoordinator {
             }
             return
         }
+
+        hasSystemSpeech = true
 
         // Remove previous draft (will be replaced with updated text below)
         if let draftID = currentSystemDraftID {
@@ -298,7 +308,7 @@ final class TranscriptionCoordinator {
             // (any speaker that isn't .me — system segments get relabeled by diarization later)
             if let lastIdx = segments.lastIndex(where: { $0.speaker != .me && $0.isFinal }),
                update.timestamp - segments[lastIdx].endTime <= segmentMergeWindow {
-                segments[lastIdx].text += " " + update.text
+                segments[lastIdx].text += " " + text
                 segments[lastIdx].endTime = update.timestamp
                 let existing = segmentConfidence[segments[lastIdx].id] ?? 1.0
                 segmentConfidence[segments[lastIdx].id] = (existing + update.confidence) / 2.0
@@ -306,19 +316,19 @@ final class TranscriptionCoordinator {
             } else {
                 let segment = TranscriptSegment(
                     speaker: defaultSpeaker,
-                    text: update.text,
+                    text: text,
                     startTime: update.timestamp,
                     endTime: update.timestamp,
                     isFinal: true
                 )
                 segmentConfidence[segment.id] = update.confidence
                 segments.append(segment)
-                LogManager.shared.log("System segment finalized: \(update.text.prefix(80))", category: .transcription)
+                LogManager.shared.log("System segment finalized: \(text.prefix(80))", category: .transcription)
             }
         } else {
             let segment = TranscriptSegment(
                 speaker: defaultSpeaker,
-                text: update.text,
+                text: text,
                 startTime: update.timestamp,
                 endTime: update.timestamp,
                 isFinal: false

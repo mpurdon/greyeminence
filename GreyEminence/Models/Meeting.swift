@@ -18,6 +18,7 @@ final class Meeting {
     var systemAudioFilePath: String?
     var isExportedToObsidian: Bool
     var isAnalyzing: Bool = false
+    var analysisError: String?
     var createdAt: Date
 
     // Calendar integration

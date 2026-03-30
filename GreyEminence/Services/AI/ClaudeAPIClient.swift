@@ -128,11 +128,29 @@ enum ClaudeAPIError: LocalizedError {
         case .invalidResponse:
             "Invalid response from API"
         case .httpError(let statusCode):
-            "HTTP error \(statusCode)"
-        case .apiError(_, let message):
-            message
+            Self.friendlyHTTPMessage(statusCode)
+        case .apiError(let statusCode, let message):
+            Self.friendlyAPIMessage(statusCode: statusCode, message: message)
         case .noTextContent:
             "No text content in API response"
+        }
+    }
+
+    private static func friendlyHTTPMessage(_ statusCode: Int) -> String {
+        switch statusCode {
+        case 429: "API rate limit reached — try again shortly"
+        case 529: "API is overloaded — try again shortly"
+        case 401: "Invalid API key — check Settings"
+        case 403: "API access denied — check your API key permissions"
+        default: "HTTP error \(statusCode)"
+        }
+    }
+
+    private static func friendlyAPIMessage(statusCode: Int, message: String) -> String {
+        switch statusCode {
+        case 429: "API rate limit reached — try again shortly"
+        case 529: "API is overloaded — try again shortly"
+        default: message
         }
     }
 }

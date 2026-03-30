@@ -277,6 +277,7 @@ final class RecordingViewModel {
                         }
                     }
                 } catch {
+                    meeting.analysisError = error.localizedDescription
                     self.log.log("Final analysis failed (persisting existing insights): \(error.localizedDescription)", category: .ai, level: .warning)
                 }
             }

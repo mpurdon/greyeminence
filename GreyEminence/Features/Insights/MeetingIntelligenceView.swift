@@ -48,7 +48,7 @@ struct MeetingIntelligenceView: View {
                 }
                 .padding(.horizontal)
 
-                if let error = reanalysisError {
+                if let error = reanalysisError ?? meeting.analysisError {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
@@ -56,7 +56,10 @@ struct MeetingIntelligenceView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Button("Dismiss") { reanalysisError = nil }
+                        Button("Dismiss") {
+                            reanalysisError = nil
+                            meeting.analysisError = nil
+                        }
                             .font(.caption)
                             .buttonStyle(.plain)
                             .foregroundStyle(.blue)
@@ -96,6 +99,7 @@ struct MeetingIntelligenceView: View {
         guard !isReanalyzing else { return }
         isReanalyzing = true
         reanalysisError = nil
+        meeting.analysisError = nil
 
         defer { isReanalyzing = false }
 
