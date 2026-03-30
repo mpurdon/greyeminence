@@ -6,6 +6,7 @@ import Sparkle
 struct GreyEminenceApp: App {
     @State private var appEnvironment = AppEnvironment()
     @State private var recordingViewModel = RecordingViewModel()
+    @State private var interviewRecordingViewModel: InterviewRecordingViewModel?
     private let updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
@@ -54,7 +55,10 @@ struct GreyEminenceApp: App {
     var body: some Scene {
         WindowGroup {
             if let container = sharedModelContainer {
-                ContentView(recordingViewModel: recordingViewModel)
+                ContentView(
+                    recordingViewModel: recordingViewModel,
+                    interviewRecordingViewModel: resolveInterviewVM()
+                )
                     .environment(appEnvironment)
                     .onAppear {
                         appEnvironment.configure(modelContext: container.mainContext)
@@ -81,6 +85,14 @@ struct GreyEminenceApp: App {
                     .modelContainer(container)
             }
         }
+    }
+
+    @MainActor
+    private func resolveInterviewVM() -> InterviewRecordingViewModel {
+        if let vm = interviewRecordingViewModel { return vm }
+        let vm = InterviewRecordingViewModel(recordingViewModel: recordingViewModel)
+        interviewRecordingViewModel = vm
+        return vm
     }
 }
 

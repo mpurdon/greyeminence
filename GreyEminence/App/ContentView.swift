@@ -56,6 +56,7 @@ struct ContentView: View {
     @State private var inspectorWidth: CGFloat?
     @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
     var recordingViewModel: RecordingViewModel
+    var interviewRecordingViewModel: InterviewRecordingViewModel
 
     var body: some View {
         HStack(spacing: 0) {
@@ -82,9 +83,16 @@ struct ContentView: View {
         }
         .onChange(of: recordingViewModel.completedMeeting) { _, meeting in
             guard let meeting else { return }
-            selectedMeeting = meeting
-            selectedDestination = .meetings
-            showInspector = true
+            if meeting.isInterviewMeeting {
+                // Interview finished — stay on interviews tab, reset interview VM
+                interviewRecordingViewModel.reset()
+                selectedDestination = .interviews
+                showInspector = true
+            } else {
+                selectedMeeting = meeting
+                selectedDestination = .meetings
+                showInspector = true
+            }
             recordingViewModel.completedMeeting = nil
         }
         .onChange(of: developerToolsEnabled) { _, enabled in
@@ -205,7 +213,11 @@ struct ContentView: View {
                 }
             }
         case .interviews:
-            InterviewHubView(showInspector: $showInspector, inspectorWidth: $inspectorWidth)
+            InterviewHubView(
+                interviewViewModel: interviewRecordingViewModel,
+                showInspector: $showInspector,
+                inspectorWidth: $inspectorWidth
+            )
         case .tasks:
             AllTasksView()
         case .people:
