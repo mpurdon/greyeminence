@@ -39,6 +39,7 @@
 		495F4E2FEEAC19E852271002 /* InterviewBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7878D6C9C0D5359FBE2ED513 /* InterviewBookmark.swift */; };
 		4A68EC33839FE5093B329490 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B83B40FCCFC9C150D3A4578 /* KeychainHelper.swift */; };
 		4B2EF779DCD9865FDCCF6D77 /* CommitmentTrackingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066FDCBC8824BB15CDDC73B0 /* CommitmentTrackingService.swift */; };
+		4DC7178C6A8D0E2E5554E066 /* AddCandidateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07C2F2D5D37B973CB7660588 /* AddCandidateSheet.swift */; };
 		50F1D888439483986E026777 /* ClaudeAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57B9AB151CD1BBDDDCB15B67 /* ClaudeAPIClient.swift */; };
 		55A2068CDD71B2430C84E5DE /* MeetingAttendeesRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18B5B7B23A1F23EB5D7BFCA /* MeetingAttendeesRow.swift */; };
 		55A5B3B4215E63B6E5107C20 /* APIKeySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F8F5AD9A2BC34E742295DC /* APIKeySettingsView.swift */; };
@@ -48,6 +49,7 @@
 		6632545DC3BCE1347E7D2AAF /* VocabularyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A49043AC4DC48EF88C729BE /* VocabularyManager.swift */; };
 		6B3B7042DBD6D529106704B5 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F441D2EB2BBE4A6F48F3B85C /* DashboardView.swift */; };
 		6FAA39AF5B2ECCCC58143107 /* Speaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA6148B7B2D3CF9E6FCA594 /* Speaker.swift */; };
+		706A3BA40184EBEF4F80EF5D /* CandidateDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C160A2AE8063D161B554AAA /* CandidateDetailView.swift */; };
 		71DD1B1AACF574A9C2948594 /* LiveTranscriptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFE615EDF257D5D3EC87E1 /* LiveTranscriptView.swift */; };
 		731B99180852038A8C312858 /* RubricCriterion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4763E15F118E2C39BBE17F27 /* RubricCriterion.swift */; };
 		74CC2E4DBCD6DE379F332162 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DAA9CB7A537E882B021ABF4 /* SettingsView.swift */; };
@@ -104,6 +106,7 @@
 		F0C354CA30884FC2707533FC /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE48D54E7D30160DB6840EBE /* LogView.swift */; };
 		F15D9A6FD119A8B208111A26 /* TranscriptSegmentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F93F2580A0F2585FD914629 /* TranscriptSegmentRow.swift */; };
 		F9A80A4871C0F7EFA7A4D3A6 /* Interview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64E9FE67D22C9B5648478322 /* Interview.swift */; };
+		FA8953738B11A84516D35908 /* CandidateListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EE35BB1B53FA715D0E3B606 /* CandidateListView.swift */; };
 		FAF507B483908D2C3227910D /* SystemAudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A9A340B566AD4ABDBB929D /* SystemAudioCaptureService.swift */; };
 /* End PBXBuildFile section */
 
@@ -112,6 +115,7 @@
 		035F3AE9352BFA1B1EC72E90 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		06649713AEC967601987522A /* GreyEminence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GreyEminence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		066FDCBC8824BB15CDDC73B0 /* CommitmentTrackingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentTrackingService.swift; sourceTree = "<group>"; };
+		07C2F2D5D37B973CB7660588 /* AddCandidateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCandidateSheet.swift; sourceTree = "<group>"; };
 		0967272565AFAF7A394DB16E /* FluidAsrService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FluidAsrService.swift; sourceTree = "<group>"; };
 		0B86BEE74BFC9E0E417DCF5A /* Candidate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Candidate.swift; sourceTree = "<group>"; };
 		10F8F5AD9A2BC34E742295DC /* APIKeySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeySettingsView.swift; sourceTree = "<group>"; };
@@ -137,6 +141,7 @@
 		463CA7B7E7481F99C5ED9D93 /* Department.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Department.swift; sourceTree = "<group>"; };
 		4763E15F118E2C39BBE17F27 /* RubricCriterion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RubricCriterion.swift; sourceTree = "<group>"; };
 		4B86DBE859B4EF56428216AA /* MeetingRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRowView.swift; sourceTree = "<group>"; };
+		4C160A2AE8063D161B554AAA /* CandidateDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateDetailView.swift; sourceTree = "<group>"; };
 		4D73DBC02E9A067276E806B8 /* AIClientFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClientFactory.swift; sourceTree = "<group>"; };
 		4DAA9CB7A537E882B021ABF4 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4F179608AFFAA08AE6B8ADE1 /* AISummarySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISummarySection.swift; sourceTree = "<group>"; };
@@ -153,6 +158,7 @@
 		6EAE39B31598DBAB6A3CFFFB /* SpeakerDiarizationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerDiarizationService.swift; sourceTree = "<group>"; };
 		74A9A340B566AD4ABDBB929D /* SystemAudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioCaptureService.swift; sourceTree = "<group>"; };
 		7878D6C9C0D5359FBE2ED513 /* InterviewBookmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewBookmark.swift; sourceTree = "<group>"; };
+		7EE35BB1B53FA715D0E3B606 /* CandidateListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateListView.swift; sourceTree = "<group>"; };
 		7FACAFB70049A918A9CC576F /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
 		8141402D9688729287F5C68F /* MeetingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingStore.swift; sourceTree = "<group>"; };
 		8D5C025F672896B9EBCD995D /* AIClientProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClientProtocol.swift; sourceTree = "<group>"; };
@@ -520,6 +526,9 @@
 		E50E04BBED33426B528E260E /* Interview */ = {
 			isa = PBXGroup;
 			children = (
+				07C2F2D5D37B973CB7660588 /* AddCandidateSheet.swift */,
+				4C160A2AE8063D161B554AAA /* CandidateDetailView.swift */,
+				7EE35BB1B53FA715D0E3B606 /* CandidateListView.swift */,
 				FD672DF259613086F9FC8826 /* RubricEditorView.swift */,
 				A47BC52049DFA6A2808B1FC6 /* RubricListView.swift */,
 				22EBC71AC684DEC93517AF36 /* RubricSectionEditorView.swift */,
@@ -658,6 +667,7 @@
 				E95D2DC42117DB10914E4FA2 /* AWSSSOLoginService.swift in Sources */,
 				9C87024EC990637DB6352C8A /* ActionItem.swift in Sources */,
 				BD98B27D397675FC5ADCC4FC /* ActionItemsSection.swift in Sources */,
+				4DC7178C6A8D0E2E5554E066 /* AddCandidateSheet.swift in Sources */,
 				E2632D99502C0B96E12734AF /* AddContactSheet.swift in Sources */,
 				D59E4FDE79625794D5A8A32E /* AppEnvironment.swift in Sources */,
 				010A701DA859882F23D02586 /* AudioFileWriter.swift in Sources */,
@@ -667,6 +677,8 @@
 				645FB051CDDEF1925D77944A /* BedrockAPIClient.swift in Sources */,
 				9612CE638E6815D0234D9A09 /* CalendarService.swift in Sources */,
 				A8740BAFD283BC00E8F1C08E /* Candidate.swift in Sources */,
+				706A3BA40184EBEF4F80EF5D /* CandidateDetailView.swift in Sources */,
+				FA8953738B11A84516D35908 /* CandidateListView.swift in Sources */,
 				50F1D888439483986E026777 /* ClaudeAPIClient.swift in Sources */,
 				4B2EF779DCD9865FDCCF6D77 /* CommitmentTrackingService.swift in Sources */,
 				F04847E3D961E5529DA665DA /* Contact.swift in Sources */,
