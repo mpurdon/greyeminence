@@ -8,7 +8,7 @@ struct ContactPicker: View {
     var onSelect: (Contact) -> Void
 
     private var filteredContacts: [Contact] {
-        let available = allContacts.filter { !excludedContacts.contains($0.persistentModelID) }
+        let available = allContacts.filter { !$0.isArchived && !excludedContacts.contains($0.persistentModelID) }
         if searchText.isEmpty { return available }
         let query = searchText.lowercased()
         return available.filter {

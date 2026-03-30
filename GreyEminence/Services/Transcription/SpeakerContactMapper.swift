@@ -31,17 +31,18 @@ final class SpeakerContactMapper {
 
     /// Suggest a contact for a speaker name by fuzzy-matching aliases.
     func suggestContact(for speakerName: String, from contacts: [Contact]) -> Contact? {
+        let active = contacts.filter { !$0.isArchived }
         let lowered = speakerName.lowercased()
 
         // Exact alias match
-        for contact in contacts {
+        for contact in active {
             if contact.speakerAliases.contains(where: { $0.lowercased() == lowered }) {
                 return contact
             }
         }
 
         // Name or nickname contains match
-        for contact in contacts {
+        for contact in active {
             if contact.name.lowercased().contains(lowered) || lowered.contains(contact.name.lowercased()) {
                 return contact
             }

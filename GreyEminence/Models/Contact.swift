@@ -8,6 +8,7 @@ final class Contact {
     var name: String
     var nickname: String?
     var email: String?
+    var isArchived: Bool = false
     var createdAt: Date
 
     // Future: Microsoft Teams / external sync

@@ -7,6 +7,14 @@ struct ContactDetailView: View {
 
     var body: some View {
         List {
+            if contact.isArchived {
+                Section {
+                    Label("This contact is archived and won't appear in pickers.", systemImage: "archivebox")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Details") {
                 TextField("Name", text: $contact.name)
                 TextField("Nickname", text: Binding(
@@ -88,6 +96,19 @@ struct ContactDetailView: View {
             }
         }
         .navigationTitle(contact.name)
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    contact.isArchived.toggle()
+                } label: {
+                    Label(
+                        contact.isArchived ? "Unarchive" : "Archive",
+                        systemImage: contact.isArchived ? "tray.and.arrow.up" : "archivebox"
+                    )
+                }
+                .help(contact.isArchived ? "Unarchive this contact" : "Archive this contact")
+            }
+        }
     }
 
     private let commitmentService = CommitmentTrackingService()
