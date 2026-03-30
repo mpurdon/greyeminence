@@ -53,7 +53,7 @@ struct InterviewListView: View {
             }
         } detail: {
             if let interview = selectedInterview {
-                InterviewDetailPlaceholder(interview: interview)
+                InterviewScorecardView(interview: interview)
             } else {
                 ContentUnavailableView(
                     "No Interview Selected",
