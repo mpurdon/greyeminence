@@ -19,8 +19,8 @@ struct InterviewSetupView: View {
         candidates.filter { !$0.isArchived }
     }
 
-    private var activeContacts: [Contact] {
-        contacts.filter { !$0.isArchived }
+    private var activeInterviewers: [Contact] {
+        contacts.filter { !$0.isArchived && $0.isInterviewer }
     }
 
     private var activeRubrics: [Rubric] {
@@ -102,29 +102,41 @@ struct InterviewSetupView: View {
                         }
                     }
 
-                    Section("Interviewers") {
-                        ForEach(activeContacts) { contact in
-                            Toggle(isOn: Binding(
-                                get: { selectedInterviewers.contains(contact.id) },
-                                set: { isOn in
-                                    if isOn {
-                                        selectedInterviewers.insert(contact.id)
-                                    } else {
-                                        selectedInterviewers.remove(contact.id)
+                    Section {
+                        if activeInterviewers.isEmpty {
+                            Text("No interviewers configured. Mark contacts as interviewers in People.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(activeInterviewers) { contact in
+                                Toggle(isOn: Binding(
+                                    get: { selectedInterviewers.contains(contact.id) },
+                                    set: { isOn in
+                                        if isOn {
+                                            selectedInterviewers.insert(contact.id)
+                                        } else {
+                                            selectedInterviewers.remove(contact.id)
+                                        }
+                                    }
+                                )) {
+                                    HStack(spacing: 6) {
+                                        Text(contact.initials)
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .foregroundStyle(.white)
+                                            .frame(width: 18, height: 18)
+                                            .background(contact.avatarColor.gradient, in: Circle())
+                                        Text(contact.name)
                                     }
                                 }
-                            )) {
-                                HStack(spacing: 6) {
-                                    Text(contact.initials)
-                                        .font(.system(size: 9, weight: .semibold))
-                                        .foregroundStyle(.white)
-                                        .frame(width: 18, height: 18)
-                                        .background(contact.avatarColor.gradient, in: Circle())
-                                    Text(contact.name)
-                                }
+                                .toggleStyle(.checkbox)
                             }
-                            .toggleStyle(.checkbox)
                         }
+                    } header: {
+                        Text("Other Interviewers")
+                    } footer: {
+                        Text("You are always included as an interviewer.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                     }
 
                     Section("Pre-Interview Notes") {
@@ -169,7 +181,7 @@ struct InterviewSetupView: View {
         guard let candidate = selectedCandidate,
               let rubric = selectedRubric else { return }
 
-        let interviewerContacts = activeContacts.filter { selectedInterviewers.contains($0.id) }
+        let interviewerContacts = activeInterviewers.filter { selectedInterviewers.contains($0.id) }
 
         interviewViewModel.startInterview(
             candidate: candidate,

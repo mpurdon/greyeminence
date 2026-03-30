@@ -28,6 +28,7 @@ struct ContactDetailView: View {
                     get: { contact.email ?? "" },
                     set: { contact.email = $0.isEmpty ? nil : $0 }
                 ))
+                Toggle("Interviewer", isOn: $contact.isInterviewer)
             }
 
             if !contact.meetings.isEmpty {
