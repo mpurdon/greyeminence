@@ -23,6 +23,7 @@ func bellCurveColor(for normalizedValue: Double) -> Color {
 // MARK: - Main View
 
 struct LiveInterviewIntelligenceView: View {
+    @Environment(\.modelContext) private var modelContext
     var interviewViewModel: InterviewRecordingViewModel
     @Query(sort: \InterviewImpressionTrait.sortOrder) private var traits: [InterviewImpressionTrait]
 
@@ -31,26 +32,20 @@ struct LiveInterviewIntelligenceView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                // Header
-                HStack {
-                    Label {
-                        Text("Interview Intelligence")
-                    } icon: {
-                        Image(systemName: "brain")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 26, height: 26)
-                            .background(Color.cyan.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        VStack(spacing: 0) {
+            // Interview header bar (candidate, section picker, stop button)
+            interviewHeader
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    // Rubric AI activity
+                    HStack {
+                        AIActivityIndicator(state: interviewViewModel.rubricAnalysisState)
+                        Spacer()
                     }
-                    .font(.headline)
-
-                    Spacer()
-
-                    AIActivityIndicator(state: interviewViewModel.rubricAnalysisState)
-                }
-                .padding(.horizontal)
+                    .padding(.horizontal)
 
                 // Active section indicator
                 activeSectionBanner
@@ -123,6 +118,56 @@ struct LiveInterviewIntelligenceView: View {
             }
             .padding(.vertical)
         }
+        } // outer VStack
+    }
+
+    // MARK: - Interview Header
+
+    private var interviewHeader: some View {
+        HStack(spacing: 10) {
+            if let candidate = interviewViewModel.interview?.candidate {
+                Text(candidate.initials)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(candidate.avatarColor.gradient, in: Circle())
+                Text(candidate.name)
+                    .font(.headline)
+            }
+
+            Text("·")
+                .foregroundStyle(.tertiary)
+
+            // Active section picker
+            Picker("", selection: Binding(
+                get: { interviewViewModel.activeSectionID },
+                set: { interviewViewModel.setActiveSection($0) }
+            )) {
+                Text("General Discussion").tag(nil as UUID?)
+                ForEach(interviewViewModel.sectionScores.sorted(by: { $0.sortOrder < $1.sortOrder })) { score in
+                    Text(score.rubricSectionTitle).tag(score.rubricSectionID as UUID?)
+                }
+            }
+            .frame(maxWidth: 200)
+            .controlSize(.small)
+            .help("Current interview phase")
+
+            Spacer()
+
+            // Stop interview button
+            Button {
+                interviewViewModel.stopInterview(in: modelContext)
+            } label: {
+                Label("End Interview", systemImage: "stop.circle.fill")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .controlSize(.small)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
     }
 
     // Active section scores first, then the rest

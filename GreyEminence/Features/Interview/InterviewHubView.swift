@@ -18,18 +18,20 @@ struct InterviewHubView: View {
 
     var body: some View {
         if interviewViewModel.isInterviewActive {
-            // Live interview recording with inspector
+            // Live interview: rubric/scoring is primary, transcript is inspector
             GeometryReader { geo in
-                let defaultWidth = geo.size.width * 0.4
+                let defaultWidth = geo.size.width * 0.35
                 let width = inspectorWidth ?? defaultWidth
-                let clampedWidth = min(max(width, 280), geo.size.width * 0.6)
+                let clampedWidth = min(max(width, 250), geo.size.width * 0.5)
 
                 HStack(spacing: 0) {
-                    LiveInterviewView(interviewViewModel: interviewViewModel)
+                    // Primary: rubric scoring + intelligence
+                    LiveInterviewIntelligenceView(interviewViewModel: interviewViewModel)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if showInspector {
                         Divider()
-                        LiveInterviewIntelligenceView(interviewViewModel: interviewViewModel)
+                        // Inspector: transcript + controls
+                        LiveInterviewView(interviewViewModel: interviewViewModel)
                             .frame(width: clampedWidth)
                     }
                 }
