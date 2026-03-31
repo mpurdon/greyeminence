@@ -24,12 +24,10 @@ struct SidebarView: View {
                     sectionHeader("Recording")
                     sidebarItem(.recording)
 
-                    sectionHeader("Hiring")
-                    sidebarItem(.interviews)
-
                     sectionHeader("Library")
                     sidebarItem(.meetings)
                     tasksItem
+                    sidebarItem(.interviews)
                     sidebarItem(.people)
                     if developerToolsEnabled {
                         sidebarItem(.activityLog)
