@@ -30,6 +30,7 @@
 		3052BD7FCCDE88CE3C036561 /* InterviewImpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F08738D7D9258962EA6B659 /* InterviewImpression.swift */; };
 		3191CB3A44A1238D798130F5 /* InterviewRecordingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5EDCC80A8D4B916A192C52E /* InterviewRecordingViewModel.swift */; };
 		33715D44310936A4E6B8B6D0 /* FollowUpQuestionsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D628D6D9F9CA270605365A14 /* FollowUpQuestionsSection.swift */; };
+		34858E9392DE15CD6EB29714 /* MyProfileSetupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D1BE56DAC018A93D783368 /* MyProfileSetupSheet.swift */; };
 		34C618A611D7F51790982544 /* InterviewSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75935675593F5D61DBF1542 /* InterviewSetupView.swift */; };
 		358B6538C05E798409F51190 /* AWSCredentialLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD9733020AF86912380852E7 /* AWSCredentialLoader.swift */; };
 		35E1728D83EE5E36848E0733 /* SpeakerContactMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F5B5497FD93F6C7BFE23CE6 /* SpeakerContactMapper.swift */; };
@@ -177,6 +178,7 @@
 		8141402D9688729287F5C68F /* MeetingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingStore.swift; sourceTree = "<group>"; };
 		8363D29DBB4CADCC8DD08381 /* InterviewIntelligenceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewIntelligenceService.swift; sourceTree = "<group>"; };
 		85571895F31B17D9B41094BB /* LiveInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveInterviewView.swift; sourceTree = "<group>"; };
+		87D1BE56DAC018A93D783368 /* MyProfileSetupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyProfileSetupSheet.swift; sourceTree = "<group>"; };
 		8D5C025F672896B9EBCD995D /* AIClientProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClientProtocol.swift; sourceTree = "<group>"; };
 		8F5B5497FD93F6C7BFE23CE6 /* SpeakerContactMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerContactMapper.swift; sourceTree = "<group>"; };
 		8F93F2580A0F2585FD914629 /* TranscriptSegmentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSegmentRow.swift; sourceTree = "<group>"; };
@@ -590,6 +592,7 @@
 				657275C542280701138F3D42 /* AudioSettingsView.swift */,
 				A9CE69F8422EE39E764DCC50 /* DeveloperSettingsView.swift */,
 				97149F3BA600B75B86FBBC1A /* GeneralSettingsView.swift */,
+				87D1BE56DAC018A93D783368 /* MyProfileSetupSheet.swift */,
 				415A0246E468B367021CD3C0 /* ObsidianSettingsView.swift */,
 				EAAE2A31F9F164242D15B47A /* OrganizationSettingsView.swift */,
 				4DAA9CB7A537E882B021ABF4 /* SettingsView.swift */,
@@ -760,6 +763,7 @@
 				B61817A61C272312B58CEB5B /* MicLevelMonitor.swift in Sources */,
 				468D89A5C59728BCF165C8B5 /* MicrophoneCaptureService.swift in Sources */,
 				0962CE60D8CA562FED69C778 /* ModelDownloadManager.swift in Sources */,
+				34858E9392DE15CD6EB29714 /* MyProfileSetupSheet.swift in Sources */,
 				98A16A6B0DB5EA0266B8FDA4 /* NoteInputBar.swift in Sources */,
 				24283F84D0FD2716A6806F48 /* ObsidianExportService.swift in Sources */,
 				DBDF5229655F6F36425F0F6F /* ObsidianSettingsView.swift in Sources */,

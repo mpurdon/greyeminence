@@ -55,6 +55,8 @@ struct ContentView: View {
     @State private var sidebarExpanded = false
     @State private var inspectorWidth: CGFloat?
     @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
+    @AppStorage("myContactID") private var myContactIDString = ""
+    @State private var showProfileSetup = false
     var recordingViewModel: RecordingViewModel
     var interviewRecordingViewModel: InterviewRecordingViewModel
 
@@ -102,6 +104,15 @@ struct ContentView: View {
         }
         .onAppear {
             recoverOrphanedMeetings()
+            // Prompt for profile if not configured (with slight delay so window settles)
+            if myContactIDString.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    showProfileSetup = true
+                }
+            }
+        }
+        .sheet(isPresented: $showProfileSetup) {
+            MyProfileSetupSheet()
         }
     }
 

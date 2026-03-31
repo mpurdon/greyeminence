@@ -1,16 +1,58 @@
 import SwiftUI
+import SwiftData
 import Sparkle
 
 struct GeneralSettingsView: View {
     var updater: SPUUpdater?
+    @Environment(\.modelContext) private var modelContext
     @AppStorage("autoStartRecording") private var autoStart = false
     @AppStorage("showMenuBarIcon") private var showMenuBar = true
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("calendarIntegration") private var calendarIntegration = false
     @AppStorage("stalledThresholdDays") private var stalledThresholdDays = 7
+    @AppStorage("myContactID") private var myContactIDString = ""
+    @Query(sort: \Contact.name) private var contacts: [Contact]
+
+    private var myContact: Contact? {
+        guard let id = UUID(uuidString: myContactIDString) else { return nil }
+        return contacts.first { $0.id == id }
+    }
 
     var body: some View {
         Form {
+            Section {
+                Picker("My Profile", selection: $myContactIDString) {
+                    Text("Not set").tag("")
+                    ForEach(contacts.filter { !$0.isArchived }) { contact in
+                        Text(contact.name).tag(contact.id.uuidString)
+                    }
+                }
+                if let contact = myContact {
+                    HStack(spacing: 6) {
+                        Text(contact.initials)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(contact.avatarColor.gradient, in: Circle())
+                        Text(contact.name)
+                            .font(.caption)
+                        if let email = contact.email {
+                            Text(email)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Text("This identifies you in meetings and interviews. The \"Me\" speaker label will be attributed to this contact.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Label("My Profile", systemImage: "person.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .textCase(nil)
+            }
+
             Section {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                 Toggle("Show menu bar icon", isOn: $showMenuBar)
