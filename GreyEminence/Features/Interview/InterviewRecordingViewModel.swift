@@ -15,6 +15,22 @@ final class InterviewRecordingViewModel {
     var notes: [InterviewNote] = []
     var rubricAnalysisState: RecordingViewModel.AIActivityState = .idle
 
+    /// The currently active interview section (nil = general discussion).
+    /// Controls which rubric section gets deep-scored by the LLM.
+    var activeSectionID: UUID?
+
+    var activeSectionTitle: String {
+        if let id = activeSectionID,
+           let score = sectionScores.first(where: { $0.rubricSectionID == id }) {
+            return score.rubricSectionTitle
+        }
+        return "General Discussion"
+    }
+
+    func setActiveSection(_ sectionID: UUID?) {
+        activeSectionID = sectionID
+    }
+
     // AI results
     var strengths: [String] = []
     var weaknesses: [String] = []
@@ -250,9 +266,10 @@ final class InterviewRecordingViewModel {
                 }
 
                 let snapshots = await MainActor.run { self.recordingViewModel.snapshotSegments() }
+                let currentSectionID = await MainActor.run { self.activeSectionID }
 
                 do {
-                    if let result = try await service.analyzeAgainstRubric(segments: snapshots) {
+                    if let result = try await service.analyzeAgainstRubric(segments: snapshots, activeSectionID: currentSectionID) {
                         await MainActor.run {
                             self.applyAnalysisResult(result)
                         }
@@ -280,18 +297,35 @@ final class InterviewRecordingViewModel {
     }
 
     private func applyAnalysisResult(_ result: InterviewAnalysisResult) {
-        // Update section scores from AI
         for aiScore in result.sectionScores {
             if let idx = sectionScores.firstIndex(where: { $0.rubricSectionID == aiScore.sectionID }) {
                 if let gradeStr = aiScore.grade {
                     sectionScores[idx].aiGrade = LetterGrade(rawValue: gradeStr)
                 }
                 sectionScores[idx].aiConfidence = aiScore.confidence
-                if let evidenceData = try? JSONSerialization.data(withJSONObject: aiScore.evidence),
+                sectionScores[idx].aiRationale = aiScore.rationale
+
+                // Store legacy JSON evidence for backward compat
+                let quoteStrings = aiScore.evidence.map(\.quote)
+                if let evidenceData = try? JSONSerialization.data(withJSONObject: quoteStrings),
                    let evidenceStr = String(data: evidenceData, encoding: .utf8) {
                     sectionScores[idx].aiEvidence = evidenceStr
                 }
-                sectionScores[idx].aiRationale = aiScore.rationale
+
+                // Create structured evidence items with provenance
+                // Replace existing evidence (AI updates cumulatively)
+                sectionScores[idx].evidenceItems.removeAll()
+                for ev in aiScore.evidence {
+                    let strength = EvidenceStrength(rawValue: ev.strength) ?? .moderate
+                    let item = ScoreEvidence(
+                        quote: ev.quote,
+                        timestamp: ev.timestamp,
+                        criterionSignal: ev.criterion,
+                        strength: strength
+                    )
+                    item.sectionScore = sectionScores[idx]
+                    sectionScores[idx].evidenceItems.append(item)
+                }
             }
         }
 

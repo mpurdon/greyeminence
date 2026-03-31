@@ -66,13 +66,22 @@ struct LiveInterviewView: View {
                     .font(.headline)
             }
 
-            if let rubric = interviewViewModel.interview?.rubric {
-                Text("·")
-                    .foregroundStyle(.tertiary)
-                Text(rubric.name)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            Text("·")
+                .foregroundStyle(.tertiary)
+
+            // Active section picker
+            Picker("", selection: Binding(
+                get: { interviewViewModel.activeSectionID },
+                set: { interviewViewModel.setActiveSection($0) }
+            )) {
+                Text("General Discussion").tag(nil as UUID?)
+                ForEach(interviewViewModel.sectionScores.sorted(by: { $0.sortOrder < $1.sortOrder })) { score in
+                    Text(score.rubricSectionTitle).tag(score.rubricSectionID as UUID?)
+                }
             }
+            .frame(maxWidth: 180)
+            .controlSize(.small)
+            .help("Current interview phase — tells AI which rubric section to focus on")
 
             Spacer()
 

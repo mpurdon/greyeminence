@@ -22,12 +22,19 @@ struct BonusSignalSnapshot: Sendable {
     let value: Int
 }
 
+struct EvidenceSnapshot: Sendable {
+    let quote: String
+    let timestamp: String
+    let criterion: String?
+    let strength: String // "weak", "moderate", "strong"
+}
+
 struct SectionScoreSnapshot: Sendable {
     let sectionID: UUID
     let sectionTitle: String
     let grade: String?
     let confidence: Double
-    let evidence: [String]
+    let evidence: [EvidenceSnapshot]
     let rationale: String
     let bonusSignals: [String: String]
 }
@@ -55,7 +62,7 @@ actor InterviewIntelligenceService {
         self.meetingID = meetingID
     }
 
-    func analyzeAgainstRubric(segments: [SegmentSnapshot]) async throws -> InterviewAnalysisResult? {
+    func analyzeAgainstRubric(segments: [SegmentSnapshot], activeSectionID: UUID? = nil) async throws -> InterviewAnalysisResult? {
         let nonEmpty = segments.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         guard nonEmpty.count > lastAnalyzedSegmentCount else { return nil }
 
@@ -67,12 +74,14 @@ actor InterviewIntelligenceService {
             let transcript = AIPromptTemplates.formatSegments(nonEmpty)
             userPrompt = InterviewPromptTemplates.initialAnalysisPrompt(
                 rubric: rubricContext,
+                activeSectionID: activeSectionID,
                 transcript: transcript
             )
         } else {
             let transcript = AIPromptTemplates.formatSegments(newSegments)
             userPrompt = InterviewPromptTemplates.rollingAnalysisPrompt(
                 rubric: rubricContext,
+                activeSectionID: activeSectionID,
                 previousScores: previousScoresJSON,
                 newTranscript: transcript
             )
@@ -148,16 +157,33 @@ actor InterviewIntelligenceService {
                 let title = score["section_title"] as? String ?? ""
                 let grade = score["grade"] as? String
                 let confidence = score["confidence"] as? Double ?? 0
-                let evidence = score["evidence"] as? [String] ?? []
                 let rationale = score["rationale"] as? String ?? ""
                 let bonusSignals = score["bonus_signals"] as? [String: String] ?? [:]
+
+                // Parse structured evidence (with fallback for plain string arrays)
+                var evidenceItems: [EvidenceSnapshot] = []
+                if let evidenceArray = score["evidence"] as? [[String: Any]] {
+                    for ev in evidenceArray {
+                        evidenceItems.append(EvidenceSnapshot(
+                            quote: ev["quote"] as? String ?? "",
+                            timestamp: ev["timestamp"] as? String ?? "",
+                            criterion: ev["criterion"] as? String,
+                            strength: ev["strength"] as? String ?? "moderate"
+                        ))
+                    }
+                } else if let plainEvidence = score["evidence"] as? [String] {
+                    // Fallback: plain string array → moderate strength, no timestamp
+                    evidenceItems = plainEvidence.map {
+                        EvidenceSnapshot(quote: $0, timestamp: "", criterion: nil, strength: "moderate")
+                    }
+                }
 
                 sectionScores.append(SectionScoreSnapshot(
                     sectionID: sectionID,
                     sectionTitle: title,
                     grade: grade,
                     confidence: confidence,
-                    evidence: evidence,
+                    evidence: evidenceItems,
                     rationale: rationale,
                     bonusSignals: bonusSignals
                 ))
@@ -180,11 +206,16 @@ actor InterviewIntelligenceService {
 
     private func encodeScoresForRolling(_ scores: [SectionScoreSnapshot]) -> String {
         let dicts: [[String: Any]] = scores.map { score in
+            let evidenceDicts: [[String: Any]] = score.evidence.map { ev in
+                var d: [String: Any] = ["quote": ev.quote, "timestamp": ev.timestamp, "strength": ev.strength]
+                if let criterion = ev.criterion { d["criterion"] = criterion }
+                return d
+            }
             var dict: [String: Any] = [
                 "section_id": score.sectionID.uuidString,
                 "section_title": score.sectionTitle,
                 "confidence": score.confidence,
-                "evidence": score.evidence,
+                "evidence": evidenceDicts,
                 "rationale": score.rationale,
             ]
             if let grade = score.grade { dict["grade"] = grade }

@@ -20,7 +20,14 @@ enum InterviewPromptTemplates {
               "section_title": "Section Name",
               "grade": "B+",
               "confidence": 0.7,
-              "evidence": ["direct quote or close paraphrase from transcript"],
+              "evidence": [
+                {
+                  "quote": "direct quote or close paraphrase",
+                  "timestamp": "[MM:SS]",
+                  "criterion": "which criterion this supports (or null)",
+                  "strength": "weak|moderate|strong"
+                }
+              ],
               "rationale": "Brief explanation of why this grade was assigned",
               "bonus_signals": {"Signal Label": "yes or no"}
             }
@@ -49,7 +56,11 @@ enum InterviewPromptTemplates {
         - Score ONLY based on evidence in the transcript. If a section has not been \
         discussed, set grade to null and confidence to 0.
         - Confidence reflects how much evidence exists (0 = no evidence, 1 = extensive evidence).
-        - Evidence array should contain 1-3 SHORT direct quotes or close paraphrases.
+        - Each evidence item MUST include the timestamp from the transcript (e.g. "[02:15]") \
+        so we can trace back to the exact utterance. Include the criterion it supports if applicable.
+        - Strength indicates how strongly this utterance supports the grade: \
+        "strong" = decisive evidence, "moderate" = supportive, "weak" = tangential.
+        - Multiple utterances can affect the same criterion. Include all relevant evidence.
         - Do not fabricate evidence. If the transcript doesn't cover a rubric area, say so.
         - Red flags are ONLY for genuinely concerning signals (dishonesty, hostility, \
         fundamental misunderstanding), not just areas where the candidate was average.
@@ -60,59 +71,127 @@ enum InterviewPromptTemplates {
         """
     }
 
-    static func formatRubric(_ rubric: RubricSnapshot) -> String {
+    // MARK: - Rubric Formatting
+
+    static func formatFullRubric(_ rubric: RubricSnapshot) -> String {
         var result = "RUBRIC: \(rubric.name)\n\n"
         for section in rubric.sections {
-            result += "## \(section.title) (weight: \(Int(section.weight)))\n"
-            if !section.description.isEmpty {
-                result += "Description: \(section.description)\n"
-            }
-            result += "Criteria:\n"
-            for criterion in section.criteria {
-                result += "  - \(criterion)\n"
-            }
-            if !section.bonusSignals.isEmpty {
-                result += "Bonus/Penalty Signals:\n"
-                for signal in section.bonusSignals {
-                    let sign = signal.value >= 0 ? "+" : ""
-                    result += "  - \(signal.label) (expected: \(signal.expected), \(sign)\(signal.value))\n"
-                }
-            }
-            result += "\n"
+            result += formatSection(section)
         }
         return result
     }
 
-    static func initialAnalysisPrompt(rubric: RubricSnapshot, transcript: String) -> String {
-        """
-        Evaluate the following interview transcript against the rubric.
-
-        \(formatRubric(rubric))
-
-        TRANSCRIPT:
-        \(transcript)
-        """
+    static func formatSection(_ section: RubricSectionSnapshot) -> String {
+        var result = "## \(section.title) (weight: \(Int(section.weight)))\n"
+        if !section.description.isEmpty {
+            result += "Description: \(section.description)\n"
+        }
+        result += "Criteria:\n"
+        for criterion in section.criteria {
+            result += "  - \(criterion)\n"
+        }
+        if !section.bonusSignals.isEmpty {
+            result += "Bonus/Penalty Signals:\n"
+            for signal in section.bonusSignals {
+                let sign = signal.value >= 0 ? "+" : ""
+                result += "  - \(signal.label) (expected: \(signal.expected), \(sign)\(signal.value))\n"
+            }
+        }
+        result += "\n"
+        return result
     }
 
-    static func rollingAnalysisPrompt(
+    // MARK: - Section-Aware Prompts
+
+    /// Rolling analysis focused on the active section.
+    /// Always evaluates general traits. Deep-scores the active section.
+    /// Lightly updates other sections if obvious evidence appears.
+    static func sectionFocusedPrompt(
         rubric: RubricSnapshot,
+        activeSectionID: UUID?,
         previousScores: String,
         newTranscript: String
     ) -> String {
-        """
-        Here are the previous scores from this interview:
+        let activeSection = activeSectionID.flatMap { id in
+            rubric.sections.first { $0.id == id }
+        }
 
-        PREVIOUS SCORES:
-        \(previousScores)
+        var prompt = ""
 
-        New transcript segments have been recorded. Update your evaluation with the new evidence. \
-        Adjust grades up or down as warranted. Do not drop sections.
+        if !previousScores.isEmpty {
+            prompt += """
+            PREVIOUS SCORES:
+            \(previousScores)
 
-        \(formatRubric(rubric))
+            New transcript segments have been recorded. Update your evaluation.
 
+            """
+        }
+
+        if let active = activeSection {
+            prompt += """
+            CURRENT INTERVIEW PHASE: \(active.title)
+            The interviewer is currently conducting the "\(active.title)" portion of the interview. \
+            Focus your detailed evaluation on this section. Score each criterion carefully and \
+            provide evidence with timestamps for every score factor.
+
+            ACTIVE SECTION RUBRIC (score in detail):
+            \(formatSection(active))
+
+            OTHER SECTIONS (update only if you see clear, obvious evidence):
+            """
+            for section in rubric.sections where section.id != active.id {
+                prompt += "\n  - \(section.title): update grade only if new evidence is unmistakable"
+            }
+            prompt += "\n\n"
+        } else {
+            prompt += """
+            CURRENT INTERVIEW PHASE: General Discussion
+            The interview is in a general discussion phase (introductions, work history, \
+            cultural fit, etc.). Score general impressions. Update any rubric section if \
+            relevant evidence appears.
+
+            FULL RUBRIC:
+            \(formatFullRubric(rubric))
+
+            """
+        }
+
+        prompt += """
         NEW TRANSCRIPT:
         \(newTranscript)
         """
+
+        return prompt
+    }
+
+    /// Initial analysis (first pass, no previous scores)
+    static func initialAnalysisPrompt(
+        rubric: RubricSnapshot,
+        activeSectionID: UUID?,
+        transcript: String
+    ) -> String {
+        sectionFocusedPrompt(
+            rubric: rubric,
+            activeSectionID: activeSectionID,
+            previousScores: "",
+            newTranscript: transcript
+        )
+    }
+
+    /// Rolling analysis with previous context
+    static func rollingAnalysisPrompt(
+        rubric: RubricSnapshot,
+        activeSectionID: UUID?,
+        previousScores: String,
+        newTranscript: String
+    ) -> String {
+        sectionFocusedPrompt(
+            rubric: rubric,
+            activeSectionID: activeSectionID,
+            previousScores: previousScores,
+            newTranscript: newTranscript
+        )
     }
 
     static func finalAnalysisPrompt(
@@ -124,11 +203,11 @@ enum InterviewPromptTemplates {
         The interview has ended. Below is the complete transcript and rubric. \
         Produce final, definitive scores for each rubric section.
 
-        Reconcile any contradictions from earlier rolling evaluations. \
-        Highlight the strongest evidence for each section. \
-        Provide a comprehensive overall_assessment.
+        Score EVERY section in detail now, regardless of which phase was active during \
+        the live interview. Reconcile any contradictions from earlier evaluations. \
+        Provide comprehensive evidence with timestamps for each section.
 
-        \(formatRubric(rubric))
+        \(formatFullRubric(rubric))
 
         ACCUMULATED SCORES FROM LIVE EVALUATION:
         \(accumulatedScores)
@@ -136,5 +215,23 @@ enum InterviewPromptTemplates {
         FULL TRANSCRIPT:
         \(fullTranscript)
         """
+    }
+
+    // MARK: - Legacy compatibility
+
+    static func formatRubric(_ rubric: RubricSnapshot) -> String {
+        formatFullRubric(rubric)
+    }
+
+    static func initialAnalysisPrompt(rubric: RubricSnapshot, transcript: String) -> String {
+        initialAnalysisPrompt(rubric: rubric, activeSectionID: nil, transcript: transcript)
+    }
+
+    static func rollingAnalysisPrompt(
+        rubric: RubricSnapshot,
+        previousScores: String,
+        newTranscript: String
+    ) -> String {
+        rollingAnalysisPrompt(rubric: rubric, activeSectionID: nil, previousScores: previousScores, newTranscript: newTranscript)
     }
 }
