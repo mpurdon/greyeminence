@@ -78,6 +78,9 @@ final class Interview {
     @Relationship(deleteRule: .cascade, inverse: \InterviewBookmark.interview)
     var bookmarks: [InterviewBookmark]
 
+    @Relationship(deleteRule: .cascade, inverse: \InterviewNote.interview)
+    var notes: [InterviewNote]
+
     @Relationship(deleteRule: .nullify)
     var interviewers: [Contact]
 
@@ -100,6 +103,7 @@ final class Interview {
         self.sectionScores = []
         self.impressions = []
         self.bookmarks = []
+        self.notes = []
         self.interviewers = []
     }
 

@@ -12,6 +12,7 @@ final class InterviewRecordingViewModel {
     var sectionScores: [InterviewSectionScore] = []
     var impressions: [InterviewImpression] = []
     var bookmarks: [InterviewBookmark] = []
+    var notes: [InterviewNote] = []
     var rubricAnalysisState: RecordingViewModel.AIActivityState = .idle
 
     // AI results
@@ -114,6 +115,7 @@ final class InterviewRecordingViewModel {
             interview.sectionScores = sectionScores
             interview.impressions = impressions
             interview.bookmarks = bookmarks
+            interview.notes = notes.filter { $0.parentNote == nil } // Top-level only; sub-notes cascade
         }
         try? modelContext.save()
 
@@ -131,6 +133,23 @@ final class InterviewRecordingViewModel {
         )
         bookmark.interview = interview
         bookmarks.append(bookmark)
+    }
+
+    // MARK: - Notes
+
+    func addNote(text: String, category: NoteCategory = .general, parent: InterviewNote? = nil) {
+        let note = InterviewNote(text: text, category: category, sortOrder: notes.count)
+        note.interview = interview
+        note.parentNote = parent
+        if let parent {
+            parent.subNotes.append(note)
+        }
+        notes.append(note)
+    }
+
+    func deleteNote(_ note: InterviewNote) {
+        notes.removeAll { $0.id == note.id }
+        // Sub-notes cascade via SwiftData
     }
 
     // MARK: - Impression Updates
@@ -260,6 +279,7 @@ final class InterviewRecordingViewModel {
         sectionScores = []
         impressions = []
         bookmarks = []
+        notes = []
         strengths = []
         weaknesses = []
         redFlags = []

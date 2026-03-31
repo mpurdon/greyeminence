@@ -35,6 +35,7 @@ struct GreyEminenceApp: App {
             InterviewImpression.self,
             InterviewImpressionTrait.self,
             InterviewBookmark.self,
+            InterviewNote.self,
         ])
         let config = ModelConfiguration(
             "GreyEminence",

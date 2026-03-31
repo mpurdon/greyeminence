@@ -1,13 +1,34 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - Bell-Curve Gradient Scoring
+
+/// Maps a 0-1 normalized value to a color using bell-curve logic:
+/// 0% = red, ramps to green peaking at ~80%, then back to red at 100%.
+/// The "sweet spot" is 75-85%.
+func bellCurveColor(for normalizedValue: Double) -> Color {
+    let v = min(max(normalizedValue, 0), 1)
+    // Peak at 0.80
+    let distance = abs(v - 0.80) / 0.80
+    let greenAmount = max(1.0 - distance * 2.5, 0)
+    if greenAmount > 0.5 {
+        return Color(red: (1.0 - greenAmount) * 0.8, green: 0.7, blue: 0.1)
+    } else if v < 0.5 {
+        return Color(red: 0.8, green: max(v * 1.4, 0.2), blue: 0.1)
+    } else {
+        return Color(red: 0.8, green: max(greenAmount * 1.2, 0.2), blue: 0.1)
+    }
+}
+
+// MARK: - Main View
+
 struct LiveInterviewIntelligenceView: View {
     var interviewViewModel: InterviewRecordingViewModel
     @Query(sort: \InterviewImpressionTrait.sortOrder) private var traits: [InterviewImpressionTrait]
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
                 // Header
                 HStack {
                     Label {
@@ -31,25 +52,32 @@ struct LiveInterviewIntelligenceView: View {
                 rubricOverview
                     .padding(.horizontal)
 
-                // Feeling sliders
+                // Compact impression sliders
                 impressionSliders
                     .padding(.horizontal)
 
-                // Section details
+                // Section cards (compact — no notes here, notes are below)
                 ForEach(interviewViewModel.sectionScores.sorted(by: { $0.sortOrder < $1.sortOrder })) { score in
-                    LiveSectionCard(score: score, interviewViewModel: interviewViewModel)
+                    CompactSectionCard(score: score, interviewViewModel: interviewViewModel)
                         .padding(.horizontal)
                 }
 
+                Divider()
+                    .padding(.horizontal)
+
+                // Notes table (Notion-style)
+                InterviewNotesTable(interviewViewModel: interviewViewModel)
+                    .padding(.horizontal)
+
                 // Strengths / Weaknesses / Red Flags
                 if !interviewViewModel.strengths.isEmpty {
-                    signalSection(title: "Strengths", items: interviewViewModel.strengths, icon: "arrow.up.circle.fill", color: .green)
+                    signalList(title: "Strengths", items: interviewViewModel.strengths, icon: "arrow.up.circle.fill", color: .green)
                 }
                 if !interviewViewModel.weaknesses.isEmpty {
-                    signalSection(title: "Weaknesses", items: interviewViewModel.weaknesses, icon: "arrow.down.circle.fill", color: .orange)
+                    signalList(title: "Weaknesses", items: interviewViewModel.weaknesses, icon: "arrow.down.circle.fill", color: .orange)
                 }
                 if !interviewViewModel.redFlags.isEmpty {
-                    signalSection(title: "Red Flags", items: interviewViewModel.redFlags, icon: "flag.fill", color: .red)
+                    signalList(title: "Red Flags", items: interviewViewModel.redFlags, icon: "flag.fill", color: .red)
                 }
 
                 if !interviewViewModel.overallAssessment.isEmpty {
@@ -70,73 +98,68 @@ struct LiveInterviewIntelligenceView: View {
     // MARK: - Rubric Overview
 
     private var rubricOverview: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Rubric Progress")
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Rubric")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 6) {
+            HStack(spacing: 8) {
                 ForEach(interviewViewModel.sectionScores.sorted(by: { $0.sortOrder < $1.sortOrder })) { score in
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Circle()
-                            .fill(scoreColor(score))
-                            .frame(width: 8, height: 8)
+                            .fill(gradeColor(score.effectiveLetterGrade))
+                            .frame(width: 6, height: 6)
                         Text(score.rubricSectionTitle)
-                            .font(.caption2)
+                            .font(.system(size: 10))
                             .lineLimit(1)
                         if let grade = score.effectiveLetterGrade {
                             Text(grade.label)
-                                .font(.caption2.weight(.bold))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
         }
-        .padding(10)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .padding(8)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
     }
 
-    private func scoreColor(_ score: InterviewSectionScore) -> Color {
-        guard let confidence = score.aiConfidence, confidence > 0 else { return .gray }
-        guard let grade = score.effectiveLetterGrade else { return .gray }
-        switch grade {
-        case .aPlus, .a, .aMinus: return .green
-        case .bPlus, .b, .bMinus: return .blue
-        case .cPlus, .c, .cMinus: return .orange
-        default: return .red
-        }
-    }
-
-    // MARK: - Impression Sliders
+    // MARK: - Compact Impression Sliders
 
     private var impressionSliders: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             Text("Impressions")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             ForEach(traits) { trait in
                 if let impression = interviewViewModel.impressions.first(where: { $0.traitName == trait.name }) {
-                    ImpressionSliderRow(trait: trait, impression: impression) { newValue in
+                    CompactSliderRow(trait: trait, impression: impression) { newValue in
                         interviewViewModel.updateImpression(traitName: trait.name, value: newValue)
                     }
                 }
             }
         }
-        .padding(10)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .padding(8)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
     }
 
-    // MARK: - Signal Section
+    // MARK: - Helpers
 
-    private func signalSection(title: String, items: [String], icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private func gradeColor(_ grade: LetterGrade?) -> Color {
+        guard let grade else { return .gray }
+        let gp = grade.gradePoints / 4.0
+        return bellCurveColor(for: gp)
+    }
+
+    private func signalList(title: String, items: [String], icon: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
             Label(title, systemImage: icon)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(color)
             ForEach(items, id: \.self) { item in
-                Text("• \(item)")
+                Text("  \(item)")
                     .font(.caption)
             }
         }
@@ -144,68 +167,64 @@ struct LiveInterviewIntelligenceView: View {
     }
 }
 
-// MARK: - Impression Slider Row
+// MARK: - Compact Slider Row
 
-struct ImpressionSliderRow: View {
+struct CompactSliderRow: View {
     let trait: InterviewImpressionTrait
     let impression: InterviewImpression
     var onChange: (Int) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(trait.name)
-                    .font(.caption.weight(.medium))
-                Spacer()
-                Text(trait.label(for: impression.value))
-                    .font(.caption)
-                    .foregroundStyle(labelColor(for: impression.value))
-            }
-            HStack(spacing: 0) {
-                ForEach(1...5, id: \.self) { value in
-                    Button {
-                        onChange(value)
-                    } label: {
-                        VStack(spacing: 1) {
-                            Circle()
-                                .fill(impression.value == value ? dotColor(for: value) : Color.secondary.opacity(0.3))
-                                .frame(width: 12, height: 12)
-                            Text(trait.label(for: value))
-                                .font(.system(size: 8))
-                                .foregroundStyle(impression.value == value ? dotColor(for: value) : .secondary)
-                                .lineLimit(1)
+        HStack(spacing: 6) {
+            Text(trait.name)
+                .font(.system(size: 10))
+                .frame(width: 80, alignment: .leading)
+                .lineLimit(1)
+
+            // Compact slider track
+            GeometryReader { geo in
+                let totalWidth = geo.size.width
+                let segmentWidth = totalWidth / 5.0
+                let filledWidth = segmentWidth * Double(impression.value)
+
+                ZStack(alignment: .leading) {
+                    // Track background
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.secondary.opacity(0.15))
+                        .frame(height: 6)
+
+                    // Filled portion with bell-curve gradient
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(bellCurveColor(for: Double(impression.value) / 5.0))
+                        .frame(width: filledWidth, height: 6)
+
+                    // Tick marks
+                    HStack(spacing: 0) {
+                        ForEach(1...5, id: \.self) { value in
+                            Rectangle()
+                                .fill(Color.clear)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .contentShape(Rectangle())
+                                .onTapGesture { onChange(value) }
                         }
-                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.plain)
                 }
             }
-        }
-    }
+            .frame(height: 14)
 
-    private func dotColor(for value: Int) -> Color {
-        switch value {
-        case 1: .orange      // Too low — notable
-        case 2: .secondary   // Below sweet spot
-        case 3: .green       // Sweet spot start
-        case 4: .green       // Sweet spot
-        case 5: .orange      // Too much — notable
-        default: .gray
-        }
-    }
-
-    private func labelColor(for value: Int) -> Color {
-        switch value {
-        case 1, 5: .orange
-        case 3, 4: .green
-        default: .secondary
+            // Current label
+            Text(trait.label(for: impression.value))
+                .font(.system(size: 9))
+                .foregroundStyle(bellCurveColor(for: Double(impression.value) / 5.0))
+                .frame(width: 60, alignment: .trailing)
+                .lineLimit(1)
         }
     }
 }
 
-// MARK: - Live Section Card
+// MARK: - Compact Section Card
 
-private struct LiveSectionCard: View {
+private struct CompactSectionCard: View {
     @Bindable var score: InterviewSectionScore
     var interviewViewModel: InterviewRecordingViewModel
 
@@ -213,99 +232,260 @@ private struct LiveSectionCard: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 8) {
-                // AI grade + confidence
-                if let aiGrade = score.aiGrade {
-                    HStack {
-                        Text("AI Grade: \(aiGrade.label)")
-                            .font(.caption.weight(.semibold))
-                        if let confidence = score.aiConfidence {
-                            ProgressView(value: confidence)
-                                .frame(width: 50)
-                            Text("\(Int(confidence * 100))%")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                // AI + interviewer grade row
+                HStack(spacing: 12) {
+                    if let aiGrade = score.aiGrade {
+                        HStack(spacing: 3) {
+                            Text("AI:")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                            Text(aiGrade.label)
+                                .font(.system(size: 10, weight: .bold))
+                            if let c = score.aiConfidence {
+                                Text("\(Int(c * 100))%")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
+                    }
+
+                    HStack(spacing: 3) {
+                        Text("You:")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                        Picker("", selection: Binding(
+                            get: { score.interviewerGrade },
+                            set: { interviewViewModel.updateInterviewerGrade(sectionID: score.rubricSectionID, grade: $0) }
+                        )) {
+                            Text("--").tag(nil as LetterGrade?)
+                            ForEach(LetterGrade.allCases, id: \.self) { grade in
+                                Text(grade.label).tag(grade as LetterGrade?)
+                            }
+                        }
+                        .frame(width: 60)
+                        .controlSize(.mini)
                     }
                 }
 
-                // Evidence
+                // Evidence (compact)
                 if let evidenceJSON = score.aiEvidence,
                    let data = evidenceJSON.data(using: .utf8),
                    let evidence = try? JSONDecoder().decode([String].self, from: data),
                    !evidence.isEmpty {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Evidence")
-                            .font(.caption2.weight(.semibold))
+                    ForEach(evidence, id: \.self) { quote in
+                        Text("\"\(quote)\"")
+                            .font(.system(size: 10))
+                            .italic()
                             .foregroundStyle(.secondary)
-                        ForEach(evidence, id: \.self) { quote in
-                            Text("\"\(quote)\"")
-                                .font(.caption)
-                                .italic()
-                                .foregroundStyle(.secondary)
-                        }
+                            .lineLimit(2)
                     }
                 }
 
-                // Rationale
                 if let rationale = score.aiRationale, !rationale.isEmpty {
                     Text(rationale)
-                        .font(.caption)
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
-
-                Divider()
-
-                // Interviewer grade
-                HStack {
-                    Text("Your Grade:")
-                        .font(.caption)
-                    Picker("", selection: Binding(
-                        get: { score.interviewerGrade },
-                        set: { interviewViewModel.updateInterviewerGrade(sectionID: score.rubricSectionID, grade: $0) }
-                    )) {
-                        Text("—").tag(nil as LetterGrade?)
-                        ForEach(LetterGrade.allCases, id: \.self) { grade in
-                            Text(grade.label).tag(grade as LetterGrade?)
-                        }
-                    }
-                    .frame(width: 80)
-                }
-
-                // Interviewer notes
-                TextField("Your notes...", text: Binding(
-                    get: { score.interviewerNotes ?? "" },
-                    set: { interviewViewModel.updateInterviewerNotes(sectionID: score.rubricSectionID, notes: $0) }
-                ), axis: .vertical)
-                .lineLimit(2...4)
-                .font(.caption)
-                .textFieldStyle(.roundedBorder)
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 Text(score.rubricSectionTitle)
-                    .font(.caption.weight(.semibold))
+                    .font(.system(size: 11, weight: .semibold))
                 Spacer()
                 if let grade = score.effectiveLetterGrade {
                     Text(grade.label)
-                        .font(.caption.weight(.bold))
-                        .padding(.horizontal, 6)
+                        .font(.system(size: 10, weight: .bold))
+                        .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(gradeColor(grade).opacity(0.2), in: Capsule())
-                        .foregroundStyle(gradeColor(grade))
+                        .background(bellCurveColor(for: grade.gradePoints / 4.0).opacity(0.25), in: Capsule())
+                        .foregroundStyle(bellCurveColor(for: grade.gradePoints / 4.0))
                 }
             }
         }
-        .padding(8)
-        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+        .font(.system(size: 11))
+        .padding(6)
+        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+// MARK: - Interview Notes Table (Notion-style)
+
+struct InterviewNotesTable: View {
+    var interviewViewModel: InterviewRecordingViewModel
+    @State private var newNoteText = ""
+    @FocusState private var isNewNoteFocused: Bool
+
+    private var topLevelNotes: [InterviewNote] {
+        interviewViewModel.notes
+            .filter { $0.parentNote == nil }
+            .sorted { $0.sortOrder < $1.sortOrder }
     }
 
-    private func gradeColor(_ grade: LetterGrade) -> Color {
-        switch grade {
-        case .aPlus, .a, .aMinus: .green
-        case .bPlus, .b, .bMinus: .blue
-        case .cPlus, .c, .cMinus: .orange
-        default: .red
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Notes")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            // Note rows
+            ForEach(topLevelNotes) { note in
+                NoteRow(note: note, interviewViewModel: interviewViewModel, depth: 0)
+            }
+
+            // Add note row
+            HStack(spacing: 4) {
+                Image(systemName: "plus")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 14)
+                TextField("Add a note...", text: $newNoteText)
+                    .font(.system(size: 11))
+                    .textFieldStyle(.plain)
+                    .focused($isNewNoteFocused)
+                    .onSubmit {
+                        addNote()
+                    }
+            }
+            .padding(.vertical, 3)
+            .padding(.horizontal, 4)
         }
+        .padding(8)
+        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func addNote() {
+        let text = newNoteText.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        interviewViewModel.addNote(text: text)
+        newNoteText = ""
+        isNewNoteFocused = true
+    }
+}
+
+// MARK: - Note Row
+
+private struct NoteRow: View {
+    @Bindable var note: InterviewNote
+    var interviewViewModel: InterviewRecordingViewModel
+    let depth: Int
+
+    @State private var isAddingSub = false
+    @State private var subNoteText = ""
+    @FocusState private var isSubFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 4) {
+                // Indent
+                if depth > 0 {
+                    Spacer()
+                        .frame(width: CGFloat(depth) * 16)
+                }
+
+                // Category badge
+                Button {
+                    cycleCategory()
+                } label: {
+                    Text(note.category.rawValue.prefix(1))
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .frame(width: 14, height: 14)
+                        .background(categoryColor(note.category), in: RoundedRectangle(cornerRadius: 2))
+                }
+                .buttonStyle(.plain)
+                .help("Category: \(note.category.rawValue) (click to change)")
+
+                // Note text
+                TextField("", text: $note.text)
+                    .font(.system(size: 11))
+                    .textFieldStyle(.plain)
+
+                Spacer()
+
+                // Sub-note button
+                Button {
+                    isAddingSub.toggle()
+                    isSubFocused = true
+                } label: {
+                    Image(systemName: "text.line.first.and.arrowtriangle.forward")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Add sub-note")
+
+                // Delete
+                Button {
+                    interviewViewModel.deleteNote(note)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.vertical, 3)
+            .padding(.horizontal, 4)
+
+            // Sub-notes
+            ForEach(note.subNotes.sorted { $0.sortOrder < $1.sortOrder }) { sub in
+                NoteRow(note: sub, interviewViewModel: interviewViewModel, depth: depth + 1)
+            }
+
+            // Add sub-note field
+            if isAddingSub {
+                HStack(spacing: 4) {
+                    Spacer()
+                        .frame(width: CGFloat(depth + 1) * 16)
+                    Image(systemName: "plus")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 14)
+                    TextField("Sub-note...", text: $subNoteText)
+                        .font(.system(size: 11))
+                        .textFieldStyle(.plain)
+                        .focused($isSubFocused)
+                        .onSubmit {
+                            let text = subNoteText.trimmingCharacters(in: .whitespaces)
+                            if !text.isEmpty {
+                                interviewViewModel.addNote(text: text, category: note.category, parent: note)
+                                subNoteText = ""
+                            } else {
+                                isAddingSub = false
+                            }
+                        }
+                        .onExitCommand { isAddingSub = false }
+                }
+                .padding(.vertical, 2)
+                .padding(.horizontal, 4)
+            }
+        }
+    }
+
+    private func cycleCategory() {
+        let all = NoteCategory.allCases
+        let idx = all.firstIndex(of: note.category) ?? 0
+        note.category = all[(idx + 1) % all.count]
+    }
+
+    private func categoryColor(_ cat: NoteCategory) -> Color {
+        switch cat {
+        case .general: .gray
+        case .technical: .blue
+        case .fit: .purple
+        }
+    }
+}
+
+// MARK: - Backward-compatible ImpressionSliderRow (used by scorecard too)
+
+struct ImpressionSliderRow: View {
+    let trait: InterviewImpressionTrait
+    let impression: InterviewImpression
+    var onChange: (Int) -> Void
+
+    var body: some View {
+        CompactSliderRow(trait: trait, impression: impression, onChange: onChange)
     }
 }
