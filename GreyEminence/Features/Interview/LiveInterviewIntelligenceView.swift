@@ -26,6 +26,10 @@ struct LiveInterviewIntelligenceView: View {
     var interviewViewModel: InterviewRecordingViewModel
     @Query(sort: \InterviewImpressionTrait.sortOrder) private var traits: [InterviewImpressionTrait]
 
+    private var recordingVM: RecordingViewModel {
+        interviewViewModel.recordingViewModel
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -48,6 +52,10 @@ struct LiveInterviewIntelligenceView: View {
                 }
                 .padding(.horizontal)
 
+                // Active section indicator
+                activeSectionBanner
+                    .padding(.horizontal)
+
                 // Rubric score overview
                 rubricOverview
                     .padding(.horizontal)
@@ -56,10 +64,32 @@ struct LiveInterviewIntelligenceView: View {
                 impressionSliders
                     .padding(.horizontal)
 
-                // Section cards (compact — no notes here, notes are below)
-                ForEach(interviewViewModel.sectionScores.sorted(by: { $0.sortOrder < $1.sortOrder })) { score in
-                    CompactSectionCard(score: score, interviewViewModel: interviewViewModel)
-                        .padding(.horizontal)
+                // Active section card first (expanded), then others collapsed
+                ForEach(sortedSectionScores) { score in
+                    CompactSectionCard(
+                        score: score,
+                        interviewViewModel: interviewViewModel,
+                        isActiveSection: score.rubricSectionID == interviewViewModel.activeSectionID
+                    )
+                    .padding(.horizontal)
+                }
+
+                Divider()
+                    .padding(.horizontal)
+
+                // Meeting summary from standard AI
+                if !recordingVM.streamingSummary.isEmpty {
+                    AISummarySection(summary: recordingVM.streamingSummary)
+                }
+
+                // Follow-up questions
+                if !recordingVM.followUpQuestions.isEmpty {
+                    FollowUpQuestionsSection(questions: recordingVM.followUpQuestions)
+                }
+
+                // Topics
+                if !recordingVM.topics.isEmpty {
+                    KnowledgeLinksSection(topics: recordingVM.topics)
                 }
 
                 Divider()
@@ -93,6 +123,46 @@ struct LiveInterviewIntelligenceView: View {
             }
             .padding(.vertical)
         }
+    }
+
+    // Active section scores first, then the rest
+    private var sortedSectionScores: [InterviewSectionScore] {
+        let scores = interviewViewModel.sectionScores.sorted { $0.sortOrder < $1.sortOrder }
+        guard let activeID = interviewViewModel.activeSectionID else { return scores }
+        let active = scores.filter { $0.rubricSectionID == activeID }
+        let rest = scores.filter { $0.rubricSectionID != activeID }
+        return active + rest
+    }
+
+    // MARK: - Active Section Banner
+
+    private var activeSectionBanner: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(.cyan)
+                .frame(width: 6, height: 6)
+            Text("Now: \(interviewViewModel.activeSectionTitle)")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.cyan)
+            Spacer()
+            // Standard AI activity
+            if case .analyzing = recordingVM.aiActivityState {
+                HStack(spacing: 3) {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text("Summarizing...")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.purple)
+                }
+            } else if case .waiting(let secs) = recordingVM.aiActivityState {
+                Text("Summary in \(secs)s")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: - Rubric Overview
@@ -227,6 +297,7 @@ struct CompactSliderRow: View {
 private struct CompactSectionCard: View {
     @Bindable var score: InterviewSectionScore
     var interviewViewModel: InterviewRecordingViewModel
+    var isActiveSection: Bool = false
 
     @State private var isExpanded = false
 
@@ -305,7 +376,22 @@ private struct CompactSectionCard: View {
         }
         .font(.system(size: 11))
         .padding(6)
+        .background(
+            isActiveSection ? Color.cyan.opacity(0.08) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 6)
+        )
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            isActiveSection
+                ? RoundedRectangle(cornerRadius: 6).stroke(.cyan.opacity(0.3), lineWidth: 1)
+                : nil
+        )
+        .onAppear {
+            if isActiveSection { isExpanded = true }
+        }
+        .onChange(of: isActiveSection) { _, active in
+            if active { isExpanded = true }
+        }
     }
 }
 
