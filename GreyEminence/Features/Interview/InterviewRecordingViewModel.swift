@@ -104,23 +104,68 @@ final class InterviewRecordingViewModel {
     }
 
     func stopInterview(in modelContext: ModelContext) {
-        // Cancel rubric analysis
+        // Cancel the rolling rubric analysis loop
         rubricAnalysisTask?.cancel()
         rubricAnalysisTask = nil
-        rubricAnalysisState = .idle
 
-        // Persist scores and impressions
+        // Persist current state
         if let interview {
             interview.status = .completed
             interview.sectionScores = sectionScores
             interview.impressions = impressions
             interview.bookmarks = bookmarks
-            interview.notes = notes.filter { $0.parentNote == nil } // Top-level only; sub-notes cascade
+            interview.notes = notes.filter { $0.parentNote == nil }
         }
         try? modelContext.save()
 
-        // Stop the underlying recording
+        // Capture what we need for the final analysis before stopping
+        let rubric = interview?.rubric
+        let meetingID = recordingViewModel.currentMeeting?.id
+
+        // Stop the underlying recording (triggers standard final analysis too)
         recordingViewModel.stopRecording(in: modelContext)
+
+        // Run final rubric analysis on the complete transcript
+        if let rubric {
+            rubricAnalysisState = .analyzing
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.runFinalRubricAnalysis(rubric: rubric, meetingID: meetingID, in: modelContext)
+                self.rubricAnalysisState = .idle
+            }
+        } else {
+            rubricAnalysisState = .idle
+        }
+    }
+
+    private func runFinalRubricAnalysis(rubric: Rubric, meetingID: UUID?, in modelContext: ModelContext) async {
+        guard let client = try? await AIClientFactory.makeClient() else { return }
+
+        let rubricSnapshot = makeRubricSnapshot(rubric)
+        let service = InterviewIntelligenceService(
+            client: client,
+            rubricContext: rubricSnapshot,
+            meetingID: meetingID
+        )
+
+        let snapshots = recordingViewModel.snapshotSegments()
+        guard !snapshots.isEmpty else { return }
+
+        do {
+            // Seed with a rolling pass first so the final pass has context
+            _ = try await service.analyzeAgainstRubric(segments: snapshots)
+            if let result = try await service.performFinalInterviewAnalysis(segments: snapshots) {
+                applyAnalysisResult(result)
+                // Persist final scores
+                if let interview {
+                    interview.sectionScores = sectionScores
+                }
+                try? modelContext.save()
+                LogManager.shared.log("Final rubric analysis complete", category: .ai)
+            }
+        } catch {
+            LogManager.shared.log("Final rubric analysis failed: \(error.localizedDescription)", category: .ai, level: .warning)
+        }
     }
 
     // MARK: - Bookmarks
