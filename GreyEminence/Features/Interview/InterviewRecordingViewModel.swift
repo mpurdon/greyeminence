@@ -45,6 +45,13 @@ final class InterviewRecordingViewModel {
         activePhaseID = phaseID
     }
 
+    // Criterion evaluations per section
+    var criterionEvaluations: [UUID: [CriterionEvaluationSnapshot]] = [:]
+    var rubricSnapshot: RubricSnapshot?
+
+    // Scroll-to-transcript support
+    var scrollToSegmentID: UUID?
+
     // AI results
     var strengths: [String] = []
     var weaknesses: [String] = []
@@ -126,6 +133,7 @@ final class InterviewRecordingViewModel {
 
         // Start rubric analysis loop (offset from standard AI by ~20s)
         startRubricAnalysis(rubric: rubric)
+        self.rubricSnapshot = rubric.toSnapshot()
     }
 
     func stopInterview(in modelContext: ModelContext) {
@@ -371,10 +379,31 @@ final class InterviewRecordingViewModel {
             }
         }
 
+        for aiScore in result.sectionScores {
+            criterionEvaluations[aiScore.sectionID] = aiScore.criterionEvaluations
+        }
+
         strengths = result.strengths
         weaknesses = result.weaknesses
         redFlags = result.redFlags
         overallAssessment = result.overallAssessment
+    }
+
+    // MARK: - Scroll to Transcript
+
+    func scrollTranscriptToTimestamp(_ timestamp: String) {
+        guard let seconds = parseTimestampToSeconds(timestamp) else { return }
+        let closest = recordingViewModel.segments
+            .filter { $0.isFinal }
+            .min(by: { abs($0.startTime - seconds) < abs($1.startTime - seconds) })
+        scrollToSegmentID = closest?.id
+    }
+
+    private func parseTimestampToSeconds(_ ts: String) -> TimeInterval? {
+        let cleaned = ts.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        let parts = cleaned.split(separator: ":")
+        guard parts.count == 2, let min = Double(parts[0]), let sec = Double(parts[1]) else { return nil }
+        return min * 60 + sec
     }
 
     // MARK: - Cleanup
@@ -389,6 +418,9 @@ final class InterviewRecordingViewModel {
         weaknesses = []
         redFlags = []
         overallAssessment = ""
+        criterionEvaluations = [:]
+        rubricSnapshot = nil
+        scrollToSegmentID = nil
         activePhaseID = Self.introID
         rubricAnalysisState = .idle
         rubricAnalysisTask?.cancel()

@@ -29,7 +29,16 @@ enum InterviewPromptTemplates {
                 }
               ],
               "rationale": "Brief explanation of why this grade was assigned",
-              "bonus_signals": {"Signal Label": "yes or no"}
+              "bonus_signals": {"Signal Label": "yes or no"},
+              "criterion_evaluations": [
+                {
+                  "signal": "criterion text from rubric",
+                  "status": "not_yet_discussed|partial_evidence|scored",
+                  "confidence": 0.7,
+                  "evidence": [{"quote": "...", "timestamp": "[MM:SS]", "strength": "strong"}],
+                  "summary": "One-line assessment"
+                }
+              ]
             }
           ],
           "strengths": ["Candidate demonstrated X"],
@@ -68,6 +77,10 @@ enum InterviewPromptTemplates {
         Only include signals that are defined in the rubric section.
         - Strengths and weaknesses should be specific and evidence-based.
         - The overall_assessment should be 2-3 sentences summarizing the candidate.
+        - For each criterion in the rubric section, provide a criterion_evaluation entry. \
+        Use "not_yet_discussed" with confidence 0 if the topic hasn't come up. \
+        Use "partial_evidence" when some relevant discussion exists but isn't conclusive. \
+        Use "scored" when you have enough evidence for a confident assessment.
         """
     }
 
@@ -146,13 +159,8 @@ enum InterviewPromptTemplates {
             prompt += "\n\n"
         } else {
             prompt += """
-            CURRENT INTERVIEW PHASE: General Discussion
-            The interview is in a general discussion phase (introductions, work history, \
-            cultural fit, etc.). Score general impressions. Update any rubric section if \
-            relevant evidence appears.
-
-            FULL RUBRIC:
-            \(formatFullRubric(rubric))
+            CURRENT INTERVIEW PHASE: Introduction/Conclusion
+            Summarize the discussion. Do not score rubric sections. Return section_scores as an empty array.
 
             """
         }

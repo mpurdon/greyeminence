@@ -47,7 +47,11 @@ struct LiveInterviewView: View {
             case .transcript:
                 LiveTranscriptView(
                     segments: recordingVM.segments,
-                    segmentConfidence: recordingVM.segmentConfidence
+                    segmentConfidence: recordingVM.segmentConfidence,
+                    scrollToSegmentID: Binding(
+                        get: { interviewViewModel.scrollToSegmentID },
+                        set: { interviewViewModel.scrollToSegmentID = $0 }
+                    )
                 )
             case .notes:
                 ScrollView {

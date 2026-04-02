@@ -29,6 +29,20 @@ struct EvidenceSnapshot: Sendable {
     let strength: String // "weak", "moderate", "strong"
 }
 
+enum CriterionStatus: String, Sendable, Codable {
+    case notYetDiscussed = "not_yet_discussed"
+    case partialEvidence = "partial_evidence"
+    case scored = "scored"
+}
+
+struct CriterionEvaluationSnapshot: Sendable {
+    let signal: String
+    let status: CriterionStatus
+    let confidence: Double
+    let evidence: [EvidenceSnapshot]
+    let summary: String?
+}
+
 struct SectionScoreSnapshot: Sendable {
     let sectionID: UUID
     let sectionTitle: String
@@ -37,6 +51,7 @@ struct SectionScoreSnapshot: Sendable {
     let evidence: [EvidenceSnapshot]
     let rationale: String
     let bonusSignals: [String: String]
+    let criterionEvaluations: [CriterionEvaluationSnapshot]
 }
 
 struct InterviewAnalysisResult: Sendable {
@@ -178,6 +193,39 @@ actor InterviewIntelligenceService {
                     }
                 }
 
+                var criterionEvals: [CriterionEvaluationSnapshot] = []
+                if let critArray = score["criterion_evaluations"] as? [[String: Any]] {
+                    for crit in critArray {
+                        let signal = crit["signal"] as? String ?? ""
+                        let statusStr = crit["status"] as? String ?? "not_yet_discussed"
+                        let status = CriterionStatus(rawValue: statusStr) ?? .notYetDiscussed
+                        let conf = crit["confidence"] as? Double ?? 0
+                        let summary = crit["summary"] as? String
+                        var critEvidence: [EvidenceSnapshot] = []
+                        if let evArray = crit["evidence"] as? [[String: Any]] {
+                            for ev in evArray {
+                                critEvidence.append(EvidenceSnapshot(
+                                    quote: ev["quote"] as? String ?? "",
+                                    timestamp: ev["timestamp"] as? String ?? "",
+                                    criterion: signal,
+                                    strength: ev["strength"] as? String ?? "moderate"
+                                ))
+                            }
+                        }
+                        criterionEvals.append(CriterionEvaluationSnapshot(
+                            signal: signal, status: status, confidence: conf, evidence: critEvidence, summary: summary
+                        ))
+                    }
+                } else {
+                    // Fallback: synthesize from section-level evidence by grouping on criterion
+                    let grouped = Dictionary(grouping: evidenceItems.filter { $0.criterion != nil }, by: { $0.criterion! })
+                    for (criterion, evs) in grouped {
+                        criterionEvals.append(CriterionEvaluationSnapshot(
+                            signal: criterion, status: .scored, confidence: confidence, evidence: evs, summary: nil
+                        ))
+                    }
+                }
+
                 sectionScores.append(SectionScoreSnapshot(
                     sectionID: sectionID,
                     sectionTitle: title,
@@ -185,7 +233,8 @@ actor InterviewIntelligenceService {
                     confidence: confidence,
                     evidence: evidenceItems,
                     rationale: rationale,
-                    bonusSignals: bonusSignals
+                    bonusSignals: bonusSignals,
+                    criterionEvaluations: criterionEvals
                 ))
             }
         }
@@ -220,6 +269,24 @@ actor InterviewIntelligenceService {
             ]
             if let grade = score.grade { dict["grade"] = grade }
             if !score.bonusSignals.isEmpty { dict["bonus_signals"] = score.bonusSignals }
+            if !score.criterionEvaluations.isEmpty {
+                dict["criterion_evaluations"] = score.criterionEvaluations.map { crit in
+                    var d: [String: Any] = [
+                        "signal": crit.signal,
+                        "status": crit.status.rawValue,
+                        "confidence": crit.confidence,
+                    ]
+                    if let summary = crit.summary { d["summary"] = summary }
+                    if !crit.evidence.isEmpty {
+                        d["evidence"] = crit.evidence.map { ev in
+                            var e: [String: Any] = ["quote": ev.quote, "timestamp": ev.timestamp, "strength": ev.strength]
+                            if let c = ev.criterion { e["criterion"] = c }
+                            return e
+                        }
+                    }
+                    return d
+                }
+            }
             return dict
         }
         guard let data = try? JSONSerialization.data(withJSONObject: dicts, options: [.prettyPrinted]),

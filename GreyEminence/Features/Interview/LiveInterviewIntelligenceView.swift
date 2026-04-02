@@ -331,57 +331,23 @@ private struct ActiveSectionDetail: View {
                 }
             }
 
-            // Evidence
-            if !score.evidenceItems.isEmpty {
+            // Criteria checklist
+            if let rubricSection = interviewViewModel.rubricSnapshot?.sections.first(where: { $0.id == score.rubricSectionID }) {
+                let evaluations = interviewViewModel.criterionEvaluations[score.rubricSectionID] ?? []
+
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Evidence")
+                    Text("Criteria")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
 
-                    ForEach(score.evidenceItems.sorted(by: { $0.createdAt < $1.createdAt })) { evidence in
-                        HStack(alignment: .top, spacing: 6) {
-                            Circle()
-                                .fill(strengthColor(evidence.strength))
-                                .frame(width: 6, height: 6)
-                                .padding(.top, 4)
-
-                            VStack(alignment: .leading, spacing: 1) {
-                                HStack(spacing: 4) {
-                                    if !evidence.timestamp.isEmpty {
-                                        Text(evidence.timestamp)
-                                            .font(.system(size: 9, design: .monospaced))
-                                            .foregroundStyle(.tertiary)
-                                    }
-                                    if let criterion = evidence.criterionSignal {
-                                        Text(criterion)
-                                            .font(.system(size: 9, weight: .medium))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Text(evidence.strength.rawValue)
-                                        .font(.system(size: 8))
-                                        .foregroundStyle(.tertiary)
-                                }
-                                Text("\"\(evidence.quote)\"")
-                                    .font(.caption)
-                                    .italic()
-                                    .foregroundStyle(.secondary)
+                    ForEach(rubricSection.criteria, id: \.self) { criterionSignal in
+                        CriterionRow(
+                            signal: criterionSignal,
+                            evaluation: evaluations.first(where: { $0.signal == criterionSignal }),
+                            onTapTimestamp: { timestamp in
+                                interviewViewModel.scrollTranscriptToTimestamp(timestamp)
                             }
-                        }
-                    }
-                }
-            } else if let evidenceJSON = score.aiEvidence,
-                      let data = evidenceJSON.data(using: .utf8),
-                      let evidence = try? JSONDecoder().decode([String].self, from: data),
-                      !evidence.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Evidence")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    ForEach(evidence, id: \.self) { quote in
-                        Text("\"\(quote)\"")
-                            .font(.caption)
-                            .italic()
-                            .foregroundStyle(.secondary)
+                        )
                     }
                 }
             }
@@ -412,12 +378,89 @@ private struct ActiveSectionDetail: View {
         }
     }
 
-    private func strengthColor(_ strength: EvidenceStrength) -> Color {
-        switch strength {
-        case .strong: .green
-        case .moderate: .blue
-        case .weak: .orange
+}
+
+// MARK: - Criterion Row
+
+private struct CriterionRow: View {
+    let signal: String
+    let evaluation: CriterionEvaluationSnapshot?
+    let onTapTimestamp: (String) -> Void
+
+    private var status: CriterionStatus {
+        evaluation?.status ?? .notYetDiscussed
+    }
+
+    private var statusIcon: String {
+        switch status {
+        case .scored: "checkmark.circle.fill"
+        case .partialEvidence: "circle.dotted"
+        case .notYetDiscussed: "circle"
         }
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .scored: .green
+        case .partialEvidence: .yellow
+        case .notYetDiscussed: .gray
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: statusIcon)
+                    .font(.system(size: 10))
+                    .foregroundStyle(statusColor)
+                    .frame(width: 14, height: 14)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(signal)
+                            .font(.caption)
+                            .foregroundStyle(status == .notYetDiscussed ? .tertiary : .primary)
+
+                        if let eval = evaluation, eval.confidence > 0 {
+                            Text("\(Int(eval.confidence * 100))%")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+
+                    if let summary = evaluation?.summary, !summary.isEmpty {
+                        Text(summary)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let evidence = evaluation?.evidence, !evidence.isEmpty {
+                        ForEach(Array(evidence.enumerated()), id: \.offset) { _, ev in
+                            HStack(alignment: .top, spacing: 4) {
+                                if !ev.timestamp.isEmpty {
+                                    Button {
+                                        onTapTimestamp(ev.timestamp)
+                                    } label: {
+                                        Text(ev.timestamp)
+                                            .font(.system(size: 9, design: .monospaced))
+                                            .foregroundStyle(.cyan)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Jump to transcript")
+                                }
+                                Text("\"\(ev.quote)\"")
+                                    .font(.system(size: 10))
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            .padding(.leading, 2)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 
