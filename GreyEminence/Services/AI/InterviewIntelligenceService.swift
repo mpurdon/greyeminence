@@ -229,17 +229,3 @@ actor InterviewIntelligenceService {
         return string
     }
 }
-
-/// Reuse the withTimeout from AIIntelligenceService (module-scoped)
-private func withTimeout<T: Sendable>(seconds: Int, operation: @escaping @Sendable () async throws -> T) async throws -> T {
-    try await withThrowingTaskGroup(of: T.self) { group in
-        group.addTask { try await operation() }
-        group.addTask {
-            try await Task.sleep(for: .seconds(seconds))
-            throw AITimeoutError.timedOut(seconds: seconds)
-        }
-        let result = try await group.next()!
-        group.cancelAll()
-        return result
-    }
-}

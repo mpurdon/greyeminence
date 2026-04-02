@@ -421,64 +421,6 @@ private struct ActiveSectionDetail: View {
     }
 }
 
-// MARK: - Compact Slider Row (kept for scorecard use)
-
-struct CompactSliderRow: View {
-    let trait: InterviewImpressionTrait
-    let impression: InterviewImpression
-    var onChange: (Int) -> Void
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(trait.name)
-                .font(.system(size: 10))
-                .frame(width: 80, alignment: .leading)
-                .lineLimit(1)
-
-            GeometryReader { geo in
-                let totalWidth = geo.size.width
-                let segmentWidth = totalWidth / 5.0
-                let filledWidth = segmentWidth * Double(impression.value)
-
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.secondary.opacity(0.15))
-                        .frame(height: 6)
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(bellCurveColor(for: Double(impression.value) / 5.0))
-                        .frame(width: filledWidth, height: 6)
-                    HStack(spacing: 0) {
-                        ForEach(1...5, id: \.self) { value in
-                            Rectangle()
-                                .fill(Color.clear)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .contentShape(Rectangle())
-                                .onTapGesture { onChange(value) }
-                        }
-                    }
-                }
-            }
-            .frame(height: 14)
-
-            Text(trait.label(for: impression.value))
-                .font(.system(size: 9))
-                .foregroundStyle(bellCurveColor(for: Double(impression.value) / 5.0))
-                .frame(width: 70, alignment: .trailing)
-                .lineLimit(1)
-        }
-    }
-}
-
-struct ImpressionSliderRow: View {
-    let trait: InterviewImpressionTrait
-    let impression: InterviewImpression
-    var onChange: (Int) -> Void
-
-    var body: some View {
-        CompactSliderRow(trait: trait, impression: impression, onChange: onChange)
-    }
-}
-
 // MARK: - Notes Table (used by right panel)
 
 struct InterviewNotesTable: View {

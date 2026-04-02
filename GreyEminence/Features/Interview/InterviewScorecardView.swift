@@ -80,16 +80,7 @@ struct InterviewScorecardView: View {
                         .padding(.horizontal)
                 }
 
-                // Strengths / Weaknesses / Red Flags
-                if !strengthsList.isEmpty {
-                    signalSection(title: "Strengths", items: strengthsList, icon: "arrow.up.circle.fill", color: .green)
-                }
-                if !weaknessesList.isEmpty {
-                    signalSection(title: "Weaknesses", items: weaknessesList, icon: "arrow.down.circle.fill", color: .orange)
-                }
-                if !redFlagsList.isEmpty {
-                    signalSection(title: "Red Flags", items: redFlagsList, icon: "flag.fill", color: .red)
-                }
+                // TODO: Strengths/weaknesses/red flags should be persisted on Interview from AI analysis results
 
                 // Interviewer notes
                 Section {
@@ -123,7 +114,7 @@ struct InterviewScorecardView: View {
                 VStack(spacing: 2) {
                     Text(grade.label)
                         .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(gradeColor(grade))
+                        .foregroundStyle(grade.color)
                     Text(grade.percentRange)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -151,7 +142,7 @@ struct InterviewScorecardView: View {
                         if let grade = score.effectiveLetterGrade {
                             Text(grade.label)
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(gradeColor(grade))
+                                .foregroundStyle(grade.color)
                         } else {
                             Text("—")
                                 .font(.caption2)
@@ -229,33 +220,6 @@ struct InterviewScorecardView: View {
 
     // MARK: - Helpers
 
-    // Placeholder: extract from interview or AI results
-    private var strengthsList: [String] { [] }
-    private var weaknessesList: [String] { [] }
-    private var redFlagsList: [String] { [] }
-
-    private func signalSection(title: String, items: [String], icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(title, systemImage: icon)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(color)
-            ForEach(items, id: \.self) { item in
-                Text("• \(item)")
-                    .font(.caption)
-            }
-        }
-        .padding(.horizontal)
-    }
-
-    private func gradeColor(_ grade: LetterGrade) -> Color {
-        switch grade {
-        case .aPlus, .a, .aMinus: .green
-        case .bPlus, .b, .bMinus: .blue
-        case .cPlus, .c, .cMinus: .orange
-        default: .red
-        }
-    }
-
     private func dotColor(_ value: Int) -> Color {
         switch value {
         case 1, 5: .orange
@@ -295,22 +259,7 @@ struct InterviewScorecardView: View {
             return
         }
 
-        // Build rubric snapshot
-        let rubricSnapshot = RubricSnapshot(
-            name: rubric.name,
-            sections: rubric.sections.sorted { $0.sortOrder < $1.sortOrder }.map { section in
-                RubricSectionSnapshot(
-                    id: section.id,
-                    title: section.title,
-                    description: section.sectionDescription,
-                    criteria: section.criteria.sorted { $0.sortOrder < $1.sortOrder }.map(\.signal),
-                    bonusSignals: section.bonusSignals.sorted { $0.sortOrder < $1.sortOrder }.map { signal in
-                        BonusSignalSnapshot(label: signal.label, expected: signal.expectedAnswer, value: signal.bonusValue)
-                    },
-                    weight: section.weight
-                )
-            }
-        )
+        let rubricSnapshot = rubric.toSnapshot()
 
         let service = InterviewIntelligenceService(client: client, rubricContext: rubricSnapshot, meetingID: meeting.id)
         do {

@@ -124,31 +124,3 @@ private struct InterviewRowView: View {
         .padding(.vertical, 2)
     }
 }
-
-// MARK: - Placeholder Detail (until scorecard is built)
-
-private struct InterviewDetailPlaceholder: View {
-    let interview: Interview
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "list.clipboard")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-            Text(interview.candidate?.name ?? "Interview")
-                .font(.title2.weight(.semibold))
-            if let rubric = interview.rubric {
-                Text("Rubric: \(rubric.name)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Text("Status: \(interview.status.rawValue.capitalized)")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            Text("Scorecard coming soon")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}

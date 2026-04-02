@@ -27,17 +27,6 @@ final class InterviewImpressionTrait {
 
     var labels: [String] { [label1, label2, label3, label4, label5] }
 
-    var abbreviation: String {
-        switch name.lowercased() {
-        case "fun to work with": "Fun"
-        case "nervousness": "Nerve"
-        case "charisma": "Charm"
-        case "curiosity": "Curio"
-        case "clarity": "Clarity"
-        default: String(name.prefix(5))
-        }
-    }
-
     func label(for value: Int) -> String {
         switch value {
         case 1: label1

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import SwiftData
 
 enum LetterGrade: String, Codable, CaseIterable, Sendable {
@@ -33,6 +34,15 @@ enum LetterGrade: String, Codable, CaseIterable, Sendable {
     }
 
     var label: String { rawValue }
+
+    var color: Color {
+        switch self {
+        case .aPlus, .a, .aMinus: .green
+        case .bPlus, .b, .bMinus: .blue
+        case .cPlus, .c, .cMinus: .orange
+        default: .red
+        }
+    }
 
     var percentRange: String {
         switch self {

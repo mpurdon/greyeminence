@@ -230,7 +230,7 @@ enum AITimeoutError: LocalizedError {
 }
 
 /// Runs the given async throwing closure with a timeout. Throws `AITimeoutError.timedOut` if exceeded.
-private func withTimeout<T: Sendable>(seconds: Int, operation: @escaping @Sendable () async throws -> T) async throws -> T {
+func withTimeout<T: Sendable>(seconds: Int, operation: @escaping @Sendable () async throws -> T) async throws -> T {
     try await withThrowingTaskGroup(of: T.self) { group in
         group.addTask { try await operation() }
         group.addTask {

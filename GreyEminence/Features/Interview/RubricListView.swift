@@ -86,32 +86,7 @@ struct RubricListView: View {
         let copy = Rubric(name: "\(source.name) (Copy)")
         copy.role = source.role
         modelContext.insert(copy)
-        for section in source.sections.sorted(by: { $0.sortOrder < $1.sortOrder }) {
-            let newSection = RubricSection(
-                title: section.title,
-                description: section.sectionDescription,
-                sortOrder: section.sortOrder,
-                weight: section.weight
-            )
-            newSection.rubric = copy
-            for criterion in section.criteria.sorted(by: { $0.sortOrder < $1.sortOrder }) {
-                let newCriterion = RubricCriterion(
-                    signal: criterion.signal,
-                    sortOrder: criterion.sortOrder,
-                    evaluationNotes: criterion.evaluationNotes
-                )
-                newCriterion.section = newSection
-            }
-            for signal in section.bonusSignals.sorted(by: { $0.sortOrder < $1.sortOrder }) {
-                let newSignal = RubricBonusSignal(
-                    label: signal.label,
-                    expectedAnswer: signal.expectedAnswer,
-                    bonusValue: signal.bonusValue,
-                    sortOrder: signal.sortOrder
-                )
-                newSignal.section = newSection
-            }
-        }
+        deepCopyRubricContents(from: source, to: copy)
         selectedRubric = copy
     }
 }
@@ -196,7 +171,7 @@ private struct AddRubricSheet: View {
                     rubric.role = selectedRole
                     modelContext.insert(rubric)
                     if let source = sourceRubric {
-                        copyContents(from: source, to: rubric)
+                        deepCopyRubricContents(from: source, to: rubric)
                     }
                     onCreated(rubric)
                     dismiss()
@@ -209,32 +184,35 @@ private struct AddRubricSheet: View {
         .frame(width: 400)
     }
 
-    private func copyContents(from source: Rubric, to target: Rubric) {
-        for section in source.sections.sorted(by: { $0.sortOrder < $1.sortOrder }) {
-            let newSection = RubricSection(
-                title: section.title,
-                description: section.sectionDescription,
-                sortOrder: section.sortOrder,
-                weight: section.weight
+}
+
+// MARK: - Shared Deep Copy
+
+private func deepCopyRubricContents(from source: Rubric, to target: Rubric) {
+    for section in source.sections.sorted(by: { $0.sortOrder < $1.sortOrder }) {
+        let newSection = RubricSection(
+            title: section.title,
+            description: section.sectionDescription,
+            sortOrder: section.sortOrder,
+            weight: section.weight
+        )
+        newSection.rubric = target
+        for criterion in section.criteria.sorted(by: { $0.sortOrder < $1.sortOrder }) {
+            let newCriterion = RubricCriterion(
+                signal: criterion.signal,
+                sortOrder: criterion.sortOrder,
+                evaluationNotes: criterion.evaluationNotes
             )
-            newSection.rubric = target
-            for criterion in section.criteria.sorted(by: { $0.sortOrder < $1.sortOrder }) {
-                let newCriterion = RubricCriterion(
-                    signal: criterion.signal,
-                    sortOrder: criterion.sortOrder,
-                    evaluationNotes: criterion.evaluationNotes
-                )
-                newCriterion.section = newSection
-            }
-            for signal in section.bonusSignals.sorted(by: { $0.sortOrder < $1.sortOrder }) {
-                let newSignal = RubricBonusSignal(
-                    label: signal.label,
-                    expectedAnswer: signal.expectedAnswer,
-                    bonusValue: signal.bonusValue,
-                    sortOrder: signal.sortOrder
-                )
-                newSignal.section = newSection
-            }
+            newCriterion.section = newSection
+        }
+        for signal in section.bonusSignals.sorted(by: { $0.sortOrder < $1.sortOrder }) {
+            let newSignal = RubricBonusSignal(
+                label: signal.label,
+                expectedAnswer: signal.expectedAnswer,
+                bonusValue: signal.bonusValue,
+                sortOrder: signal.sortOrder
+            )
+            newSignal.section = newSection
         }
     }
 }

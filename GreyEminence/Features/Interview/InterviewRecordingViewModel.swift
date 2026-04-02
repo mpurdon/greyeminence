@@ -71,14 +71,12 @@ final class InterviewRecordingViewModel {
         notes: String?,
         in modelContext: ModelContext
     ) {
-        // Create interview model
         let interview = Interview(candidate: candidate, rubric: rubric)
         interview.status = .recording
         interview.interviewerNotes = notes
         interview.interviewers = interviewers
         modelContext.insert(interview)
 
-        // Create section score stubs
         var scores: [InterviewSectionScore] = []
         for section in rubric.sections.sorted(by: { $0.sortOrder < $1.sortOrder }) {
             let score = InterviewSectionScore(
@@ -91,7 +89,6 @@ final class InterviewRecordingViewModel {
             scores.append(score)
         }
 
-        // Create impression stubs from trait defaults
         let traitDescriptor = FetchDescriptor<InterviewImpressionTrait>(
             sortBy: [SortDescriptor(\InterviewImpressionTrait.sortOrder)]
         )
@@ -114,13 +111,11 @@ final class InterviewRecordingViewModel {
 
         try? modelContext.save()
 
-        // Mark the meeting as an interview meeting
         recordingViewModel.startRecording(in: modelContext)
         if let meeting = recordingViewModel.currentMeeting {
             meeting.isInterviewMeeting = true
             interview.meeting = meeting
 
-            // Add interviewers as meeting attendees
             for contact in interviewers {
                 if !meeting.attendees.contains(where: { $0.id == contact.id }) {
                     meeting.attendees.append(contact)
@@ -134,11 +129,9 @@ final class InterviewRecordingViewModel {
     }
 
     func stopInterview(in modelContext: ModelContext) {
-        // Cancel the rolling rubric analysis loop
         rubricAnalysisTask?.cancel()
         rubricAnalysisTask = nil
 
-        // Persist current state
         if let interview {
             interview.status = .completed
             interview.sectionScores = sectionScores
@@ -171,7 +164,7 @@ final class InterviewRecordingViewModel {
     private func runFinalRubricAnalysis(rubric: Rubric, meetingID: UUID?, in modelContext: ModelContext) async {
         guard let client = try? await AIClientFactory.makeClient() else { return }
 
-        let rubricSnapshot = makeRubricSnapshot(rubric)
+        let rubricSnapshot = rubric.toSnapshot()
         let service = InterviewIntelligenceService(
             client: client,
             rubricContext: rubricSnapshot,
@@ -182,8 +175,6 @@ final class InterviewRecordingViewModel {
         guard !snapshots.isEmpty else { return }
 
         do {
-            // Seed with a rolling pass first so the final pass has context
-            _ = try await service.analyzeAgainstRubric(segments: snapshots)
             if let result = try await service.performFinalInterviewAnalysis(segments: snapshots) {
                 applyAnalysisResult(result)
                 // Persist final scores
@@ -289,7 +280,7 @@ final class InterviewRecordingViewModel {
     // MARK: - Rubric Analysis Loop
 
     private func startRubricAnalysis(rubric: Rubric) {
-        let rubricSnapshot = makeRubricSnapshot(rubric)
+        let rubricSnapshot = rubric.toSnapshot()
 
         rubricAnalysisTask = Task { [weak self] in
             guard let self else { return }
@@ -384,22 +375,6 @@ final class InterviewRecordingViewModel {
         weaknesses = result.weaknesses
         redFlags = result.redFlags
         overallAssessment = result.overallAssessment
-    }
-
-    private func makeRubricSnapshot(_ rubric: Rubric) -> RubricSnapshot {
-        let sections = rubric.sections.sorted { $0.sortOrder < $1.sortOrder }.map { section in
-            RubricSectionSnapshot(
-                id: section.id,
-                title: section.title,
-                description: section.sectionDescription,
-                criteria: section.criteria.sorted { $0.sortOrder < $1.sortOrder }.map(\.signal),
-                bonusSignals: section.bonusSignals.sorted { $0.sortOrder < $1.sortOrder }.map { signal in
-                    BonusSignalSnapshot(label: signal.label, expected: signal.expectedAnswer, value: signal.bonusValue)
-                },
-                weight: section.weight
-            )
-        }
-        return RubricSnapshot(name: rubric.name, sections: sections)
     }
 
     // MARK: - Cleanup

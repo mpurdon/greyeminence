@@ -17,7 +17,7 @@ struct InterviewSectionScoreCard: View {
                         if let grade = score.aiGrade {
                             Text(grade.label)
                                 .font(.title3.weight(.bold))
-                                .foregroundStyle(gradeColor(grade))
+                                .foregroundStyle(grade.color)
                         } else {
                             Text("—")
                                 .font(.title3)
@@ -53,7 +53,7 @@ struct InterviewSectionScoreCard: View {
                                 .foregroundStyle(.secondary)
                             Text(effective.label)
                                 .font(.title3.weight(.bold))
-                                .foregroundStyle(gradeColor(effective))
+                                .foregroundStyle(effective.color)
                         }
                     }
 
@@ -128,8 +128,8 @@ struct InterviewSectionScoreCard: View {
                         .font(.caption.weight(.bold))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
-                        .background(gradeColor(grade).opacity(0.2), in: Capsule())
-                        .foregroundStyle(gradeColor(grade))
+                        .background(grade.color.opacity(0.2), in: Capsule())
+                        .foregroundStyle(grade.color)
                 } else {
                     Text("—")
                         .font(.caption)
@@ -144,12 +144,4 @@ struct InterviewSectionScoreCard: View {
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
     }
 
-    private func gradeColor(_ grade: LetterGrade) -> Color {
-        switch grade {
-        case .aPlus, .a, .aMinus: .green
-        case .bPlus, .b, .bMinus: .blue
-        case .cPlus, .c, .cMinus: .orange
-        default: .red
-        }
-    }
 }

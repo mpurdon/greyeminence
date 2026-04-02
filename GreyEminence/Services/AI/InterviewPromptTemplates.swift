@@ -217,21 +217,4 @@ enum InterviewPromptTemplates {
         """
     }
 
-    // MARK: - Legacy compatibility
-
-    static func formatRubric(_ rubric: RubricSnapshot) -> String {
-        formatFullRubric(rubric)
-    }
-
-    static func initialAnalysisPrompt(rubric: RubricSnapshot, transcript: String) -> String {
-        initialAnalysisPrompt(rubric: rubric, activeSectionID: nil, transcript: transcript)
-    }
-
-    static func rollingAnalysisPrompt(
-        rubric: RubricSnapshot,
-        previousScores: String,
-        newTranscript: String
-    ) -> String {
-        rollingAnalysisPrompt(rubric: rubric, activeSectionID: nil, previousScores: previousScores, newTranscript: newTranscript)
-    }
 }

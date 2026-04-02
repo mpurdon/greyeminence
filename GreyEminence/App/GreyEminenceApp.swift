@@ -99,6 +99,9 @@ struct GreyEminenceApp: App {
 }
 
 private func seedInterviewDefaults(in context: ModelContext) {
+    let seedVersion = UserDefaults.standard.integer(forKey: "interviewSeedVersion")
+    guard seedVersion < 4 else { return }
+
     // Seed role levels if empty
     let roleLevelDescriptor = FetchDescriptor<RoleLevel>()
     if (try? context.fetchCount(roleLevelDescriptor)) == 0 {
@@ -120,30 +123,27 @@ private func seedInterviewDefaults(in context: ModelContext) {
     }
 
     // One-time repair: wipe broken org seed data and re-seed properly
-    let seedVersion = UserDefaults.standard.integer(forKey: "interviewSeedVersion")
-    if seedVersion < 4 {
-        // Unlink candidates from roles (keep the candidates)
-        for candidate in (try? context.fetch(FetchDescriptor<Candidate>())) ?? [] {
-            candidate.role = nil
-        }
-        // Delete interview-related objects that reference roles/rubrics
-        for item in (try? context.fetch(FetchDescriptor<InterviewSectionScore>())) ?? [] { context.delete(item) }
-        for item in (try? context.fetch(FetchDescriptor<InterviewImpression>())) ?? [] { context.delete(item) }
-        for item in (try? context.fetch(FetchDescriptor<InterviewBookmark>())) ?? [] { context.delete(item) }
-        for item in (try? context.fetch(FetchDescriptor<Interview>())) ?? [] { context.delete(item) }
-        // Delete org seed data in reverse-dependency order
-        for item in (try? context.fetch(FetchDescriptor<RubricBonusSignal>())) ?? [] { context.delete(item) }
-        for item in (try? context.fetch(FetchDescriptor<RubricCriterion>())) ?? [] { context.delete(item) }
-        for item in (try? context.fetch(FetchDescriptor<RubricSection>())) ?? [] { context.delete(item) }
-        for item in (try? context.fetch(FetchDescriptor<Rubric>())) ?? [] { context.delete(item) }
-        for item in (try? context.fetch(FetchDescriptor<InterviewRole>())) ?? [] { context.delete(item) }
-        for item in (try? context.fetch(FetchDescriptor<Team>())) ?? [] { context.delete(item) }
-        for item in (try? context.fetch(FetchDescriptor<Department>())) ?? [] { context.delete(item) }
-        try? context.save()
-
-        seedOrganizationAndRubrics(in: context)
-        UserDefaults.standard.set(4, forKey: "interviewSeedVersion")
+    // Unlink candidates from roles (keep the candidates)
+    for candidate in (try? context.fetch(FetchDescriptor<Candidate>())) ?? [] {
+        candidate.role = nil
     }
+    // Delete interview-related objects that reference roles/rubrics
+    for item in (try? context.fetch(FetchDescriptor<InterviewSectionScore>())) ?? [] { context.delete(item) }
+    for item in (try? context.fetch(FetchDescriptor<InterviewImpression>())) ?? [] { context.delete(item) }
+    for item in (try? context.fetch(FetchDescriptor<InterviewBookmark>())) ?? [] { context.delete(item) }
+    for item in (try? context.fetch(FetchDescriptor<Interview>())) ?? [] { context.delete(item) }
+    // Delete org seed data in reverse-dependency order
+    for item in (try? context.fetch(FetchDescriptor<RubricBonusSignal>())) ?? [] { context.delete(item) }
+    for item in (try? context.fetch(FetchDescriptor<RubricCriterion>())) ?? [] { context.delete(item) }
+    for item in (try? context.fetch(FetchDescriptor<RubricSection>())) ?? [] { context.delete(item) }
+    for item in (try? context.fetch(FetchDescriptor<Rubric>())) ?? [] { context.delete(item) }
+    for item in (try? context.fetch(FetchDescriptor<InterviewRole>())) ?? [] { context.delete(item) }
+    for item in (try? context.fetch(FetchDescriptor<Team>())) ?? [] { context.delete(item) }
+    for item in (try? context.fetch(FetchDescriptor<Department>())) ?? [] { context.delete(item) }
+    try? context.save()
+
+    seedOrganizationAndRubrics(in: context)
+    UserDefaults.standard.set(4, forKey: "interviewSeedVersion")
 }
 
 // MARK: - Organization & Rubric Seed Data
