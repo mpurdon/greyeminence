@@ -157,7 +157,7 @@ struct LiveInterviewIntelligenceView: View {
     ]
 
     private var impressionsStrip: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             ForEach(traits) { trait in
                 if let impression = interviewViewModel.impressions.first(where: { $0.traitName == trait.name }) {
                     let activeColor = Self.dotColors[min(impression.value - 1, 4)]
@@ -166,7 +166,6 @@ struct LiveInterviewIntelligenceView: View {
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
 
                         HStack(spacing: 2) {
                             ForEach(1...5, id: \.self) { val in
@@ -185,8 +184,8 @@ struct LiveInterviewIntelligenceView: View {
                             .font(.system(size: 7))
                             .foregroundStyle(activeColor)
                             .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
                     }
+                    .frame(width: 80)
                     .help("\(trait.name): \(trait.label(for: impression.value))")
                 }
             }
