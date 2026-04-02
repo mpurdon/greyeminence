@@ -584,24 +584,24 @@ private struct NoteRow: View {
 
                 Spacer()
 
-                // Indent (make sub-note) — only if there's a previous sibling
-                Button { interviewViewModel.indentNote(note) } label: {
-                    Image(systemName: "arrow.right.to.line")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .help("Indent (make sub-note)")
-
-                // Dedent (promote) — only if it's a sub-note
                 if note.parentNote != nil {
+                    // Sub-note → promote to top level
                     Button { interviewViewModel.dedentNote(note) } label: {
                         Image(systemName: "arrow.left.to.line")
                             .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
-                    .help("Dedent (promote to parent level)")
+                    .help("Make top-level note")
+                } else {
+                    // Top-level → make sub-note of previous sibling
+                    Button { interviewViewModel.indentNote(note) } label: {
+                        Image(systemName: "arrow.right.to.line")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Make sub-note")
                 }
 
                 Button { interviewViewModel.deleteNote(note) } label: {
