@@ -18,19 +18,17 @@ struct InterviewHubView: View {
 
     var body: some View {
         if interviewViewModel.isInterviewActive {
-            // Live interview: rubric/scoring is primary, transcript is inspector
+            // Live interview: rubric/scoring is primary, transcript/notes panel on right
             GeometryReader { geo in
                 let defaultWidth = geo.size.width * 0.35
                 let width = inspectorWidth ?? defaultWidth
-                let clampedWidth = min(max(width, 250), geo.size.width * 0.5)
+                let clampedWidth = min(max(width, 220), geo.size.width * 0.55)
 
                 HStack(spacing: 0) {
-                    // Primary: rubric scoring + intelligence
                     LiveInterviewIntelligenceView(interviewViewModel: interviewViewModel)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if showInspector {
-                        Divider()
-                        // Inspector: transcript + controls
+                        panelDragHandle(containerWidth: geo.size.width)
                         LiveInterviewView(interviewViewModel: interviewViewModel)
                             .frame(width: clampedWidth)
                     }
@@ -60,5 +58,27 @@ struct InterviewHubView: View {
                 }
             }
         }
+    }
+
+    private func panelDragHandle(containerWidth: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 6)
+            .contentShape(Rectangle())
+            .onHover { hovering in
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        let newWidth = (inspectorWidth ?? containerWidth * 0.35) - value.translation.width
+                        inspectorWidth = min(max(newWidth, 220), containerWidth * 0.55)
+                    }
+            )
+            .overlay { Divider() }
     }
 }
