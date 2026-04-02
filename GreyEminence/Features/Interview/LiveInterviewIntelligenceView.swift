@@ -156,37 +156,53 @@ struct LiveInterviewIntelligenceView: View {
         Color(red: 0.45, green: 0.28, blue: 0.08), // deep brown
     ]
 
+    // Impression icons + dot mapping
+    private static let impressionIcons: [String: String] = [
+        "Nervousness": "heart.text.clipboard",
+        "Clarity": "text.bubble",
+        "Fun to Work With": "face.smiling",
+        "Charisma": "sparkles",
+        "Curiosity": "questionmark.circle",
+    ]
+
     private var impressionsStrip: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             ForEach(traits) { trait in
                 if let impression = interviewViewModel.impressions.first(where: { $0.traitName == trait.name }) {
                     let activeColor = Self.dotColors[min(impression.value - 1, 4)]
-                    VStack(spacing: 1) {
-                        Text(trait.name)
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                    let icon = Self.impressionIcons[trait.name] ?? "circle"
 
-                        HStack(spacing: 2) {
-                            ForEach(1...5, id: \.self) { val in
-                                Circle()
-                                    .fill(val <= impression.value ? activeColor : Color.secondary.opacity(0.15))
-                                    .frame(width: 7, height: 7)
-                                    .contentShape(Rectangle().size(width: 14, height: 14))
-                                    .onTapGesture {
-                                        interviewViewModel.updateImpression(traitName: trait.name, value: val)
-                                    }
-                                    .help(trait.label(for: val))
+                    VStack(spacing: 1) {
+                        HStack(spacing: 3) {
+                            // Icon (same size as phase icons)
+                            Image(systemName: icon)
+                                .font(.system(size: 12))
+                                .foregroundStyle(activeColor)
+                                .frame(width: 28, height: 28)
+                                .background(activeColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                                .help(trait.name)
+
+                            // Big dots to the right
+                            HStack(spacing: 3) {
+                                ForEach(1...5, id: \.self) { val in
+                                    Circle()
+                                        .fill(val <= impression.value ? activeColor : Color.secondary.opacity(0.15))
+                                        .frame(width: 10, height: 10)
+                                        .contentShape(Rectangle().size(width: 16, height: 16))
+                                        .onTapGesture {
+                                            interviewViewModel.updateImpression(traitName: trait.name, value: val)
+                                        }
+                                        .help(trait.label(for: val))
+                                }
                             }
                         }
 
+                        // Value label underneath
                         Text(trait.label(for: impression.value))
                             .font(.system(size: 7))
                             .foregroundStyle(activeColor)
                             .lineLimit(1)
                     }
-                    .frame(width: 80)
-                    .help("\(trait.name): \(trait.label(for: impression.value))")
                 }
             }
         }
