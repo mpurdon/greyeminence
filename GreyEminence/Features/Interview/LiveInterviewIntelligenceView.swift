@@ -40,17 +40,6 @@ struct LiveInterviewIntelligenceView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    // Rubric AI activity
-                    HStack {
-                        AIActivityIndicator(state: interviewViewModel.rubricAnalysisState)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-
-                // Active section indicator
-                activeSectionBanner
-                    .padding(.horizontal)
-
                 // Rubric score overview
                 rubricOverview
                     .padding(.horizontal)
@@ -123,51 +112,104 @@ struct LiveInterviewIntelligenceView: View {
 
     // MARK: - Interview Header
 
+    /// A special UUID for the "Conclusion" phase (candidate questions)
+    private static let conclusionID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+
     private var interviewHeader: some View {
-        HStack(spacing: 10) {
-            if let candidate = interviewViewModel.interview?.candidate {
-                Text(candidate.initials)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 26, height: 26)
-                    .background(candidate.avatarColor.gradient, in: Circle())
-                Text(candidate.name)
-                    .font(.headline)
-            }
-
-            Text("·")
-                .foregroundStyle(.tertiary)
-
-            // Active section picker
-            Picker("", selection: Binding(
-                get: { interviewViewModel.activeSectionID },
-                set: { interviewViewModel.setActiveSection($0) }
-            )) {
-                Text("General Discussion").tag(nil as UUID?)
-                ForEach(interviewViewModel.sectionScores.sorted(by: { $0.sortOrder < $1.sortOrder })) { score in
-                    Text(score.rubricSectionTitle).tag(score.rubricSectionID as UUID?)
+        VStack(spacing: 0) {
+            // Top bar: candidate + end button
+            HStack(spacing: 10) {
+                if let candidate = interviewViewModel.interview?.candidate {
+                    Text(candidate.initials)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(candidate.avatarColor.gradient, in: Circle())
+                    Text(candidate.name)
+                        .font(.headline)
                 }
-            }
-            .frame(maxWidth: 200)
-            .controlSize(.small)
-            .help("Current interview phase")
 
-            Spacer()
+                Spacer()
 
-            // Stop interview button
-            Button {
-                interviewViewModel.stopInterview(in: modelContext)
-            } label: {
-                Label("End Interview", systemImage: "stop.circle.fill")
-                    .font(.caption.weight(.semibold))
+                // AI status
+                AIActivityIndicator(state: interviewViewModel.rubricAnalysisState)
+
+                Button {
+                    interviewViewModel.stopInterview(in: modelContext)
+                } label: {
+                    Label("End Interview", systemImage: "stop.circle.fill")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .controlSize(.small)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .controlSize(.small)
+            .padding(.horizontal)
+            .padding(.vertical, 6)
+
+            // Phase timeline
+            phaseTimeline
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    private var phaseTimeline: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                // Intro / General
+                phaseButton(label: "Intro", icon: "person.wave.2", id: nil)
+                phaseConnector
+
+                // Rubric sections
+                let sections = interviewViewModel.sectionScores.sorted { $0.sortOrder < $1.sortOrder }
+                ForEach(Array(sections.enumerated()), id: \.element.id) { index, score in
+                    phaseButton(label: score.rubricSectionTitle, icon: "list.clipboard", id: score.rubricSectionID)
+                    if index < sections.count - 1 || true { // always show connector before conclusion
+                        phaseConnector
+                    }
+                }
+
+                // Conclusion
+                phaseButton(label: "Conclusion", icon: "questionmark.bubble", id: Self.conclusionID)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
+    }
+
+    private func phaseButton(label: String, icon: String, id: UUID?) -> some View {
+        let isActive = interviewViewModel.activeSectionID == id
+        return Button {
+            interviewViewModel.setActiveSection(id == Self.conclusionID ? nil : id)
+        } label: {
+            VStack(spacing: 3) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(isActive ? Color.cyan.opacity(0.15) : Color.secondary.opacity(0.08))
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(isActive ? Color.cyan : Color.clear, lineWidth: 1.5)
+                    Image(systemName: icon)
+                        .font(.system(size: 14))
+                        .foregroundStyle(isActive ? .cyan : .secondary)
+                }
+                .frame(width: 36, height: 36)
+
+                Text(label)
+                    .font(.system(size: 9, weight: isActive ? .bold : .medium))
+                    .foregroundStyle(isActive ? .cyan : .secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 64)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var phaseConnector: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.2))
+            .frame(width: 16, height: 2)
+            .padding(.bottom, 16) // align with icon center
     }
 
     // Active section scores first, then the rest
@@ -181,34 +223,6 @@ struct LiveInterviewIntelligenceView: View {
 
     // MARK: - Active Section Banner
 
-    private var activeSectionBanner: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(.cyan)
-                .frame(width: 6, height: 6)
-            Text("Now: \(interviewViewModel.activeSectionTitle)")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.cyan)
-            Spacer()
-            // Standard AI activity
-            if case .analyzing = recordingVM.aiActivityState {
-                HStack(spacing: 3) {
-                    ProgressView()
-                        .controlSize(.mini)
-                    Text("Summarizing...")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.purple)
-                }
-            } else if case .waiting(let secs) = recordingVM.aiActivityState {
-                Text("Summary in \(secs)s")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background(.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
-    }
 
     // MARK: - Rubric Overview
 
