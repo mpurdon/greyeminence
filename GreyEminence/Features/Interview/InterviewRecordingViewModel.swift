@@ -15,20 +15,34 @@ final class InterviewRecordingViewModel {
     var notes: [InterviewNote] = []
     var rubricAnalysisState: RecordingViewModel.AIActivityState = .idle
 
-    /// The currently active interview section (nil = general discussion).
-    /// Controls which rubric section gets deep-scored by the LLM.
-    var activeSectionID: UUID?
+    /// Conclusion uses a well-known UUID distinct from nil (Intro).
+    static let introID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+    static let conclusionID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+
+    /// The currently active interview phase.
+    /// introID = Intro/General, conclusionID = Conclusion, rubric UUID = that section.
+    var activePhaseID: UUID = InterviewRecordingViewModel.introID
+
+    var isIntroPhase: Bool { activePhaseID == Self.introID }
+    var isConclusionPhase: Bool { activePhaseID == Self.conclusionID }
+    var isRubricPhase: Bool { !isIntroPhase && !isConclusionPhase }
+
+    /// The rubric section ID if a rubric section is active, nil otherwise.
+    var activeSectionID: UUID? {
+        isRubricPhase ? activePhaseID : nil
+    }
 
     var activeSectionTitle: String {
-        if let id = activeSectionID,
-           let score = sectionScores.first(where: { $0.rubricSectionID == id }) {
+        if isIntroPhase { return "Intro" }
+        if isConclusionPhase { return "Conclusion" }
+        if let score = sectionScores.first(where: { $0.rubricSectionID == activePhaseID }) {
             return score.rubricSectionTitle
         }
         return "General Discussion"
     }
 
-    func setActiveSection(_ sectionID: UUID?) {
-        activeSectionID = sectionID
+    func setActivePhase(_ phaseID: UUID) {
+        activePhaseID = phaseID
     }
 
     // AI results
@@ -266,7 +280,7 @@ final class InterviewRecordingViewModel {
                 }
 
                 let snapshots = await MainActor.run { self.recordingViewModel.snapshotSegments() }
-                let currentSectionID = await MainActor.run { self.activeSectionID }
+                let currentSectionID: UUID? = await MainActor.run { self.activeSectionID }
 
                 do {
                     if let result = try await service.analyzeAgainstRubric(segments: snapshots, activeSectionID: currentSectionID) {
@@ -363,6 +377,7 @@ final class InterviewRecordingViewModel {
         weaknesses = []
         redFlags = []
         overallAssessment = ""
+        activePhaseID = Self.introID
         rubricAnalysisState = .idle
         rubricAnalysisTask?.cancel()
         rubricAnalysisTask = nil

@@ -3,12 +3,8 @@ import SwiftData
 
 // MARK: - Bell-Curve Gradient Scoring
 
-/// Maps a 0-1 normalized value to a color using bell-curve logic:
-/// 0% = red, ramps to green peaking at ~80%, then back to red at 100%.
-/// The "sweet spot" is 75-85%.
 func bellCurveColor(for normalizedValue: Double) -> Color {
     let v = min(max(normalizedValue, 0), 1)
-    // Peak at 0.80
     let distance = abs(v - 0.80) / 0.80
     let greenAmount = max(1.0 - distance * 2.5, 0)
     if greenAmount > 0.5 {
@@ -31,175 +27,226 @@ struct LiveInterviewIntelligenceView: View {
         interviewViewModel.recordingViewModel
     }
 
+    private var activeScore: InterviewSectionScore? {
+        guard let id = interviewViewModel.activeSectionID else { return nil }
+        return interviewViewModel.sectionScores.first { $0.rubricSectionID == id }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Interview header bar (candidate, section picker, stop button)
             interviewHeader
 
             Divider()
 
+            // Phase timeline + impressions side by side
+            HStack(alignment: .top, spacing: 0) {
+                phaseTimeline
+                    .frame(maxWidth: .infinity)
+
+                Divider()
+                    .padding(.vertical, 4)
+
+                impressionSliders
+                    .frame(width: 260)
+                    .padding(.trailing, 8)
+            }
+            .padding(.vertical, 6)
+            .background(.bar.opacity(0.5))
+
+            Divider()
+
+            // Content area — depends on active phase
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                // Rubric score overview
-                rubricOverview
-                    .padding(.horizontal)
-
-                // Compact impression sliders
-                impressionSliders
-                    .padding(.horizontal)
-
-                // Active section card first (expanded), then others collapsed
-                ForEach(sortedSectionScores) { score in
-                    CompactSectionCard(
-                        score: score,
-                        interviewViewModel: interviewViewModel,
-                        isActiveSection: score.rubricSectionID == interviewViewModel.activeSectionID
-                    )
-                    .padding(.horizontal)
-                }
-
-                Divider()
-                    .padding(.horizontal)
-
-                // Meeting summary from standard AI
-                if !recordingVM.streamingSummary.isEmpty {
-                    AISummarySection(summary: recordingVM.streamingSummary)
-                }
-
-                // Follow-up questions
-                if !recordingVM.followUpQuestions.isEmpty {
-                    FollowUpQuestionsSection(questions: recordingVM.followUpQuestions)
-                }
-
-                // Topics
-                if !recordingVM.topics.isEmpty {
-                    KnowledgeLinksSection(topics: recordingVM.topics)
-                }
-
-                Divider()
-                    .padding(.horizontal)
-
-                // Notes table (Notion-style)
-                InterviewNotesTable(interviewViewModel: interviewViewModel)
-                    .padding(.horizontal)
-
-                // Strengths / Weaknesses / Red Flags
-                if !interviewViewModel.strengths.isEmpty {
-                    signalList(title: "Strengths", items: interviewViewModel.strengths, icon: "arrow.up.circle.fill", color: .green)
-                }
-                if !interviewViewModel.weaknesses.isEmpty {
-                    signalList(title: "Weaknesses", items: interviewViewModel.weaknesses, icon: "arrow.down.circle.fill", color: .orange)
-                }
-                if !interviewViewModel.redFlags.isEmpty {
-                    signalList(title: "Red Flags", items: interviewViewModel.redFlags, icon: "flag.fill", color: .red)
-                }
-
-                if !interviewViewModel.overallAssessment.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Overall Assessment")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(interviewViewModel.overallAssessment)
-                            .font(.caption)
+                    if interviewViewModel.isRubricPhase, let score = activeScore {
+                        // Rubric section detail
+                        ActiveSectionDetail(score: score, interviewViewModel: interviewViewModel)
+                            .padding(.horizontal)
+                    } else {
+                        // Intro or Conclusion: show summary, follow-ups, topics
+                        phaseOverview
                     }
-                    .padding(.horizontal)
+
+                    Divider()
+                        .padding(.horizontal)
+
+                    // Notes (always visible)
+                    InterviewNotesTable(interviewViewModel: interviewViewModel)
+                        .padding(.horizontal)
+
+                    // Strengths / Weaknesses / Red Flags
+                    if !interviewViewModel.strengths.isEmpty {
+                        signalList(title: "Strengths", items: interviewViewModel.strengths, icon: "arrow.up.circle.fill", color: .green)
+                    }
+                    if !interviewViewModel.weaknesses.isEmpty {
+                        signalList(title: "Weaknesses", items: interviewViewModel.weaknesses, icon: "arrow.down.circle.fill", color: .orange)
+                    }
+                    if !interviewViewModel.redFlags.isEmpty {
+                        signalList(title: "Red Flags", items: interviewViewModel.redFlags, icon: "flag.fill", color: .red)
+                    }
+
+                    if !interviewViewModel.overallAssessment.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Overall Assessment")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(interviewViewModel.overallAssessment)
+                                .font(.caption)
+                        }
+                        .padding(.horizontal)
+                    }
                 }
+                .padding(.vertical)
             }
-            .padding(.vertical)
         }
-        } // outer VStack
     }
 
-    // MARK: - Interview Header
+    // MARK: - Phase Overview (Intro / Conclusion)
 
-    /// A special UUID for the "Conclusion" phase (candidate questions)
-    private static let conclusionID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    private var phaseOverview: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if interviewViewModel.isConclusionPhase {
+                Label("Candidate Questions", systemImage: "questionmark.bubble")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.cyan)
+                    .padding(.horizontal)
+            } else {
+                Label("Introduction & General", systemImage: "person.wave.2")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.cyan)
+                    .padding(.horizontal)
+            }
+
+            if !recordingVM.streamingSummary.isEmpty {
+                AISummarySection(summary: recordingVM.streamingSummary)
+            }
+
+            if !recordingVM.followUpQuestions.isEmpty {
+                FollowUpQuestionsSection(questions: recordingVM.followUpQuestions)
+            }
+
+            if !recordingVM.topics.isEmpty {
+                KnowledgeLinksSection(topics: recordingVM.topics)
+            }
+
+            if recordingVM.streamingSummary.isEmpty {
+                HStack {
+                    Spacer()
+                    if case .waiting(let secs) = recordingVM.aiActivityState {
+                        Text("Summary in \(secs)s...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if case .analyzing = recordingVM.aiActivityState {
+                        HStack(spacing: 4) {
+                            ProgressView().controlSize(.mini)
+                            Text("Analyzing...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("Summary will appear once analysis begins")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                }
+                .padding(.top, 20)
+            }
+        }
+    }
+
+    // MARK: - Header
 
     private var interviewHeader: some View {
-        VStack(spacing: 0) {
-            // Top bar: candidate + end button
-            HStack(spacing: 10) {
-                if let candidate = interviewViewModel.interview?.candidate {
-                    Text(candidate.initials)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 26, height: 26)
-                        .background(candidate.avatarColor.gradient, in: Circle())
-                    Text(candidate.name)
-                        .font(.headline)
-                }
-
-                Spacer()
-
-                // AI status
-                AIActivityIndicator(state: interviewViewModel.rubricAnalysisState)
-
-                Button {
-                    interviewViewModel.stopInterview(in: modelContext)
-                } label: {
-                    Label("End Interview", systemImage: "stop.circle.fill")
-                        .font(.caption.weight(.semibold))
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
-                .controlSize(.small)
+        HStack(spacing: 10) {
+            if let candidate = interviewViewModel.interview?.candidate {
+                Text(candidate.initials)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(candidate.avatarColor.gradient, in: Circle())
+                Text(candidate.name)
+                    .font(.headline)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 6)
 
-            // Phase timeline
-            phaseTimeline
+            Spacer()
+
+            AIActivityIndicator(state: interviewViewModel.rubricAnalysisState)
+
+            Button {
+                interviewViewModel.stopInterview(in: modelContext)
+            } label: {
+                Label("End Interview", systemImage: "stop.circle.fill")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .controlSize(.small)
         }
+        .padding(.horizontal)
+        .padding(.vertical, 6)
         .background(.bar)
     }
+
+    // MARK: - Phase Timeline
 
     private var phaseTimeline: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                // Intro / General
-                phaseButton(label: "Intro", icon: "person.wave.2", id: nil)
+                phaseButton(label: "Intro", icon: "person.wave.2", phaseID: InterviewRecordingViewModel.introID)
                 phaseConnector
 
-                // Rubric sections
                 let sections = interviewViewModel.sectionScores.sorted { $0.sortOrder < $1.sortOrder }
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, score in
-                    phaseButton(label: score.rubricSectionTitle, icon: "list.clipboard", id: score.rubricSectionID)
-                    if index < sections.count - 1 || true { // always show connector before conclusion
-                        phaseConnector
-                    }
+                    phaseButton(label: score.rubricSectionTitle, icon: "list.clipboard", phaseID: score.rubricSectionID)
+                    phaseConnector
                 }
 
-                // Conclusion
-                phaseButton(label: "Conclusion", icon: "questionmark.bubble", id: Self.conclusionID)
+                phaseButton(label: "Conclusion", icon: "questionmark.bubble", phaseID: InterviewRecordingViewModel.conclusionID)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
         }
     }
 
-    private func phaseButton(label: String, icon: String, id: UUID?) -> some View {
-        let isActive = interviewViewModel.activeSectionID == id
+    private func phaseButton(label: String, icon: String, phaseID: UUID) -> some View {
+        let isActive = interviewViewModel.activePhaseID == phaseID
+        // Show grade badge for rubric sections
+        let grade: LetterGrade? = interviewViewModel.sectionScores
+            .first { $0.rubricSectionID == phaseID }?.effectiveLetterGrade
+
         return Button {
-            interviewViewModel.setActiveSection(id == Self.conclusionID ? nil : id)
+            interviewViewModel.setActivePhase(phaseID)
         } label: {
-            VStack(spacing: 3) {
-                ZStack {
+            VStack(spacing: 2) {
+                ZStack(alignment: .topTrailing) {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isActive ? Color.cyan.opacity(0.15) : Color.secondary.opacity(0.08))
+                        .fill(isActive ? Color.cyan.opacity(0.15) : Color.secondary.opacity(0.06))
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(isActive ? Color.cyan : Color.clear, lineWidth: 1.5)
                     Image(systemName: icon)
-                        .font(.system(size: 14))
+                        .font(.system(size: 13))
                         .foregroundStyle(isActive ? .cyan : .secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    if let grade {
+                        Text(grade.label)
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 3)
+                            .padding(.vertical, 1)
+                            .background(bellCurveColor(for: grade.gradePoints / 4.0), in: RoundedRectangle(cornerRadius: 3))
+                            .offset(x: 4, y: -4)
+                    }
                 }
-                .frame(width: 36, height: 36)
+                .frame(width: 34, height: 34)
 
                 Text(label)
                     .font(.system(size: 9, weight: isActive ? .bold : .medium))
                     .foregroundStyle(isActive ? .cyan : .secondary)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
-                    .frame(width: 64)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 72)
             }
         }
         .buttonStyle(.plain)
@@ -208,59 +255,18 @@ struct LiveInterviewIntelligenceView: View {
     private var phaseConnector: some View {
         Rectangle()
             .fill(Color.secondary.opacity(0.2))
-            .frame(width: 16, height: 2)
-            .padding(.bottom, 16) // align with icon center
+            .frame(width: 12, height: 2)
+            .padding(.bottom, 16)
     }
 
-    // Active section scores first, then the rest
-    private var sortedSectionScores: [InterviewSectionScore] {
-        let scores = interviewViewModel.sectionScores.sorted { $0.sortOrder < $1.sortOrder }
-        guard let activeID = interviewViewModel.activeSectionID else { return scores }
-        let active = scores.filter { $0.rubricSectionID == activeID }
-        let rest = scores.filter { $0.rubricSectionID != activeID }
-        return active + rest
-    }
-
-    // MARK: - Active Section Banner
-
-
-    // MARK: - Rubric Overview
-
-    private var rubricOverview: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Rubric")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 8) {
-                ForEach(interviewViewModel.sectionScores.sorted(by: { $0.sortOrder < $1.sortOrder })) { score in
-                    HStack(spacing: 3) {
-                        Circle()
-                            .fill(gradeColor(score.effectiveLetterGrade))
-                            .frame(width: 6, height: 6)
-                        Text(score.rubricSectionTitle)
-                            .font(.system(size: 10))
-                            .lineLimit(1)
-                        if let grade = score.effectiveLetterGrade {
-                            Text(grade.label)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(8)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-    }
-
-    // MARK: - Compact Impression Sliders
+    // MARK: - Impression Sliders (compact column)
 
     private var impressionSliders: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             Text("Impressions")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 4)
 
             ForEach(traits) { trait in
                 if let impression = interviewViewModel.impressions.first(where: { $0.traitName == trait.name }) {
@@ -270,17 +276,9 @@ struct LiveInterviewIntelligenceView: View {
                 }
             }
         }
-        .padding(8)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: - Helpers
-
-    private func gradeColor(_ grade: LetterGrade?) -> Color {
-        guard let grade else { return .gray }
-        let gp = grade.gradePoints / 4.0
-        return bellCurveColor(for: gp)
-    }
 
     private func signalList(title: String, items: [String], icon: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -296,6 +294,155 @@ struct LiveInterviewIntelligenceView: View {
     }
 }
 
+// MARK: - Active Section Detail (single section, no accordion)
+
+private struct ActiveSectionDetail: View {
+    @Bindable var score: InterviewSectionScore
+    var interviewViewModel: InterviewRecordingViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Section title + grades
+            HStack {
+                Text(score.rubricSectionTitle)
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                if let effective = score.effectiveLetterGrade {
+                    Text(effective.label)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(bellCurveColor(for: effective.gradePoints / 4.0))
+                }
+            }
+
+            // Grade row
+            HStack(spacing: 16) {
+                if let aiGrade = score.aiGrade {
+                    HStack(spacing: 4) {
+                        Text("AI:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(aiGrade.label)
+                            .font(.caption.weight(.bold))
+                        if let c = score.aiConfidence {
+                            Text("\(Int(c * 100))% confidence")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+
+                HStack(spacing: 4) {
+                    Text("Your Grade:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker("", selection: Binding(
+                        get: { score.interviewerGrade },
+                        set: { interviewViewModel.updateInterviewerGrade(sectionID: score.rubricSectionID, grade: $0) }
+                    )) {
+                        Text("--").tag(nil as LetterGrade?)
+                        ForEach(LetterGrade.allCases, id: \.self) { grade in
+                            Text(grade.label).tag(grade as LetterGrade?)
+                        }
+                    }
+                    .frame(width: 70)
+                    .controlSize(.small)
+                }
+            }
+
+            // Evidence
+            if !score.evidenceItems.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Evidence")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    ForEach(score.evidenceItems.sorted(by: { $0.createdAt < $1.createdAt })) { evidence in
+                        HStack(alignment: .top, spacing: 6) {
+                            // Strength indicator
+                            Circle()
+                                .fill(strengthColor(evidence.strength))
+                                .frame(width: 6, height: 6)
+                                .padding(.top, 4)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 4) {
+                                    if !evidence.timestamp.isEmpty {
+                                        Text(evidence.timestamp)
+                                            .font(.system(size: 9, design: .monospaced))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    if let criterion = evidence.criterionSignal {
+                                        Text(criterion)
+                                            .font(.system(size: 9, weight: .medium))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Text(evidence.strength.rawValue)
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                Text("\"\(evidence.quote)\"")
+                                    .font(.caption)
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            } else if let evidenceJSON = score.aiEvidence,
+                      let data = evidenceJSON.data(using: .utf8),
+                      let evidence = try? JSONDecoder().decode([String].self, from: data),
+                      !evidence.isEmpty {
+                // Fallback: legacy plain string evidence
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Evidence")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(evidence, id: \.self) { quote in
+                        Text("\"\(quote)\"")
+                            .font(.caption)
+                            .italic()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // Rationale
+            if let rationale = score.aiRationale, !rationale.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Rationale")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(rationale)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            // Interviewer notes
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Your Notes")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                TextField("Add your observations...", text: Binding(
+                    get: { score.interviewerNotes ?? "" },
+                    set: { interviewViewModel.updateInterviewerNotes(sectionID: score.rubricSectionID, notes: $0) }
+                ), axis: .vertical)
+                .lineLimit(3...8)
+                .font(.caption)
+                .textFieldStyle(.roundedBorder)
+            }
+        }
+    }
+
+    private func strengthColor(_ strength: EvidenceStrength) -> Color {
+        switch strength {
+        case .strong: .green
+        case .moderate: .blue
+        case .weak: .orange
+        }
+    }
+}
+
 // MARK: - Compact Slider Row
 
 struct CompactSliderRow: View {
@@ -304,30 +451,26 @@ struct CompactSliderRow: View {
     var onChange: (Int) -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Text(trait.name)
                 .font(.system(size: 10))
                 .frame(width: 80, alignment: .leading)
                 .lineLimit(1)
 
-            // Compact slider track
             GeometryReader { geo in
                 let totalWidth = geo.size.width
                 let segmentWidth = totalWidth / 5.0
                 let filledWidth = segmentWidth * Double(impression.value)
 
                 ZStack(alignment: .leading) {
-                    // Track background
                     RoundedRectangle(cornerRadius: 3)
                         .fill(Color.secondary.opacity(0.15))
                         .frame(height: 6)
 
-                    // Filled portion with bell-curve gradient
                     RoundedRectangle(cornerRadius: 3)
                         .fill(bellCurveColor(for: Double(impression.value) / 5.0))
                         .frame(width: filledWidth, height: 6)
 
-                    // Tick marks
                     HStack(spacing: 0) {
                         ForEach(1...5, id: \.self) { value in
                             Rectangle()
@@ -341,116 +484,24 @@ struct CompactSliderRow: View {
             }
             .frame(height: 14)
 
-            // Current label
             Text(trait.label(for: impression.value))
                 .font(.system(size: 9))
                 .foregroundStyle(bellCurveColor(for: Double(impression.value) / 5.0))
-                .frame(width: 60, alignment: .trailing)
+                .frame(width: 70, alignment: .trailing)
                 .lineLimit(1)
         }
     }
 }
 
-// MARK: - Compact Section Card
+// MARK: - Backward-compatible ImpressionSliderRow
 
-private struct CompactSectionCard: View {
-    @Bindable var score: InterviewSectionScore
-    var interviewViewModel: InterviewRecordingViewModel
-    var isActiveSection: Bool = false
-
-    @State private var isExpanded = false
+struct ImpressionSliderRow: View {
+    let trait: InterviewImpressionTrait
+    let impression: InterviewImpression
+    var onChange: (Int) -> Void
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 6) {
-                // AI + interviewer grade row
-                HStack(spacing: 12) {
-                    if let aiGrade = score.aiGrade {
-                        HStack(spacing: 3) {
-                            Text("AI:")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                            Text(aiGrade.label)
-                                .font(.system(size: 10, weight: .bold))
-                            if let c = score.aiConfidence {
-                                Text("\(Int(c * 100))%")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                    }
-
-                    HStack(spacing: 3) {
-                        Text("You:")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                        Picker("", selection: Binding(
-                            get: { score.interviewerGrade },
-                            set: { interviewViewModel.updateInterviewerGrade(sectionID: score.rubricSectionID, grade: $0) }
-                        )) {
-                            Text("--").tag(nil as LetterGrade?)
-                            ForEach(LetterGrade.allCases, id: \.self) { grade in
-                                Text(grade.label).tag(grade as LetterGrade?)
-                            }
-                        }
-                        .frame(width: 60)
-                        .controlSize(.mini)
-                    }
-                }
-
-                // Evidence (compact)
-                if let evidenceJSON = score.aiEvidence,
-                   let data = evidenceJSON.data(using: .utf8),
-                   let evidence = try? JSONDecoder().decode([String].self, from: data),
-                   !evidence.isEmpty {
-                    ForEach(evidence, id: \.self) { quote in
-                        Text("\"\(quote)\"")
-                            .font(.system(size: 10))
-                            .italic()
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-                }
-
-                if let rationale = score.aiRationale, !rationale.isEmpty {
-                    Text(rationale)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(score.rubricSectionTitle)
-                    .font(.system(size: 11, weight: .semibold))
-                Spacer()
-                if let grade = score.effectiveLetterGrade {
-                    Text(grade.label)
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(bellCurveColor(for: grade.gradePoints / 4.0).opacity(0.25), in: Capsule())
-                        .foregroundStyle(bellCurveColor(for: grade.gradePoints / 4.0))
-                }
-            }
-        }
-        .font(.system(size: 11))
-        .padding(6)
-        .background(
-            isActiveSection ? Color.cyan.opacity(0.08) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 6)
-        )
-        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
-        .overlay(
-            isActiveSection
-                ? RoundedRectangle(cornerRadius: 6).stroke(.cyan.opacity(0.3), lineWidth: 1)
-                : nil
-        )
-        .onAppear {
-            if isActiveSection { isExpanded = true }
-        }
-        .onChange(of: isActiveSection) { _, active in
-            if active { isExpanded = true }
-        }
+        CompactSliderRow(trait: trait, impression: impression, onChange: onChange)
     }
 }
 
@@ -473,12 +524,10 @@ struct InterviewNotesTable: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            // Note rows
             ForEach(topLevelNotes) { note in
                 NoteRow(note: note, interviewViewModel: interviewViewModel, depth: 0)
             }
 
-            // Add note row
             HStack(spacing: 4) {
                 Image(systemName: "plus")
                     .font(.system(size: 9))
@@ -489,7 +538,11 @@ struct InterviewNotesTable: View {
                     .textFieldStyle(.plain)
                     .focused($isNewNoteFocused)
                     .onSubmit {
-                        addNote()
+                        let text = newNoteText.trimmingCharacters(in: .whitespaces)
+                        guard !text.isEmpty else { return }
+                        interviewViewModel.addNote(text: text)
+                        newNoteText = ""
+                        isNewNoteFocused = true
                     }
             }
             .padding(.vertical, 3)
@@ -498,17 +551,7 @@ struct InterviewNotesTable: View {
         .padding(8)
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
     }
-
-    private func addNote() {
-        let text = newNoteText.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
-        interviewViewModel.addNote(text: text)
-        newNoteText = ""
-        isNewNoteFocused = true
-    }
 }
-
-// MARK: - Note Row
 
 private struct NoteRow: View {
     @Bindable var note: InterviewNote
@@ -522,16 +565,11 @@ private struct NoteRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
-                // Indent
                 if depth > 0 {
-                    Spacer()
-                        .frame(width: CGFloat(depth) * 16)
+                    Spacer().frame(width: CGFloat(depth) * 16)
                 }
 
-                // Category badge
-                Button {
-                    cycleCategory()
-                } label: {
+                Button { cycleCategory() } label: {
                     Text(note.category.rawValue.prefix(1))
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .foregroundStyle(.white)
@@ -539,31 +577,22 @@ private struct NoteRow: View {
                         .background(categoryColor(note.category), in: RoundedRectangle(cornerRadius: 2))
                 }
                 .buttonStyle(.plain)
-                .help("Category: \(note.category.rawValue) (click to change)")
+                .help("Category: \(note.category.rawValue)")
 
-                // Note text
                 TextField("", text: $note.text)
                     .font(.system(size: 11))
                     .textFieldStyle(.plain)
 
                 Spacer()
 
-                // Sub-note button
-                Button {
-                    isAddingSub.toggle()
-                    isSubFocused = true
-                } label: {
+                Button { isAddingSub.toggle(); isSubFocused = true } label: {
                     Image(systemName: "text.line.first.and.arrowtriangle.forward")
                         .font(.system(size: 9))
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
-                .help("Add sub-note")
 
-                // Delete
-                Button {
-                    interviewViewModel.deleteNote(note)
-                } label: {
+                Button { interviewViewModel.deleteNote(note) } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 8))
                         .foregroundStyle(.tertiary)
@@ -573,16 +602,13 @@ private struct NoteRow: View {
             .padding(.vertical, 3)
             .padding(.horizontal, 4)
 
-            // Sub-notes
             ForEach(note.subNotes.sorted { $0.sortOrder < $1.sortOrder }) { sub in
                 NoteRow(note: sub, interviewViewModel: interviewViewModel, depth: depth + 1)
             }
 
-            // Add sub-note field
             if isAddingSub {
                 HStack(spacing: 4) {
-                    Spacer()
-                        .frame(width: CGFloat(depth + 1) * 16)
+                    Spacer().frame(width: CGFloat(depth + 1) * 16)
                     Image(systemName: "plus")
                         .font(.system(size: 8))
                         .foregroundStyle(.tertiary)
@@ -620,17 +646,5 @@ private struct NoteRow: View {
         case .technical: .blue
         case .fit: .purple
         }
-    }
-}
-
-// MARK: - Backward-compatible ImpressionSliderRow (used by scorecard too)
-
-struct ImpressionSliderRow: View {
-    let trait: InterviewImpressionTrait
-    let impression: InterviewImpression
-    var onChange: (Int) -> Void
-
-    var body: some View {
-        CompactSliderRow(trait: trait, impression: impression, onChange: onChange)
     }
 }
