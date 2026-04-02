@@ -16,10 +16,9 @@ func bellCurveColor(for normalizedValue: Double) -> Color {
     }
 }
 
-// MARK: - Main View
+// MARK: - Main Panel (no header — header is in InterviewHubView)
 
 struct LiveInterviewIntelligenceView: View {
-    @Environment(\.modelContext) private var modelContext
     var interviewViewModel: InterviewRecordingViewModel
     @Query(sort: \InterviewImpressionTrait.sortOrder) private var traits: [InterviewImpressionTrait]
 
@@ -34,45 +33,23 @@ struct LiveInterviewIntelligenceView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            interviewHeader
+            // Compact impressions strip
+            impressionsStrip
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.bar.opacity(0.3))
 
             Divider()
 
-            // Phase timeline + impressions side by side
-            HStack(alignment: .top, spacing: 0) {
-                phaseTimeline
-                    .frame(maxWidth: .infinity)
-
-                Divider()
-                    .padding(.vertical, 4)
-
-                impressionSliders
-                    .frame(width: 260)
-                    .padding(.trailing, 8)
-            }
-            .padding(.vertical, 6)
-            .background(.bar.opacity(0.5))
-
-            Divider()
-
-            // Content area — depends on active phase
+            // Content for active phase
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     if interviewViewModel.isRubricPhase, let score = activeScore {
-                        // Rubric section detail
                         ActiveSectionDetail(score: score, interviewViewModel: interviewViewModel)
                             .padding(.horizontal)
                     } else {
-                        // Intro or Conclusion: show summary, follow-ups, topics
                         phaseOverview
                     }
-
-                    Divider()
-                        .padding(.horizontal)
-
-                    // Notes (always visible)
-                    InterviewNotesTable(interviewViewModel: interviewViewModel)
-                        .padding(.horizontal)
 
                     // Strengths / Weaknesses / Red Flags
                     if !interviewViewModel.strengths.isEmpty {
@@ -97,6 +74,42 @@ struct LiveInterviewIntelligenceView: View {
                     }
                 }
                 .padding(.vertical)
+            }
+        }
+    }
+
+    // MARK: - Compact Impressions Strip (horizontal dot indicators)
+
+    private var impressionsStrip: some View {
+        HStack(spacing: 14) {
+            ForEach(traits) { trait in
+                if let impression = interviewViewModel.impressions.first(where: { $0.traitName == trait.name }) {
+                    VStack(spacing: 1) {
+                        Text(trait.abbreviation)
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+
+                        HStack(spacing: 2) {
+                            ForEach(1...5, id: \.self) { val in
+                                Circle()
+                                    .fill(val <= impression.value
+                                        ? bellCurveColor(for: Double(val) / 5.0)
+                                        : Color.secondary.opacity(0.15))
+                                    .frame(width: 7, height: 7)
+                                    .contentShape(Rectangle().size(width: 14, height: 14))
+                                    .onTapGesture {
+                                        interviewViewModel.updateImpression(traitName: trait.name, value: val)
+                                    }
+                            }
+                        }
+
+                        Text(trait.label(for: impression.value))
+                            .font(.system(size: 7))
+                            .foregroundStyle(bellCurveColor(for: Double(impression.value) / 5.0))
+                            .lineLimit(1)
+                    }
+                    .help("\(trait.name): \(trait.label(for: impression.value))")
+                }
             }
         }
     }
@@ -155,129 +168,6 @@ struct LiveInterviewIntelligenceView: View {
         }
     }
 
-    // MARK: - Header
-
-    private var interviewHeader: some View {
-        HStack(spacing: 10) {
-            if let candidate = interviewViewModel.interview?.candidate {
-                Text(candidate.initials)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 26, height: 26)
-                    .background(candidate.avatarColor.gradient, in: Circle())
-                Text(candidate.name)
-                    .font(.headline)
-            }
-
-            Spacer()
-
-            AIActivityIndicator(state: interviewViewModel.rubricAnalysisState)
-
-            Button {
-                interviewViewModel.stopInterview(in: modelContext)
-            } label: {
-                Label("End Interview", systemImage: "stop.circle.fill")
-                    .font(.caption.weight(.semibold))
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .controlSize(.small)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
-        .background(.bar)
-    }
-
-    // MARK: - Phase Timeline
-
-    private var phaseTimeline: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                phaseButton(label: "Intro", icon: "person.wave.2", phaseID: InterviewRecordingViewModel.introID)
-                phaseConnector
-
-                let sections = interviewViewModel.sectionScores.sorted { $0.sortOrder < $1.sortOrder }
-                ForEach(Array(sections.enumerated()), id: \.element.id) { index, score in
-                    phaseButton(label: score.rubricSectionTitle, icon: "list.clipboard", phaseID: score.rubricSectionID)
-                    phaseConnector
-                }
-
-                phaseButton(label: "Conclusion", icon: "questionmark.bubble", phaseID: InterviewRecordingViewModel.conclusionID)
-            }
-            .padding(.horizontal, 8)
-        }
-    }
-
-    private func phaseButton(label: String, icon: String, phaseID: UUID) -> some View {
-        let isActive = interviewViewModel.activePhaseID == phaseID
-        // Show grade badge for rubric sections
-        let grade: LetterGrade? = interviewViewModel.sectionScores
-            .first { $0.rubricSectionID == phaseID }?.effectiveLetterGrade
-
-        return Button {
-            interviewViewModel.setActivePhase(phaseID)
-        } label: {
-            VStack(spacing: 2) {
-                ZStack(alignment: .topTrailing) {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isActive ? Color.cyan.opacity(0.15) : Color.secondary.opacity(0.06))
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isActive ? Color.cyan : Color.clear, lineWidth: 1.5)
-                    Image(systemName: icon)
-                        .font(.system(size: 13))
-                        .foregroundStyle(isActive ? .cyan : .secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                    if let grade {
-                        Text(grade.label)
-                            .font(.system(size: 7, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 3)
-                            .padding(.vertical, 1)
-                            .background(bellCurveColor(for: grade.gradePoints / 4.0), in: RoundedRectangle(cornerRadius: 3))
-                            .offset(x: 4, y: -4)
-                    }
-                }
-                .frame(width: 34, height: 34)
-
-                Text(label)
-                    .font(.system(size: 9, weight: isActive ? .bold : .medium))
-                    .foregroundStyle(isActive ? .cyan : .secondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: 72)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var phaseConnector: some View {
-        Rectangle()
-            .fill(Color.secondary.opacity(0.2))
-            .frame(width: 12, height: 2)
-            .padding(.bottom, 16)
-    }
-
-    // MARK: - Impression Sliders (compact column)
-
-    private var impressionSliders: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("Impressions")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .padding(.leading, 4)
-
-            ForEach(traits) { trait in
-                if let impression = interviewViewModel.impressions.first(where: { $0.traitName == trait.name }) {
-                    CompactSliderRow(trait: trait, impression: impression) { newValue in
-                        interviewViewModel.updateImpression(traitName: trait.name, value: newValue)
-                    }
-                }
-            }
-        }
-    }
-
     // MARK: - Helpers
 
     private func signalList(title: String, items: [String], icon: String, color: Color) -> some View {
@@ -294,7 +184,7 @@ struct LiveInterviewIntelligenceView: View {
     }
 }
 
-// MARK: - Active Section Detail (single section, no accordion)
+// MARK: - Active Section Detail
 
 private struct ActiveSectionDetail: View {
     @Bindable var score: InterviewSectionScore
@@ -302,7 +192,6 @@ private struct ActiveSectionDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Section title + grades
             HStack {
                 Text(score.rubricSectionTitle)
                     .font(.title3.weight(.semibold))
@@ -314,7 +203,6 @@ private struct ActiveSectionDetail: View {
                 }
             }
 
-            // Grade row
             HStack(spacing: 16) {
                 if let aiGrade = score.aiGrade {
                     HStack(spacing: 4) {
@@ -324,7 +212,7 @@ private struct ActiveSectionDetail: View {
                         Text(aiGrade.label)
                             .font(.caption.weight(.bold))
                         if let c = score.aiConfidence {
-                            Text("\(Int(c * 100))% confidence")
+                            Text("\(Int(c * 100))%")
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                         }
@@ -358,7 +246,6 @@ private struct ActiveSectionDetail: View {
 
                     ForEach(score.evidenceItems.sorted(by: { $0.createdAt < $1.createdAt })) { evidence in
                         HStack(alignment: .top, spacing: 6) {
-                            // Strength indicator
                             Circle()
                                 .fill(strengthColor(evidence.strength))
                                 .frame(width: 6, height: 6)
@@ -392,7 +279,6 @@ private struct ActiveSectionDetail: View {
                       let data = evidenceJSON.data(using: .utf8),
                       let evidence = try? JSONDecoder().decode([String].self, from: data),
                       !evidence.isEmpty {
-                // Fallback: legacy plain string evidence
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Evidence")
                         .font(.caption.weight(.semibold))
@@ -406,7 +292,6 @@ private struct ActiveSectionDetail: View {
                 }
             }
 
-            // Rationale
             if let rationale = score.aiRationale, !rationale.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Rationale")
@@ -418,7 +303,6 @@ private struct ActiveSectionDetail: View {
                 }
             }
 
-            // Interviewer notes
             VStack(alignment: .leading, spacing: 2) {
                 Text("Your Notes")
                     .font(.caption.weight(.semibold))
@@ -443,7 +327,7 @@ private struct ActiveSectionDetail: View {
     }
 }
 
-// MARK: - Compact Slider Row
+// MARK: - Compact Slider Row (kept for scorecard use)
 
 struct CompactSliderRow: View {
     let trait: InterviewImpressionTrait
@@ -466,11 +350,9 @@ struct CompactSliderRow: View {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(Color.secondary.opacity(0.15))
                         .frame(height: 6)
-
                     RoundedRectangle(cornerRadius: 3)
                         .fill(bellCurveColor(for: Double(impression.value) / 5.0))
                         .frame(width: filledWidth, height: 6)
-
                     HStack(spacing: 0) {
                         ForEach(1...5, id: \.self) { value in
                             Rectangle()
@@ -493,8 +375,6 @@ struct CompactSliderRow: View {
     }
 }
 
-// MARK: - Backward-compatible ImpressionSliderRow
-
 struct ImpressionSliderRow: View {
     let trait: InterviewImpressionTrait
     let impression: InterviewImpression
@@ -505,7 +385,7 @@ struct ImpressionSliderRow: View {
     }
 }
 
-// MARK: - Interview Notes Table (Notion-style)
+// MARK: - Notes Table (used by right panel)
 
 struct InterviewNotesTable: View {
     var interviewViewModel: InterviewRecordingViewModel
@@ -565,9 +445,7 @@ private struct NoteRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
-                if depth > 0 {
-                    Spacer().frame(width: CGFloat(depth) * 16)
-                }
+                if depth > 0 { Spacer().frame(width: CGFloat(depth) * 16) }
 
                 Button { cycleCategory() } label: {
                     Text(note.category.rawValue.prefix(1))
@@ -622,9 +500,7 @@ private struct NoteRow: View {
                             if !text.isEmpty {
                                 interviewViewModel.addNote(text: text, category: note.category, parent: note)
                                 subNoteText = ""
-                            } else {
-                                isAddingSub = false
-                            }
+                            } else { isAddingSub = false }
                         }
                         .onExitCommand { isAddingSub = false }
                 }
