@@ -447,17 +447,6 @@ private struct NoteRow: View {
             HStack(spacing: 3) {
                 if depth > 0 { Spacer().frame(width: CGFloat(depth) * 16) }
 
-                // Category badge
-                Button { cycleCategory() } label: {
-                    Text(note.category.rawValue.prefix(1))
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white)
-                        .frame(width: 14, height: 14)
-                        .background(categoryColor(note.category), in: RoundedRectangle(cornerRadius: 2))
-                }
-                .buttonStyle(.plain)
-                .help("Category: \(note.category.rawValue)")
-
                 // Sentiment mini-menu
                 Menu {
                     Button { note.sentiment = .neutral } label: {
@@ -534,19 +523,6 @@ private struct NoteRow: View {
         }
     }
 
-    private func cycleCategory() {
-        let all = NoteCategory.allCases
-        let idx = all.firstIndex(of: note.category) ?? 0
-        note.category = all[(idx + 1) % all.count]
-    }
-
-    private func categoryColor(_ cat: NoteCategory) -> Color {
-        switch cat {
-        case .general: .gray
-        case .technical: .blue
-        case .fit: .purple
-        }
-    }
 
     @ViewBuilder
     private func sentimentIcon(_ sentiment: NoteSentiment) -> some View {
