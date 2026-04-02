@@ -227,6 +227,43 @@ final class InterviewRecordingViewModel {
         // Sub-notes cascade via SwiftData
     }
 
+    /// Tab: indent a note — make it a child of the previous sibling at the same level.
+    func indentNote(_ note: InterviewNote) {
+        let siblings: [InterviewNote]
+        if let parent = note.parentNote {
+            siblings = parent.subNotes.sorted { $0.sortOrder < $1.sortOrder }
+        } else {
+            siblings = notes.filter { $0.parentNote == nil }.sorted { $0.sortOrder < $1.sortOrder }
+        }
+        guard let idx = siblings.firstIndex(where: { $0.id == note.id }), idx > 0 else { return }
+        let newParent = siblings[idx - 1]
+
+        // Detach from current parent
+        note.parentNote?.subNotes.removeAll { $0.id == note.id }
+        note.parentNote = newParent
+        note.sortOrder = newParent.subNotes.count
+        newParent.subNotes.append(note)
+    }
+
+    /// Shift+Tab: dedent a note — move it up to its grandparent level, after its current parent.
+    func dedentNote(_ note: InterviewNote) {
+        guard let parent = note.parentNote else { return } // already top-level
+        let grandparent = parent.parentNote
+
+        // Remove from current parent
+        parent.subNotes.removeAll { $0.id == note.id }
+
+        // Insert after parent at grandparent level
+        note.parentNote = grandparent
+        if let grandparent {
+            note.sortOrder = grandparent.subNotes.count
+            grandparent.subNotes.append(note)
+        } else {
+            // Becomes top-level
+            note.sortOrder = notes.filter { $0.parentNote == nil }.count
+        }
+    }
+
     // MARK: - Impression Updates
 
     func updateImpression(traitName: String, value: Int) {

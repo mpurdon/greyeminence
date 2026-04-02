@@ -390,6 +390,7 @@ struct ImpressionSliderRow: View {
 struct InterviewNotesTable: View {
     var interviewViewModel: InterviewRecordingViewModel
     @State private var newNoteText = ""
+    @State private var indentNewNote = false
     @FocusState private var isNewNoteFocused: Bool
 
     private var topLevelNotes: [InterviewNote] {
@@ -409,20 +410,35 @@ struct InterviewNotesTable: View {
             }
 
             HStack(spacing: 4) {
+                if indentNewNote {
+                    Spacer().frame(width: 16)
+                }
                 Image(systemName: "plus")
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
                     .frame(width: 14)
-                TextField("Add a note...", text: $newNoteText)
+                TextField(indentNewNote ? "Sub-note..." : "Add a note...", text: $newNoteText)
                     .font(.system(size: 11))
                     .textFieldStyle(.plain)
                     .focused($isNewNoteFocused)
                     .onSubmit {
                         let text = newNoteText.trimmingCharacters(in: .whitespaces)
                         guard !text.isEmpty else { return }
-                        interviewViewModel.addNote(text: text)
+                        if indentNewNote, let lastTop = topLevelNotes.last {
+                            interviewViewModel.addNote(text: text, parent: lastTop)
+                        } else {
+                            interviewViewModel.addNote(text: text)
+                        }
                         newNoteText = ""
                         isNewNoteFocused = true
+                    }
+                    .onKeyPress(keys: [.tab]) { press in
+                        if press.modifiers.contains(.shift) {
+                            indentNewNote = false
+                        } else {
+                            indentNewNote = true
+                        }
+                        return .handled
                     }
             }
             .padding(.vertical, 3)
@@ -473,6 +489,14 @@ private struct NoteRow: View {
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 2)
                     .background(sentimentBackground(note.sentiment))
+                    .onKeyPress(keys: [.tab]) { press in
+                        if press.modifiers.contains(.shift) {
+                            interviewViewModel.dedentNote(note)
+                        } else {
+                            interviewViewModel.indentNote(note)
+                        }
+                        return .handled
+                    }
 
                 Spacer()
 
