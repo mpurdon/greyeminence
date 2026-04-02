@@ -504,9 +504,19 @@ struct InterviewNotesTable: View {
             }
 
             HStack(spacing: 4) {
-                if indentNewNote {
-                    Spacer().frame(width: 16)
+                // Indent toggle button
+                Button { indentNewNote.toggle() } label: {
+                    Image(systemName: indentNewNote ? "arrow.left.to.line" : "arrow.right.to.line")
+                        .font(.system(size: 9))
+                        .foregroundStyle(indentNewNote ? Color.cyan : Color.secondary)
                 }
+                .buttonStyle(.plain)
+                .help(indentNewNote ? "Switch to top-level note" : "Switch to sub-note")
+
+                if indentNewNote {
+                    Spacer().frame(width: 12)
+                }
+
                 Image(systemName: "plus")
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
@@ -526,14 +536,6 @@ struct InterviewNotesTable: View {
                         newNoteText = ""
                         isNewNoteFocused = true
                     }
-                    .onKeyPress(keys: [.tab]) { press in
-                        if press.modifiers.contains(.shift) {
-                            indentNewNote = false
-                        } else {
-                            indentNewNote = true
-                        }
-                        return .handled
-                    }
             }
             .padding(.vertical, 3)
             .padding(.horizontal, 4)
@@ -547,10 +549,6 @@ private struct NoteRow: View {
     @Bindable var note: InterviewNote
     var interviewViewModel: InterviewRecordingViewModel
     let depth: Int
-
-    @State private var isAddingSub = false
-    @State private var subNoteText = ""
-    @FocusState private var isSubFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -583,23 +581,28 @@ private struct NoteRow: View {
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 2)
                     .background(sentimentBackground(note.sentiment))
-                    .onKeyPress(keys: [.tab]) { press in
-                        if press.modifiers.contains(.shift) {
-                            interviewViewModel.dedentNote(note)
-                        } else {
-                            interviewViewModel.indentNote(note)
-                        }
-                        return .handled
-                    }
 
                 Spacer()
 
-                Button { isAddingSub.toggle(); isSubFocused = true } label: {
-                    Image(systemName: "text.line.first.and.arrowtriangle.forward")
+                // Indent (make sub-note) — only if there's a previous sibling
+                Button { interviewViewModel.indentNote(note) } label: {
+                    Image(systemName: "arrow.right.to.line")
                         .font(.system(size: 9))
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+                .help("Indent (make sub-note)")
+
+                // Dedent (promote) — only if it's a sub-note
+                if note.parentNote != nil {
+                    Button { interviewViewModel.dedentNote(note) } label: {
+                        Image(systemName: "arrow.left.to.line")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Dedent (promote to parent level)")
+                }
 
                 Button { interviewViewModel.deleteNote(note) } label: {
                     Image(systemName: "xmark")
@@ -613,30 +616,6 @@ private struct NoteRow: View {
 
             ForEach(note.subNotes.sorted { $0.sortOrder < $1.sortOrder }) { sub in
                 NoteRow(note: sub, interviewViewModel: interviewViewModel, depth: depth + 1)
-            }
-
-            if isAddingSub {
-                HStack(spacing: 4) {
-                    Spacer().frame(width: CGFloat(depth + 1) * 16)
-                    Image(systemName: "plus")
-                        .font(.system(size: 8))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 14)
-                    TextField("Sub-note...", text: $subNoteText)
-                        .font(.system(size: 11))
-                        .textFieldStyle(.plain)
-                        .focused($isSubFocused)
-                        .onSubmit {
-                            let text = subNoteText.trimmingCharacters(in: .whitespaces)
-                            if !text.isEmpty {
-                                interviewViewModel.addNote(text: text, category: note.category, parent: note)
-                                subNoteText = ""
-                            } else { isAddingSub = false }
-                        }
-                        .onExitCommand { isAddingSub = false }
-                }
-                .padding(.vertical, 2)
-                .padding(.horizontal, 4)
             }
         }
     }
