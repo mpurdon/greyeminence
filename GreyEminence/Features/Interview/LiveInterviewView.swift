@@ -45,16 +45,10 @@ struct LiveInterviewView: View {
 
             switch activeTab {
             case .transcript:
-                VStack(spacing: 0) {
-                    LiveTranscriptView(
-                        segments: recordingVM.segments,
-                        segmentConfidence: recordingVM.segmentConfidence
-                    )
-                    Divider()
-                    NoteInputBar(viewModel: recordingVM)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                }
+                LiveTranscriptView(
+                    segments: recordingVM.segments,
+                    segmentConfidence: recordingVM.segmentConfidence
+                )
             case .notes:
                 ScrollView {
                     InterviewNotesTable(interviewViewModel: interviewViewModel)
