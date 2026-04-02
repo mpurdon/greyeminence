@@ -33,11 +33,15 @@ struct LiveInterviewIntelligenceView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Compact impressions strip
-            impressionsStrip
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(.bar.opacity(0.3))
+            // Phase icons (left) + Impressions (right)
+            HStack(spacing: 0) {
+                phaseIcons
+                Spacer(minLength: 8)
+                impressionsStrip
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(.bar.opacity(0.3))
 
             Divider()
 
@@ -78,35 +82,110 @@ struct LiveInterviewIntelligenceView: View {
         }
     }
 
-    // MARK: - Compact Impressions Strip (horizontal dot indicators)
+    // MARK: - Phase Icon Buttons
+
+    private var phaseIcons: some View {
+        HStack(spacing: 2) {
+            phaseIconButton(icon: "person.wave.2", label: "Intro", id: InterviewRecordingViewModel.introID, grade: nil)
+            phaseConnector
+
+            let sections = interviewViewModel.sectionScores.sorted { $0.sortOrder < $1.sortOrder }
+            ForEach(Array(sections.enumerated()), id: \.element.id) { index, score in
+                phaseIconButton(icon: "list.clipboard", label: score.rubricSectionTitle, id: score.rubricSectionID, grade: score.effectiveLetterGrade)
+                if index < sections.count - 1 {
+                    phaseConnector
+                }
+            }
+
+            phaseConnector
+            phaseIconButton(icon: "questionmark.bubble", label: "Conclusion", id: InterviewRecordingViewModel.conclusionID, grade: nil)
+        }
+    }
+
+    private func phaseIconButton(icon: String, label: String, id: UUID, grade: LetterGrade?) -> some View {
+        let isActive = interviewViewModel.activePhaseID == id
+        return Button {
+            interviewViewModel.setActivePhase(id)
+        } label: {
+            VStack(spacing: 1) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: icon)
+                        .font(.system(size: 12))
+                        .foregroundStyle(isActive ? .cyan : .secondary)
+                        .frame(width: 28, height: 28)
+                        .background(isActive ? Color.cyan.opacity(0.15) : Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(isActive ? .cyan : .clear, lineWidth: 1.5))
+
+                    if let grade {
+                        Text(grade.label)
+                            .font(.system(size: 6, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 2)
+                            .background(bellCurveColor(for: grade.gradePoints / 4.0), in: RoundedRectangle(cornerRadius: 2))
+                            .offset(x: 3, y: -3)
+                    }
+                }
+
+                Text(label)
+                    .font(.system(size: 8, weight: isActive ? .bold : .medium))
+                    .foregroundStyle(isActive ? .cyan : .secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 52)
+            }
+        }
+        .buttonStyle(.plain)
+        .help(label)
+    }
+
+    private var phaseConnector: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.2))
+            .frame(width: 8, height: 1.5)
+            .padding(.bottom, 14)
+    }
+
+    // MARK: - Impressions Strip
+
+    /// Fixed colors per position: 1=red, 2=yellow, 3=blue, 4=green, 5=brown
+    private static let dotColors: [Color] = [
+        .red,
+        .yellow,
+        Color(red: 0.2, green: 0.4, blue: 0.8),  // blue
+        .green,
+        Color(red: 0.45, green: 0.28, blue: 0.08), // deep brown
+    ]
 
     private var impressionsStrip: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             ForEach(traits) { trait in
                 if let impression = interviewViewModel.impressions.first(where: { $0.traitName == trait.name }) {
+                    let activeColor = Self.dotColors[min(impression.value - 1, 4)]
                     VStack(spacing: 1) {
-                        Text(trait.abbreviation)
+                        Text(trait.name)
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
 
                         HStack(spacing: 2) {
                             ForEach(1...5, id: \.self) { val in
                                 Circle()
-                                    .fill(val <= impression.value
-                                        ? bellCurveColor(for: Double(val) / 5.0)
-                                        : Color.secondary.opacity(0.15))
+                                    .fill(val <= impression.value ? activeColor : Color.secondary.opacity(0.15))
                                     .frame(width: 7, height: 7)
                                     .contentShape(Rectangle().size(width: 14, height: 14))
                                     .onTapGesture {
                                         interviewViewModel.updateImpression(traitName: trait.name, value: val)
                                     }
+                                    .help(trait.label(for: val))
                             }
                         }
 
                         Text(trait.label(for: impression.value))
                             .font(.system(size: 7))
-                            .foregroundStyle(bellCurveColor(for: Double(impression.value) / 5.0))
+                            .foregroundStyle(activeColor)
                             .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     .help("\(trait.name): \(trait.label(for: impression.value))")
                 }

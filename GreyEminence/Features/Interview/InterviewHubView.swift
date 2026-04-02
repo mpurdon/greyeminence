@@ -119,11 +119,6 @@ private struct InterviewLiveHeader: View {
 
             Spacer(minLength: 4)
 
-            // Center: phase timeline pills
-            phaseTimeline
-
-            Spacer(minLength: 4)
-
             AIActivityIndicator(state: interviewViewModel.rubricAnalysisState)
 
             Button {
@@ -141,46 +136,4 @@ private struct InterviewLiveHeader: View {
         .background(.bar)
     }
 
-    // MARK: - Compact Pill Timeline
-
-    private var phaseTimeline: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                phasePill("Intro", id: InterviewRecordingViewModel.introID, grade: nil)
-
-                ForEach(interviewViewModel.sectionScores.sorted(by: { $0.sortOrder < $1.sortOrder })) { score in
-                    phasePill(score.rubricSectionTitle, id: score.rubricSectionID, grade: score.effectiveLetterGrade)
-                }
-
-                phasePill("Conclusion", id: InterviewRecordingViewModel.conclusionID, grade: nil)
-            }
-        }
-    }
-
-    private func phasePill(_ title: String, id: UUID, grade: LetterGrade?) -> some View {
-        let isActive = interviewViewModel.activePhaseID == id
-        return Button {
-            interviewViewModel.setActivePhase(id)
-        } label: {
-            HStack(spacing: 3) {
-                Text(title)
-                    .font(.system(size: 10, weight: isActive ? .bold : .medium))
-                    .lineLimit(1)
-                if let grade {
-                    Text(grade.label)
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 3)
-                        .padding(.vertical, 1)
-                        .background(bellCurveColor(for: grade.gradePoints / 4.0), in: Capsule())
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(isActive ? Color.cyan.opacity(0.15) : Color.secondary.opacity(0.05), in: Capsule())
-            .overlay(Capsule().stroke(isActive ? Color.cyan : Color.secondary.opacity(0.15), lineWidth: isActive ? 1.5 : 0.5))
-            .foregroundStyle(isActive ? .cyan : .secondary)
-        }
-        .buttonStyle(.plain)
-    }
 }
