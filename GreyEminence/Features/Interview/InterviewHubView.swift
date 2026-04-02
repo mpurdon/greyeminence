@@ -124,30 +124,6 @@ private struct InterviewLiveHeader: View {
 
             Spacer(minLength: 4)
 
-            // Right: quick actions
-            Button {
-                interviewViewModel.addBookmark(type: .bookmark)
-            } label: {
-                Image(systemName: "bookmark.fill")
-                    .font(.system(size: 11))
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .keyboardShortcut("b", modifiers: .command)
-            .help("Bookmark (⌘B)")
-
-            Button {
-                interviewViewModel.addBookmark(type: .redFlag)
-            } label: {
-                Image(systemName: "flag.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .keyboardShortcut("f", modifiers: [.command, .shift])
-            .help("Red Flag (⌘⇧F)")
-
             AIActivityIndicator(state: interviewViewModel.rubricAnalysisState)
 
             Button {

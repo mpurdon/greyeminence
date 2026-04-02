@@ -444,9 +444,10 @@ private struct NoteRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 4) {
+            HStack(spacing: 3) {
                 if depth > 0 { Spacer().frame(width: CGFloat(depth) * 16) }
 
+                // Category badge
                 Button { cycleCategory() } label: {
                     Text(note.category.rawValue.prefix(1))
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
@@ -457,9 +458,32 @@ private struct NoteRow: View {
                 .buttonStyle(.plain)
                 .help("Category: \(note.category.rawValue)")
 
+                // Sentiment mini-menu
+                Menu {
+                    Button { note.sentiment = .neutral } label: {
+                        Label("Neutral", systemImage: "minus.circle")
+                    }
+                    Button { note.sentiment = .wow } label: {
+                        Label("Wow", systemImage: "star.fill")
+                    }
+                    Button { note.sentiment = .redFlag } label: {
+                        Label("Red Flag", systemImage: "flag.fill")
+                    }
+                } label: {
+                    sentimentIcon(note.sentiment)
+                        .font(.system(size: 10))
+                        .frame(width: 14, height: 14)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 18)
+                .help("Flag: \(note.sentiment.rawValue)")
+
+                // Note text — highlighted bg for wow/red flag
                 TextField("", text: $note.text)
                     .font(.system(size: 11))
                     .textFieldStyle(.plain)
+                    .padding(.horizontal, 2)
+                    .background(sentimentBackground(note.sentiment))
 
                 Spacer()
 
@@ -521,6 +545,33 @@ private struct NoteRow: View {
         case .general: .gray
         case .technical: .blue
         case .fit: .purple
+        }
+    }
+
+    @ViewBuilder
+    private func sentimentIcon(_ sentiment: NoteSentiment) -> some View {
+        switch sentiment {
+        case .neutral:
+            Image(systemName: "minus.circle")
+                .foregroundStyle(.secondary.opacity(0.4))
+        case .wow:
+            Image(systemName: "star.fill")
+                .foregroundStyle(.green)
+        case .redFlag:
+            Image(systemName: "flag.fill")
+                .foregroundStyle(.red)
+        }
+    }
+
+    @ViewBuilder
+    private func sentimentBackground(_ sentiment: NoteSentiment) -> some View {
+        switch sentiment {
+        case .neutral:
+            Color.clear
+        case .wow:
+            RoundedRectangle(cornerRadius: 3).fill(Color.green.opacity(0.08))
+        case .redFlag:
+            RoundedRectangle(cornerRadius: 3).fill(Color.red.opacity(0.08))
         }
     }
 }
