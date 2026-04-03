@@ -1,0 +1,182 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  SCHEME: GreyEminence
+  PRODUCT_NAME: "Grey Eminence"
+  XCODEGEN_VERSION: "2.42.0"
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Restore entitlements
+        run: |
+          cat > GreyEminence/GreyEminence.entitlements << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>com.apple.security.app-sandbox</key>
+              <true/>
+              <key>com.apple.security.device.audio-input</key>
+              <true/>
+              <key>com.apple.security.network.client</key>
+              <true/>
+              <key>com.apple.security.files.user-selected.read-write</key>
+              <true/>
+              <key>com.apple.security.personal-information.calendars</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project GreyEminence.xcodeproj \
+            -scheme "$SCHEME"
+
+      - name: Build archive
+        run: |
+          xcodebuild archive \
+            -project GreyEminence.xcodeproj \
+            -scheme "$SCHEME" \
+            -destination "platform=macOS,arch=arm64" \
+            -archivePath "$RUNNER_TEMP/GreyEminence.xcarchive" \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}"
+
+      - name: Export app
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>developer-id</string>
+              <key>teamID</key>
+              <string>${{ secrets.APPLE_TEAM_ID }}</string>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/GreyEminence.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export"
+
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP_PATH="$RUNNER_TEMP/export/$PRODUCT_NAME.app"
+
+          # Create zip for notarization
+          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/notarize.zip"
+
+          # Submit for notarization
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          # Staple the notarization ticket
+          xcrun stapler staple "$APP_PATH"
+
+      - name: Create DMG
+        run: |
+          APP_PATH="$RUNNER_TEMP/export/$PRODUCT_NAME.app"
+          DMG_PATH="$RUNNER_TEMP/GreyEminence.dmg"
+
+          # Create a temporary folder for DMG contents
+          mkdir -p "$RUNNER_TEMP/dmg-contents"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/dmg-contents/"
+          ln -s /Applications "$RUNNER_TEMP/dmg-contents/Applications"
+
+          hdiutil create -volname "Grey Eminence" \
+            -srcfolder "$RUNNER_TEMP/dmg-contents" \
+            -ov -format UDZO "$DMG_PATH"
+
+      - name: Sign update with Sparkle EdDSA key
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          DMG_PATH="$RUNNER_TEMP/GreyEminence.dmg"
+
+          # Find Sparkle sign_update tool
+          SIGN_UPDATE=$(find ~/Library/Developer/Xcode/DerivedData -name "sign_update" -path "*/Sparkle/bin/*" | head -1)
+          if [ -z "$SIGN_UPDATE" ]; then
+            echo "sign_update not found, downloading Sparkle tools..."
+            curl -L -o /tmp/sparkle.tar.xz https://github.com/sparkle-project/Sparkle/releases/latest/download/Sparkle-2.6.4.tar.xz
+            mkdir -p /tmp/sparkle && tar -xf /tmp/sparkle.tar.xz -C /tmp/sparkle
+            SIGN_UPDATE="/tmp/sparkle/bin/sign_update"
+          fi
+
+          # Sign the DMG
+          SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" | "$SIGN_UPDATE" "$DMG_PATH" --ed-key-file -)
+          echo "SPARKLE_SIGNATURE=$SIGNATURE" >> $GITHUB_ENV
+          echo "DMG size: $(stat -f%z "$DMG_PATH")"
+
+      - name: Generate appcast.xml
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG_PATH="$RUNNER_TEMP/GreyEminence.dmg"
+          DMG_SIZE=$(stat -f%z "$DMG_PATH")
+
+          # Parse signature components (edSignature and length from sign_update output)
+          ED_SIGNATURE=$(echo "$SPARKLE_SIGNATURE" | grep -o 'sparkle:edSignature="[^"]*"' | cut -d'"' -f2)
+          LENGTH=$(echo "$SPARKLE_SIGNATURE" | grep -o 'length="[^"]*"' | cut -d'"' -f2)
+
+          cat > "$RUNNER_TEMP/appcast.xml" << APPCAST_EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <channel>
+              <title>Grey Eminence</title>
+              <item>
+                <title>Version ${VERSION}</title>
+                <pubDate>$(date -R)</pubDate>
+                <sparkle:version>${{ env.BUILD_NUMBER || '12' }}</sparkle:version>
+                <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+                <enclosure
+                  url="https://github.com/mpurdon/greyeminence/releases/download/v${VERSION}/GreyEminence.dmg"
+                  ${SPARKLE_SIGNATURE}
+                  type="application/octet-stream"
+                />
+              </item>
+            </channel>
+          </rss>
+          APPCAST_EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ runner.temp }}/GreyEminence.dmg
+            ${{ runner.temp }}/appcast.xml
+          generate_release_notes: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

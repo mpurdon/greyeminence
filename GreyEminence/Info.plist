@@ -31,6 +31,6 @@
 	<key>SUPublicEDKey</key>
 	<string></string>
 	<key>SUFeedURL</key>
-	<string></string>
+	<string>https://github.com/mpurdon/greyeminence/releases/latest/download/appcast.xml</string>
 </dict>
 </plist>
