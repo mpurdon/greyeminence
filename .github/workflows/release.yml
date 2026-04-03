@@ -10,6 +10,9 @@ env:
   PRODUCT_NAME: "Grey Eminence"
   XCODEGEN_VERSION: "2.42.0"
 
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     runs-on: macos-15
