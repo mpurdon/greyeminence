@@ -41,6 +41,13 @@ enum InterviewPromptTemplates {
               ]
             }
           ],
+          "impressions": [
+            {
+              "trait": "Trait Name",
+              "value": 3,
+              "rationale": "Brief explanation"
+            }
+          ],
           "strengths": ["Candidate demonstrated X"],
           "weaknesses": ["Candidate did not address Y"],
           "red_flags": ["Concerning pattern Z"],
@@ -81,7 +88,22 @@ enum InterviewPromptTemplates {
         Use "not_yet_discussed" with confidence 0 if the topic hasn't come up. \
         Use "partial_evidence" when some relevant discussion exists but isn't conclusive. \
         Use "scored" when you have enough evidence for a confident assessment.
+        - For impressions: evaluate the candidate on each soft-skill trait using a 1-5 scale. \
+        The scale is a bell curve where the sweet spot is 3-4 (75th-85th percentile). \
+        Position 5 means "too much" and is a concern, not a positive. \
+        Return an impression entry for each trait provided. Include a brief rationale.
         """
+    }
+
+    /// Format impression trait definitions for inclusion in prompts.
+    static func formatImpressionTraits(_ traits: [ImpressionTraitSnapshot]) -> String {
+        guard !traits.isEmpty else { return "" }
+        var result = "\nIMPRESSION TRAITS TO EVALUATE:\n"
+        for trait in traits {
+            result += "  \(trait.name): 1=\"\(trait.labels[0])\" 2=\"\(trait.labels[1])\" 3=\"\(trait.labels[2])\" 4=\"\(trait.labels[3])\" 5=\"\(trait.labels[4])\"\n"
+            result += "    Sweet spot: 3-4. Position 5 is excessive/concerning.\n"
+        }
+        return result
     }
 
     // MARK: - Rubric Formatting
@@ -123,7 +145,8 @@ enum InterviewPromptTemplates {
         rubric: RubricSnapshot,
         activeSectionID: UUID?,
         previousScores: String,
-        newTranscript: String
+        newTranscript: String,
+        impressionTraits: [ImpressionTraitSnapshot] = []
     ) -> String {
         let activeSection = activeSectionID.flatMap { id in
             rubric.sections.first { $0.id == id }
@@ -165,7 +188,10 @@ enum InterviewPromptTemplates {
             """
         }
 
+        prompt += formatImpressionTraits(impressionTraits)
+
         prompt += """
+
         NEW TRANSCRIPT:
         \(newTranscript)
         """
@@ -176,7 +202,8 @@ enum InterviewPromptTemplates {
     static func finalAnalysisPrompt(
         rubric: RubricSnapshot,
         accumulatedScores: String,
-        fullTranscript: String
+        fullTranscript: String,
+        impressionTraits: [ImpressionTraitSnapshot] = []
     ) -> String {
         """
         The interview has ended. Below is the complete transcript and rubric. \
@@ -187,6 +214,7 @@ enum InterviewPromptTemplates {
         Provide comprehensive evidence with timestamps for each section.
 
         \(formatFullRubric(rubric))
+        \(formatImpressionTraits(impressionTraits))
 
         ACCUMULATED SCORES FROM LIVE EVALUATION:
         \(accumulatedScores)

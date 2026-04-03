@@ -48,6 +48,7 @@ final class InterviewRecordingViewModel {
     // Criterion evaluations per section
     var criterionEvaluations: [UUID: [CriterionEvaluationSnapshot]] = [:]
     var rubricSnapshot: RubricSnapshot?
+    var impressionTraitSnapshots: [ImpressionTraitSnapshot] = []
 
     // Scroll-to-transcript support
     var scrollToSegmentID: UUID?
@@ -107,6 +108,9 @@ final class InterviewRecordingViewModel {
             imps.append(impression)
         }
 
+        self.impressionTraitSnapshots = traits.map {
+            ImpressionTraitSnapshot(name: $0.name, labels: $0.labels)
+        }
         self.interview = interview
         self.sectionScores = scores
         self.impressions = imps
@@ -176,6 +180,7 @@ final class InterviewRecordingViewModel {
         let service = InterviewIntelligenceService(
             client: client,
             rubricContext: rubricSnapshot,
+            impressionTraits: self.impressionTraitSnapshots,
             meetingID: meetingID
         )
 
@@ -301,9 +306,11 @@ final class InterviewRecordingViewModel {
             }
 
             let meetingID = await MainActor.run { self.recordingViewModel.currentMeeting?.id }
+            let traits = await MainActor.run { self.impressionTraitSnapshots }
             let service = InterviewIntelligenceService(
                 client: client,
                 rubricContext: rubricSnapshot,
+                impressionTraits: traits,
                 meetingID: meetingID
             )
 
@@ -383,6 +390,13 @@ final class InterviewRecordingViewModel {
             criterionEvaluations[aiScore.sectionID] = aiScore.criterionEvaluations
         }
 
+        // Apply AI impression ratings
+        for aiImpression in result.impressions {
+            if let idx = impressions.firstIndex(where: { $0.traitName == aiImpression.trait }) {
+                impressions[idx].value = aiImpression.value
+            }
+        }
+
         strengths = result.strengths
         weaknesses = result.weaknesses
         redFlags = result.redFlags
@@ -428,6 +442,7 @@ final class InterviewRecordingViewModel {
         overallAssessment = ""
         criterionEvaluations = [:]
         rubricSnapshot = nil
+        impressionTraitSnapshots = []
         scrollToSegmentID = nil
         activePhaseID = Self.introID
         rubricAnalysisState = .idle

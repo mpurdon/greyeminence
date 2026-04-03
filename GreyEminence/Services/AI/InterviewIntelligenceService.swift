@@ -54,8 +54,20 @@ struct SectionScoreSnapshot: Sendable {
     let criterionEvaluations: [CriterionEvaluationSnapshot]
 }
 
+struct ImpressionTraitSnapshot: Sendable {
+    let name: String
+    let labels: [String] // 5 labels, index 0-4 for values 1-5
+}
+
+struct ImpressionSnapshot: Sendable {
+    let trait: String
+    let value: Int       // 1-5
+    let rationale: String?
+}
+
 struct InterviewAnalysisResult: Sendable {
     let sectionScores: [SectionScoreSnapshot]
+    let impressions: [ImpressionSnapshot]
     let strengths: [String]
     let weaknesses: [String]
     let redFlags: [String]
@@ -86,13 +98,15 @@ extension EvidenceSnapshot {
 actor InterviewIntelligenceService {
     private let client: any AIClient
     private let rubricContext: RubricSnapshot
+    private let impressionTraits: [ImpressionTraitSnapshot]
     private let meetingID: UUID?
     private var previousScoresJSON: String = ""
     private var lastAnalyzedSegmentCount: Int = 0
 
-    init(client: any AIClient, rubricContext: RubricSnapshot, meetingID: UUID? = nil) {
+    init(client: any AIClient, rubricContext: RubricSnapshot, impressionTraits: [ImpressionTraitSnapshot] = [], meetingID: UUID? = nil) {
         self.client = client
         self.rubricContext = rubricContext
+        self.impressionTraits = impressionTraits
         self.meetingID = meetingID
     }
 
@@ -110,7 +124,8 @@ actor InterviewIntelligenceService {
                 rubric: rubricContext,
                 activeSectionID: activeSectionID,
                 previousScores: "",
-                newTranscript: transcript
+                newTranscript: transcript,
+                impressionTraits: impressionTraits
             )
         } else {
             let transcript = AIPromptTemplates.formatSegments(newSegments)
@@ -118,7 +133,8 @@ actor InterviewIntelligenceService {
                 rubric: rubricContext,
                 activeSectionID: activeSectionID,
                 previousScores: previousScoresJSON,
-                newTranscript: transcript
+                newTranscript: transcript,
+                impressionTraits: impressionTraits
             )
         }
 
@@ -150,7 +166,8 @@ actor InterviewIntelligenceService {
         let userPrompt = InterviewPromptTemplates.finalAnalysisPrompt(
             rubric: rubricContext,
             accumulatedScores: previousScoresJSON,
-            fullTranscript: fullTranscript
+            fullTranscript: fullTranscript,
+            impressionTraits: impressionTraits
         )
 
         LogManager.send("Interview final analysis starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)
@@ -245,6 +262,16 @@ actor InterviewIntelligenceService {
             }
         }
 
+        var impressions: [ImpressionSnapshot] = []
+        if let impArray = json["impressions"] as? [[String: Any]] {
+            for imp in impArray {
+                let trait = imp["trait"] as? String ?? ""
+                let value = imp["value"] as? Int ?? 3
+                let rationale = imp["rationale"] as? String
+                impressions.append(ImpressionSnapshot(trait: trait, value: min(max(value, 1), 5), rationale: rationale))
+            }
+        }
+
         let strengths = json["strengths"] as? [String] ?? []
         let weaknesses = json["weaknesses"] as? [String] ?? []
         let redFlags = json["red_flags"] as? [String] ?? []
@@ -252,6 +279,7 @@ actor InterviewIntelligenceService {
 
         return InterviewAnalysisResult(
             sectionScores: sectionScores,
+            impressions: impressions,
             strengths: strengths,
             weaknesses: weaknesses,
             redFlags: redFlags,
