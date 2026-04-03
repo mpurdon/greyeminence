@@ -186,12 +186,15 @@ jobs:
       - name: Generate appcast.xml
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          BUILD_NUMBER=$(grep 'CURRENT_PROJECT_VERSION' project.yml | head -1 | sed 's/.*: *"\{0,1\}\([0-9]*\)"\{0,1\}/\1/')
           DMG_PATH="$RUNNER_TEMP/GreyEminence.dmg"
           DMG_SIZE=$(stat -f%z "$DMG_PATH")
 
           # Parse signature components (edSignature and length from sign_update output)
           ED_SIGNATURE=$(echo "$SPARKLE_SIGNATURE" | grep -o 'sparkle:edSignature="[^"]*"' | cut -d'"' -f2)
           LENGTH=$(echo "$SPARKLE_SIGNATURE" | grep -o 'length="[^"]*"' | cut -d'"' -f2)
+
+          echo "Version: ${VERSION}, Build: ${BUILD_NUMBER}"
 
           cat > "$RUNNER_TEMP/appcast.xml" << APPCAST_EOF
           <?xml version="1.0" encoding="utf-8"?>
@@ -201,7 +204,7 @@ jobs:
               <item>
                 <title>Version ${VERSION}</title>
                 <pubDate>$(date -R)</pubDate>
-                <sparkle:version>${{ env.BUILD_NUMBER || '12' }}</sparkle:version>
+                <sparkle:version>${BUILD_NUMBER}</sparkle:version>
                 <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
                 <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
                 <enclosure
