@@ -6,7 +6,7 @@ import SwiftData
 final class StalledNotificationService {
     static let shared = StalledNotificationService()
 
-    private let center = UNUserNotificationCenter.current()
+    private nonisolated(unsafe) let center = UNUserNotificationCenter.current()
     private let notificationID = "com.greyeminence.stalled-summary"
     private let commitmentService = CommitmentTrackingService()
 

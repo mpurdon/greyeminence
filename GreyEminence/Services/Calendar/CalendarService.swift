@@ -13,7 +13,7 @@ final class CalendarService {
     private(set) var authorizationState: AuthorizationState = .notDetermined
     private(set) var currentEvent: EKEvent?
 
-    private let store = EKEventStore()
+    private nonisolated(unsafe) let store = EKEventStore()
 
     func requestAccess() async {
         do {
