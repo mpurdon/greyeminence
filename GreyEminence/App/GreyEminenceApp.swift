@@ -72,6 +72,13 @@ struct GreyEminenceApp: App {
             }
         }
         .defaultSize(width: 1200, height: 800)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    updaterController.checkForUpdates(nil)
+                }
+            }
+        }
 
         MenuBarExtra("Grey Eminence", systemImage: menuBarIcon) {
             if let container = sharedModelContainer {
