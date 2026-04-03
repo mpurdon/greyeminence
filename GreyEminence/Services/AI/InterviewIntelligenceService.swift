@@ -62,6 +62,25 @@ struct InterviewAnalysisResult: Sendable {
     let overallAssessment: String
 }
 
+// MARK: - EvidenceSnapshot Helpers
+
+extension EvidenceSnapshot {
+    func toDict() -> [String: Any] {
+        var d: [String: Any] = ["quote": quote, "timestamp": timestamp, "strength": strength]
+        if let criterion { d["criterion"] = criterion }
+        return d
+    }
+
+    static func from(dict: [String: Any], defaultCriterion: String? = nil) -> EvidenceSnapshot {
+        EvidenceSnapshot(
+            quote: dict["quote"] as? String ?? "",
+            timestamp: dict["timestamp"] as? String ?? "",
+            criterion: dict["criterion"] as? String ?? defaultCriterion,
+            strength: dict["strength"] as? String ?? "moderate"
+        )
+    }
+}
+
 // MARK: - Intelligence Service
 
 actor InterviewIntelligenceService {
@@ -87,14 +106,15 @@ actor InterviewIntelligenceService {
         let userPrompt: String
         if previousScoresJSON.isEmpty {
             let transcript = AIPromptTemplates.formatSegments(nonEmpty)
-            userPrompt = InterviewPromptTemplates.initialAnalysisPrompt(
+            userPrompt = InterviewPromptTemplates.sectionFocusedPrompt(
                 rubric: rubricContext,
                 activeSectionID: activeSectionID,
-                transcript: transcript
+                previousScores: "",
+                newTranscript: transcript
             )
         } else {
             let transcript = AIPromptTemplates.formatSegments(newSegments)
-            userPrompt = InterviewPromptTemplates.rollingAnalysisPrompt(
+            userPrompt = InterviewPromptTemplates.sectionFocusedPrompt(
                 rubric: rubricContext,
                 activeSectionID: activeSectionID,
                 previousScores: previousScoresJSON,
@@ -178,14 +198,7 @@ actor InterviewIntelligenceService {
                 // Parse structured evidence (with fallback for plain string arrays)
                 var evidenceItems: [EvidenceSnapshot] = []
                 if let evidenceArray = score["evidence"] as? [[String: Any]] {
-                    for ev in evidenceArray {
-                        evidenceItems.append(EvidenceSnapshot(
-                            quote: ev["quote"] as? String ?? "",
-                            timestamp: ev["timestamp"] as? String ?? "",
-                            criterion: ev["criterion"] as? String,
-                            strength: ev["strength"] as? String ?? "moderate"
-                        ))
-                    }
+                    evidenceItems = evidenceArray.map { EvidenceSnapshot.from(dict: $0) }
                 } else if let plainEvidence = score["evidence"] as? [String] {
                     // Fallback: plain string array → moderate strength, no timestamp
                     evidenceItems = plainEvidence.map {
@@ -203,14 +216,7 @@ actor InterviewIntelligenceService {
                         let summary = crit["summary"] as? String
                         var critEvidence: [EvidenceSnapshot] = []
                         if let evArray = crit["evidence"] as? [[String: Any]] {
-                            for ev in evArray {
-                                critEvidence.append(EvidenceSnapshot(
-                                    quote: ev["quote"] as? String ?? "",
-                                    timestamp: ev["timestamp"] as? String ?? "",
-                                    criterion: signal,
-                                    strength: ev["strength"] as? String ?? "moderate"
-                                ))
-                            }
+                            critEvidence = evArray.map { EvidenceSnapshot.from(dict: $0, defaultCriterion: signal) }
                         }
                         criterionEvals.append(CriterionEvaluationSnapshot(
                             signal: signal, status: status, confidence: conf, evidence: critEvidence, summary: summary
@@ -255,16 +261,12 @@ actor InterviewIntelligenceService {
 
     private func encodeScoresForRolling(_ scores: [SectionScoreSnapshot]) -> String {
         let dicts: [[String: Any]] = scores.map { score in
-            let evidenceDicts: [[String: Any]] = score.evidence.map { ev in
-                var d: [String: Any] = ["quote": ev.quote, "timestamp": ev.timestamp, "strength": ev.strength]
-                if let criterion = ev.criterion { d["criterion"] = criterion }
-                return d
-            }
+            let evidenceDicts: [[String: Any]] = score.evidence.map { $0.toDict() }
             var dict: [String: Any] = [
                 "section_id": score.sectionID.uuidString,
                 "section_title": score.sectionTitle,
                 "confidence": score.confidence,
-                "evidence": evidenceDicts,
+                "evidence": score.criterionEvaluations.isEmpty ? evidenceDicts : [],
                 "rationale": score.rationale,
             ]
             if let grade = score.grade { dict["grade"] = grade }
@@ -278,11 +280,7 @@ actor InterviewIntelligenceService {
                     ]
                     if let summary = crit.summary { d["summary"] = summary }
                     if !crit.evidence.isEmpty {
-                        d["evidence"] = crit.evidence.map { ev in
-                            var e: [String: Any] = ["quote": ev.quote, "timestamp": ev.timestamp, "strength": ev.strength]
-                            if let c = ev.criterion { e["criterion"] = c }
-                            return e
-                        }
+                        d["evidence"] = crit.evidence.map { $0.toDict() }
                     }
                     return d
                 }

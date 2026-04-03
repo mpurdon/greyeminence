@@ -334,6 +334,7 @@ private struct ActiveSectionDetail: View {
             // Criteria checklist
             if let rubricSection = interviewViewModel.rubricSnapshot?.sections.first(where: { $0.id == score.rubricSectionID }) {
                 let evaluations = interviewViewModel.criterionEvaluations[score.rubricSectionID] ?? []
+                let evalDict = Dictionary(evaluations.map { ($0.signal, $0) }, uniquingKeysWith: { _, last in last })
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Criteria")
@@ -343,7 +344,7 @@ private struct ActiveSectionDetail: View {
                     ForEach(rubricSection.criteria, id: \.self) { criterionSignal in
                         CriterionRow(
                             signal: criterionSignal,
-                            evaluation: evaluations.first(where: { $0.signal == criterionSignal }),
+                            evaluation: evalDict[criterionSignal],
                             onTapTimestamp: { timestamp in
                                 interviewViewModel.scrollTranscriptToTimestamp(timestamp)
                             }

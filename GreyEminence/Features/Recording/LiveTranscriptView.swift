@@ -5,6 +5,7 @@ struct LiveTranscriptView: View {
     var segmentConfidence: [UUID: Float] = [:]
     @Binding var scrollToSegmentID: UUID?
     @State private var highlightedSegmentID: UUID?
+    @State private var highlightTask: Task<Void, Never>?
 
     init(segments: [TranscriptSegment], segmentConfidence: [UUID: Float] = [:], scrollToSegmentID: Binding<UUID?> = .constant(nil)) {
         self.segments = segments
@@ -47,8 +48,10 @@ struct LiveTranscriptView: View {
                 highlightedSegmentID = targetID
                 scrollToSegmentID = nil
                 // Clear highlight after a short delay
-                Task { @MainActor in
+                highlightTask?.cancel()
+                highlightTask = Task { @MainActor in
                     try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
                     withAnimation(.easeOut(duration: 0.5)) {
                         if highlightedSegmentID == targetID {
                             highlightedSegmentID = nil

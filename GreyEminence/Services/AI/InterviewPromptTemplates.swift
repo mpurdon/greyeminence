@@ -173,35 +173,6 @@ enum InterviewPromptTemplates {
         return prompt
     }
 
-    /// Initial analysis (first pass, no previous scores)
-    static func initialAnalysisPrompt(
-        rubric: RubricSnapshot,
-        activeSectionID: UUID?,
-        transcript: String
-    ) -> String {
-        sectionFocusedPrompt(
-            rubric: rubric,
-            activeSectionID: activeSectionID,
-            previousScores: "",
-            newTranscript: transcript
-        )
-    }
-
-    /// Rolling analysis with previous context
-    static func rollingAnalysisPrompt(
-        rubric: RubricSnapshot,
-        activeSectionID: UUID?,
-        previousScores: String,
-        newTranscript: String
-    ) -> String {
-        sectionFocusedPrompt(
-            rubric: rubric,
-            activeSectionID: activeSectionID,
-            previousScores: previousScores,
-            newTranscript: newTranscript
-        )
-    }
-
     static func finalAnalysisPrompt(
         rubric: RubricSnapshot,
         accumulatedScores: String,

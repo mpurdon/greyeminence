@@ -132,8 +132,8 @@ final class InterviewRecordingViewModel {
         }
 
         // Start rubric analysis loop (offset from standard AI by ~20s)
-        startRubricAnalysis(rubric: rubric)
         self.rubricSnapshot = rubric.toSnapshot()
+        startRubricAnalysis()
     }
 
     func stopInterview(in modelContext: ModelContext) {
@@ -150,18 +150,18 @@ final class InterviewRecordingViewModel {
         try? modelContext.save()
 
         // Capture what we need for the final analysis before stopping
-        let rubric = interview?.rubric
+        let hasRubric = rubricSnapshot != nil
         let meetingID = recordingViewModel.currentMeeting?.id
 
         // Stop the underlying recording (triggers standard final analysis too)
         recordingViewModel.stopRecording(in: modelContext)
 
         // Run final rubric analysis on the complete transcript
-        if let rubric {
+        if hasRubric {
             rubricAnalysisState = .analyzing
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                await self.runFinalRubricAnalysis(rubric: rubric, meetingID: meetingID, in: modelContext)
+                await self.runFinalRubricAnalysis(meetingID: meetingID, in: modelContext)
                 self.rubricAnalysisState = .idle
             }
         } else {
@@ -169,10 +169,10 @@ final class InterviewRecordingViewModel {
         }
     }
 
-    private func runFinalRubricAnalysis(rubric: Rubric, meetingID: UUID?, in modelContext: ModelContext) async {
-        guard let client = try? await AIClientFactory.makeClient() else { return }
+    private func runFinalRubricAnalysis(meetingID: UUID?, in modelContext: ModelContext) async {
+        guard let client = try? await AIClientFactory.makeClient(),
+              let rubricSnapshot else { return }
 
-        let rubricSnapshot = rubric.toSnapshot()
         let service = InterviewIntelligenceService(
             client: client,
             rubricContext: rubricSnapshot,
@@ -287,8 +287,8 @@ final class InterviewRecordingViewModel {
 
     // MARK: - Rubric Analysis Loop
 
-    private func startRubricAnalysis(rubric: Rubric) {
-        let rubricSnapshot = rubric.toSnapshot()
+    private func startRubricAnalysis() {
+        let rubricSnapshot = self.rubricSnapshot!
 
         rubricAnalysisTask = Task { [weak self] in
             guard let self else { return }
@@ -402,8 +402,16 @@ final class InterviewRecordingViewModel {
     private func parseTimestampToSeconds(_ ts: String) -> TimeInterval? {
         let cleaned = ts.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
         let parts = cleaned.split(separator: ":")
-        guard parts.count == 2, let min = Double(parts[0]), let sec = Double(parts[1]) else { return nil }
-        return min * 60 + sec
+        switch parts.count {
+        case 2:
+            guard let min = Double(parts[0]), let sec = Double(parts[1]) else { return nil }
+            return min * 60 + sec
+        case 3:
+            guard let hr = Double(parts[0]), let min = Double(parts[1]), let sec = Double(parts[2]) else { return nil }
+            return hr * 3600 + min * 60 + sec
+        default:
+            return nil
+        }
     }
 
     // MARK: - Cleanup
