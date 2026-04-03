@@ -14,9 +14,9 @@ struct InterviewHubView: View {
     enum InterviewHubTab: String, CaseIterable {
         case interviews = "Interviews"
         case setup = "New Interview"
-        case test = "Test"
         case candidates = "Candidates"
         case rubrics = "Rubrics"
+        case test = "Test"
     }
 
     var body: some View {
@@ -33,18 +33,21 @@ struct InterviewHubView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 8)
 
-                switch activeTab {
-                case .interviews:
-                    InterviewListView(selectedInterview: $selectedInterview, showInspector: $showInspector, inspectorWidth: $inspectorWidth)
-                case .setup:
-                    InterviewSetupView(interviewViewModel: interviewViewModel)
-                case .test:
-                    TranscriptTestView()
-                case .candidates:
-                    CandidateListView()
-                case .rubrics:
-                    RubricListView()
+                Group {
+                    switch activeTab {
+                    case .interviews:
+                        InterviewListView(selectedInterview: $selectedInterview, showInspector: $showInspector, inspectorWidth: $inspectorWidth)
+                    case .setup:
+                        InterviewSetupView(interviewViewModel: interviewViewModel)
+                    case .candidates:
+                        CandidateListView()
+                    case .rubrics:
+                        RubricListView()
+                    case .test:
+                        TranscriptTestView()
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
