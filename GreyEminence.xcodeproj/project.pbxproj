@@ -22,6 +22,7 @@
 		20E58AD8BC35A77A824C2633 /* RoleLevel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E016B91CDEA91AF1DF999437 /* RoleLevel.swift */; };
 		240145ECED5179E26AD5EA54 /* InterviewScorecardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77CBEB9C00C6D9F952CEA6EE /* InterviewScorecardView.swift */; };
 		24283F84D0FD2716A6806F48 /* ObsidianExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B627ED8329AE7CA2DD317878 /* ObsidianExportService.swift */; };
+		24A51E8E58619EC0E363982F /* TranscriptFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA282F9DB6AE4DA53A6FFDDF /* TranscriptFile.swift */; };
 		2752C857ED799575298D2EE7 /* ContactRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA07D6809E46B405979C97F /* ContactRowView.swift */; };
 		28C92B79DE182F4A9FFE4F80 /* InterviewSectionScore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B95809735E6E5534ED30962 /* InterviewSectionScore.swift */; };
 		2A3497DC017555A3BE9E29C3 /* TranscriptSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AE45FF59C2AC3113F02C4CC /* TranscriptSegment.swift */; };
@@ -118,6 +119,7 @@
 		F04847E3D961E5529DA665DA /* Contact.swift in Sources */ = {isa = PBXBuildFile; fileRef = B81DE507A29E8F31EEE7A14B /* Contact.swift */; };
 		F0C354CA30884FC2707533FC /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE48D54E7D30160DB6840EBE /* LogView.swift */; };
 		F15D9A6FD119A8B208111A26 /* TranscriptSegmentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F93F2580A0F2585FD914629 /* TranscriptSegmentRow.swift */; };
+		F1C63EC5E3E3C89899D43533 /* TranscriptTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9777ACE77F882D5DF615E010 /* TranscriptTestView.swift */; };
 		F9A80A4871C0F7EFA7A4D3A6 /* Interview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64E9FE67D22C9B5648478322 /* Interview.swift */; };
 		FA8953738B11A84516D35908 /* CandidateListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EE35BB1B53FA715D0E3B606 /* CandidateListView.swift */; };
 		FAF507B483908D2C3227910D /* SystemAudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A9A340B566AD4ABDBB929D /* SystemAudioCaptureService.swift */; };
@@ -188,6 +190,7 @@
 		8FFDC9ABAD40D943DE809198 /* Meeting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Meeting.swift; sourceTree = "<group>"; };
 		93C28939DE9447A9DCE2636A /* TrajectorSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrajectorSettings.swift; sourceTree = "<group>"; };
 		97149F3BA600B75B86FBBC1A /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		9777ACE77F882D5DF615E010 /* TranscriptTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptTestView.swift; sourceTree = "<group>"; };
 		980E9BFF806B56551CE76E1A /* RecordingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingViewModel.swift; sourceTree = "<group>"; };
 		9F43B13AE41AF8236D03AB34 /* InterviewImpressionTrait.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewImpressionTrait.swift; sourceTree = "<group>"; };
 		A0AF2329398C06BB75B022FF /* StorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageManager.swift; sourceTree = "<group>"; };
@@ -229,6 +232,7 @@
 		E1623F804DDEF0B92D3B6A41 /* VocabularySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularySettingsView.swift; sourceTree = "<group>"; };
 		E1894E666B02691D0316570C /* ContactPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactPicker.swift; sourceTree = "<group>"; };
 		E5EDCC80A8D4B916A192C52E /* InterviewRecordingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewRecordingViewModel.swift; sourceTree = "<group>"; };
+		EA282F9DB6AE4DA53A6FFDDF /* TranscriptFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptFile.swift; sourceTree = "<group>"; };
 		EAAE2A31F9F164242D15B47A /* OrganizationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizationSettingsView.swift; sourceTree = "<group>"; };
 		F02E7B6743C5DE21C7E30951 /* StalledNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StalledNotificationService.swift; sourceTree = "<group>"; };
 		F441D2EB2BBE4A6F48F3B85C /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -351,6 +355,7 @@
 				6A9A10AF91F15CA169F503A2 /* InterviewPromptTemplates.swift */,
 				B844FF1A1E3ECA5753702A38 /* MeetingPrepService.swift */,
 				93C28939DE9447A9DCE2636A /* TrajectorSettings.swift */,
+				EA282F9DB6AE4DA53A6FFDDF /* TranscriptFile.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -570,6 +575,7 @@
 				FD672DF259613086F9FC8826 /* RubricEditorView.swift */,
 				A47BC52049DFA6A2808B1FC6 /* RubricListView.swift */,
 				22EBC71AC684DEC93517AF36 /* RubricSectionEditorView.swift */,
+				9777ACE77F882D5DF615E010 /* TranscriptTestView.swift */,
 			);
 			path = Interview;
 			sourceTree = "<group>";
@@ -800,8 +806,10 @@
 				768C41869E0CB2E13A3D5875 /* Team.swift in Sources */,
 				D844A67123CE2E80F33DA503 /* TrajectorSettings.swift in Sources */,
 				5B0D134A768087BDA747466F /* TranscriptDeduplicator.swift in Sources */,
+				24A51E8E58619EC0E363982F /* TranscriptFile.swift in Sources */,
 				2A3497DC017555A3BE9E29C3 /* TranscriptSegment.swift in Sources */,
 				F15D9A6FD119A8B208111A26 /* TranscriptSegmentRow.swift in Sources */,
+				F1C63EC5E3E3C89899D43533 /* TranscriptTestView.swift in Sources */,
 				1E9491591B4678CBCE46C8E2 /* TranscriptionCoordinator.swift in Sources */,
 				6632545DC3BCE1347E7D2AAF /* VocabularyManager.swift in Sources */,
 				390FF076D5D31B58C391477A /* VocabularySettingsView.swift in Sources */,

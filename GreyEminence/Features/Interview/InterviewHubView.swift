@@ -14,6 +14,7 @@ struct InterviewHubView: View {
     enum InterviewHubTab: String, CaseIterable {
         case interviews = "Interviews"
         case setup = "New Interview"
+        case test = "Test"
         case candidates = "Candidates"
         case rubrics = "Rubrics"
     }
@@ -37,6 +38,8 @@ struct InterviewHubView: View {
                     InterviewListView(selectedInterview: $selectedInterview, showInspector: $showInspector, inspectorWidth: $inspectorWidth)
                 case .setup:
                     InterviewSetupView(interviewViewModel: interviewViewModel)
+                case .test:
+                    TranscriptTestView()
                 case .candidates:
                     CandidateListView()
                 case .rubrics:

@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Lightweight Sendable Snapshot Types
 
-struct SegmentSnapshot: Sendable {
+struct SegmentSnapshot: Sendable, Codable {
     let speaker: Speaker
     let text: String
     let formattedTimestamp: String

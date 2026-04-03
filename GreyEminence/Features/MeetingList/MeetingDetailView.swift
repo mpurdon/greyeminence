@@ -17,6 +17,7 @@ struct MeetingDetailView: View {
     @State private var isSplittingMeeting = false
     @State private var sortedSegments: [TranscriptSegment] = []
     @State private var showDedupDebug = false
+    @State private var showTranscriptSavePanel = false
     @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
 
     var onSplitMeeting: ((Meeting) -> Void)?
@@ -149,6 +150,26 @@ struct MeetingDetailView: View {
         } message: {
             Text("This segment and everything after it will be moved into a new meeting. Both meetings will be re-analyzed by AI.")
         }
+        .onChange(of: showTranscriptSavePanel) { _, show in
+            guard show else { return }
+            showTranscriptSavePanel = false
+            saveTranscriptFile()
+        }
+    }
+
+    private func saveTranscriptFile() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "\(meeting.title).getranscript.json"
+        panel.title = "Save Transcript"
+        panel.message = "Save this transcript for rubric testing"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let file = TranscriptFile.from(meeting: meeting)
+            try file.write(to: url)
+        } catch {
+            LogManager.shared.log("Transcript save failed: \(error.localizedDescription)", category: .general, level: .error)
+        }
     }
 
     private var splitConfirmationTitle: String {
@@ -220,6 +241,13 @@ struct MeetingDetailView: View {
                 .disabled(UserDefaults.standard.string(forKey: "obsidianVaultPath")?.isEmpty != false)
                 .keyboardShortcut("e", modifiers: .command)
                 .help(exportHelpText)
+
+                Button {
+                    showTranscriptSavePanel = true
+                } label: {
+                    Label("Save Transcript", systemImage: "doc.badge.arrow.up")
+                }
+                .help("Save transcript as a file for rubric testing")
 
                 statusBadge
             }
