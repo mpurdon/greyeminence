@@ -19,6 +19,10 @@ final class TranscriptSegment {
     var originalText: String?
     var originalSpeakerData: Data?
 
+    // Interview section tagging
+    var sectionTag: String?       // e.g. "System Design", "Behavioral"
+    var sectionTagID: UUID?       // rubricSectionID (or intro/conclusion UUID)
+
     var meeting: Meeting?
 
     var speaker: Speaker {

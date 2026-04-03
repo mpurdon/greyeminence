@@ -5,10 +5,10 @@ import AppKit
 struct InterviewHubView: View {
     @Environment(\.modelContext) private var modelContext
     var interviewViewModel: InterviewRecordingViewModel
+    @Binding var selectedInterview: Interview?
     @Binding var showInspector: Bool
     @Binding var inspectorWidth: CGFloat?
 
-    @State private var selectedInterview: Interview?
     @State private var activeTab: InterviewHubTab = .interviews
 
     enum InterviewHubTab: String, CaseIterable {
@@ -37,6 +37,7 @@ struct InterviewHubView: View {
                     switch activeTab {
                     case .interviews:
                         InterviewListView(selectedInterview: $selectedInterview, showInspector: $showInspector, inspectorWidth: $inspectorWidth)
+                            .id("interviewList")
                     case .setup:
                         InterviewSetupView(interviewViewModel: interviewViewModel)
                     case .candidates:
@@ -48,6 +49,11 @@ struct InterviewHubView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .onChange(of: selectedInterview) { _, interview in
+                if interview != nil {
+                    activeTab = .interviews
+                }
             }
         }
     }

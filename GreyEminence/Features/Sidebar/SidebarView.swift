@@ -29,6 +29,7 @@ struct SidebarView: View {
                     tasksItem
                     sidebarItem(.interviews)
                     sidebarItem(.people)
+                    sidebarItem(.topicMap)
                     if developerToolsEnabled {
                         sidebarItem(.activityLog)
                     }

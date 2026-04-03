@@ -17,7 +17,15 @@ struct LiveTranscriptView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
+                    var lastTag: String?
                     ForEach(segments) { segment in
+                        let showMarker = segment.sectionTag != nil && segment.sectionTag != lastTag
+                        if showMarker {
+                            SectionMarkerView(
+                                title: segment.sectionTag!,
+                                timestamp: segment.formattedTimestamp
+                            )
+                        }
                         TranscriptSegmentRow(
                             segment: segment,
                             confidence: segmentConfidence[segment.id]
@@ -29,6 +37,7 @@ struct LiveTranscriptView: View {
                                 : Color.clear
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                        let _ = { lastTag = segment.sectionTag }()
                     }
                 }
                 .padding()

@@ -7,44 +7,70 @@ struct InterviewScorecardView: View {
     @Query(sort: \InterviewImpressionTrait.sortOrder) private var traits: [InterviewImpressionTrait]
     @State private var isReanalyzing = false
     @State private var reanalysisError: String?
+    @State private var sectionScoringStatus: [UUID: SectionScoringState] = [:]
+    @State private var scorecardTab: ScorecardTab = .scorecard
+
+    enum ScorecardTab: String, CaseIterable {
+        case scorecard = "Scorecard"
+        case transcript = "Transcript"
+    }
+
+    enum SectionScoringState {
+        case pending
+        case scoring
+        case done
+        case failed(String)
+    }
 
     private var sortedScores: [InterviewSectionScore] {
         interview.sectionScores.sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                // Header
-                HStack {
-                    Label {
-                        Text("Interview Scorecard")
-                    } icon: {
-                        Image(systemName: "list.clipboard")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 26, height: 26)
-                            .background(Color.cyan.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                    .font(.headline)
-
-                    Spacer()
-
-                    if isReanalyzing {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Button {
-                            Task { await reanalyze() }
-                        } label: {
-                            Label("Reanalyze", systemImage: "arrow.clockwise")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+        VStack(spacing: 0) {
+            // Header bar
+            HStack {
+                Picker("", selection: $scorecardTab) {
+                    ForEach(ScorecardTab.allCases, id: \.self) { tab in
+                        Text(tab.rawValue).tag(tab)
                     }
                 }
-                .padding(.horizontal)
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 200)
+
+                Spacer()
+
+                if isReanalyzing {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Button {
+                        Task { await reanalyze() }
+                    } label: {
+                        Label("Score All Sections", systemImage: "brain")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            Divider()
+
+            switch scorecardTab {
+            case .scorecard:
+                scorecardContent
+            case .transcript:
+                transcriptContent
+            }
+        }
+    }
+
+    private var scorecardContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
 
                 if let error = reanalysisError {
                     HStack(spacing: 6) {
@@ -76,8 +102,30 @@ struct InterviewScorecardView: View {
 
                 // Section scorecards
                 ForEach(sortedScores) { score in
-                    InterviewSectionScoreCard(score: score)
-                        .padding(.horizontal)
+                    HStack(spacing: 6) {
+                        InterviewSectionScoreCard(score: score)
+                        // Scoring status indicator
+                        if let status = sectionScoringStatus[score.rubricSectionID] {
+                            switch status {
+                            case .pending:
+                                Image(systemName: "circle.dotted")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption2)
+                            case .scoring:
+                                ProgressView()
+                                    .controlSize(.mini)
+                            case .done:
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                                    .font(.caption2)
+                            case .failed:
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                    .font(.caption2)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                 }
 
                 // TODO: Strengths/weaknesses/red flags should be persisted on Interview from AI analysis results
@@ -103,6 +151,58 @@ struct InterviewScorecardView: View {
             }
             .padding(.vertical)
         }
+    }
+
+    private var transcriptSegments: [TranscriptSegment] {
+        (interview.meeting?.segments ?? []).sorted { $0.startTime < $1.startTime }
+    }
+
+    @ViewBuilder
+    private var transcriptContent: some View {
+        if transcriptSegments.isEmpty {
+            ContentUnavailableView(
+                "No Transcript",
+                systemImage: "text.bubble",
+                description: Text("This interview has no transcript segments")
+            )
+        } else {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    var lastTag: String?
+                    ForEach(transcriptSegments) { segment in
+                        let showMarker = segment.sectionTag != nil && segment.sectionTag != lastTag
+                        if showMarker {
+                            SectionMarkerView(
+                                title: segment.sectionTag!,
+                                timestamp: segment.formattedTimestamp
+                            )
+                        }
+                        TranscriptSegmentRow(segment: segment)
+                            .contextMenu {
+                                Menu("Tag Section") {
+                                    Button("Intro") { tagSegment(segment, tag: "Intro", id: InterviewRecordingViewModel.introID) }
+                                    ForEach(sortedScores) { score in
+                                        Button(score.rubricSectionTitle) {
+                                            tagSegment(segment, tag: score.rubricSectionTitle, id: score.rubricSectionID)
+                                        }
+                                    }
+                                    Button("Conclusion") { tagSegment(segment, tag: "Conclusion", id: InterviewRecordingViewModel.conclusionID) }
+                                    Divider()
+                                    Button("Clear Tag") { tagSegment(segment, tag: nil, id: nil) }
+                                }
+                            }
+                        let _ = { lastTag = segment.sectionTag }()
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+
+    private func tagSegment(_ segment: TranscriptSegment, tag: String?, id: UUID?) {
+        segment.sectionTag = tag
+        segment.sectionTagID = id
+        try? modelContext.save()
     }
 
     // MARK: - Overall Score
@@ -228,14 +328,22 @@ struct InterviewScorecardView: View {
         }
     }
 
-    // MARK: - Reanalyze
+    // MARK: - Reanalyze (Parallel Per-Section)
 
     @MainActor
     private func reanalyze() async {
         guard !isReanalyzing else { return }
         isReanalyzing = true
         reanalysisError = nil
-        defer { isReanalyzing = false }
+
+        defer {
+            isReanalyzing = false
+            // Clear scoring status after a delay
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                sectionScoringStatus = [:]
+            }
+        }
 
         guard let meeting = interview.meeting else {
             reanalysisError = "No recording linked to this interview."
@@ -261,28 +369,60 @@ struct InterviewScorecardView: View {
 
         let rubricSnapshot = rubric.toSnapshot()
 
-        let service = InterviewIntelligenceService(client: client, rubricContext: rubricSnapshot, meetingID: meeting.id)
-        do {
-            if let result = try await service.performFinalInterviewAnalysis(segments: snapshots) {
-                // Apply scores
-                for aiScore in result.sectionScores {
-                    if let idx = interview.sectionScores.firstIndex(where: { $0.rubricSectionID == aiScore.sectionID }) {
-                        if let gradeStr = aiScore.grade {
-                            interview.sectionScores[idx].aiGrade = LetterGrade(rawValue: gradeStr)
-                        }
-                        interview.sectionScores[idx].aiConfidence = aiScore.confidence
-                        if let evidenceData = try? JSONSerialization.data(withJSONObject: aiScore.evidence),
-                           let evidenceStr = String(data: evidenceData, encoding: .utf8) {
-                            interview.sectionScores[idx].aiEvidence = evidenceStr
-                        }
-                        interview.sectionScores[idx].aiRationale = aiScore.rationale
-                    }
-                }
-                try? modelContext.save()
-            }
-        } catch {
-            reanalysisError = error.localizedDescription
-            LogManager.send("Interview reanalysis failed: \(error.localizedDescription)", category: .ai, level: .error)
+        // Initialize all sections as pending
+        for section in rubricSnapshot.sections {
+            sectionScoringStatus[section.id] = .pending
         }
+
+        // Score all sections in parallel using concurrent tasks
+        let meetingID = meeting.id
+        let sections = rubricSnapshot.sections
+
+        var tasks: [UUID: Task<SectionScoreSnapshot?, Error>] = [:]
+        for section in sections {
+            sectionScoringStatus[section.id] = .scoring
+            let sectionCopy = section
+            let snapshotsCopy = snapshots
+            let rubricCopy = rubricSnapshot
+            tasks[section.id] = Task.detached {
+                let service = InterviewIntelligenceService(
+                    client: client,
+                    rubricContext: rubricCopy,
+                    meetingID: meetingID
+                )
+                return try await service.scoreSingleSection(
+                    section: sectionCopy,
+                    segments: snapshotsCopy
+                )
+            }
+        }
+
+        // Collect results as they complete
+        for (sectionID, task) in tasks {
+            do {
+                if let score = try await task.value {
+                    applySectionScore(score, sectionID: sectionID)
+                }
+                sectionScoringStatus[sectionID] = .done
+            } catch {
+                sectionScoringStatus[sectionID] = .failed(error.localizedDescription)
+                LogManager.send("Section scoring failed: \(error.localizedDescription)", category: .ai, level: .warning)
+            }
+        }
+
+        try? modelContext.save()
+    }
+
+    private func applySectionScore(_ aiScore: SectionScoreSnapshot, sectionID: UUID) {
+        guard let idx = interview.sectionScores.firstIndex(where: { $0.rubricSectionID == sectionID }) else { return }
+        if let gradeStr = aiScore.grade {
+            interview.sectionScores[idx].aiGrade = LetterGrade(rawValue: gradeStr)
+        }
+        interview.sectionScores[idx].aiConfidence = aiScore.confidence
+        if let evidenceData = try? JSONSerialization.data(withJSONObject: aiScore.evidence),
+           let evidenceStr = String(data: evidenceData, encoding: .utf8) {
+            interview.sectionScores[idx].aiEvidence = evidenceStr
+        }
+        interview.sectionScores[idx].aiRationale = aiScore.rationale
     }
 }

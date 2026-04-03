@@ -6,8 +6,10 @@ import AppKit
 struct TranscriptTestView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Rubric.createdAt, order: .reverse) private var rubrics: [Rubric]
+    @Query(sort: \Meeting.date, order: .reverse) private var meetings: [Meeting]
 
     @State private var loadedTranscript: TranscriptFile?
+    @State private var selectedMeeting: Meeting?
     @State private var selectedRubric: Rubric?
     @State private var isAnalyzing = false
     @State private var analysisError: String?
@@ -18,14 +20,40 @@ struct TranscriptTestView: View {
         rubrics.filter { !$0.isArchived }
     }
 
+    private var meetingsWithSegments: [Meeting] {
+        meetings.filter { !$0.segments.isEmpty && $0.status == .completed }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Top bar
             HStack(spacing: 12) {
+                // Meeting picker
+                Picker("Meeting", selection: $selectedMeeting) {
+                    Text("Select meeting...").tag(nil as Meeting?)
+                    ForEach(meetingsWithSegments) { meeting in
+                        Text("\(meeting.title) (\(meeting.segments.count) seg)")
+                            .tag(meeting as Meeting?)
+                    }
+                }
+                .frame(maxWidth: 280)
+                .controlSize(.small)
+                .onChange(of: selectedMeeting) { _, meeting in
+                    if let meeting {
+                        loadedTranscript = TranscriptFile.from(meeting: meeting)
+                        result = nil
+                        criterionEvals = [:]
+                    }
+                }
+
+                Text("or")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+
                 Button {
                     loadTranscript()
                 } label: {
-                    Label(loadedTranscript == nil ? "Load Transcript" : "Change Transcript", systemImage: "doc.badge.arrow.up")
+                    Label("Load File", systemImage: "doc.badge.arrow.up")
                 }
                 .controlSize(.small)
 
@@ -258,6 +286,7 @@ struct TranscriptTestView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             loadedTranscript = try TranscriptFile.read(from: url)
+            selectedMeeting = nil
             result = nil
             criterionEvals = [:]
         } catch {

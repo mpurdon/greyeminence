@@ -8,6 +8,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
     case tasks = "Tasks"
     case interviews = "Interviews"
     case people = "People"
+    case topicMap = "Topic Map"
     case activityLog = "Activity Log"
     case settings = "Settings"
 
@@ -19,6 +20,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .tasks: "checkmark.circle"
         case .interviews: "person.badge.shield.checkmark"
         case .people: "person.2"
+        case .topicMap: "bubble.left.and.bubble.right"
         case .activityLog: "list.bullet.clipboard"
         case .settings: "gear"
         }
@@ -32,6 +34,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .tasks: .orange
         case .interviews: .cyan
         case .people: .green
+        case .topicMap: .purple
         case .activityLog: .gray
         case .settings: .gray
         }
@@ -57,6 +60,9 @@ struct ContentView: View {
     @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
     @AppStorage("myContactID") private var myContactIDString = ""
     @State private var showProfileSetup = false
+    @State private var interruptedMeeting: Meeting?
+    @State private var showResumeAlert = false
+    @State private var selectedInterview: Interview?
     var recordingViewModel: RecordingViewModel
     var interviewRecordingViewModel: InterviewRecordingViewModel
 
@@ -86,7 +92,8 @@ struct ContentView: View {
         .onChange(of: recordingViewModel.completedMeeting) { _, meeting in
             guard let meeting else { return }
             if meeting.isInterviewMeeting {
-                // Interview finished — stay on interviews tab, reset interview VM
+                // Interview finished — navigate to interviews tab and auto-select completed interview
+                selectedInterview = interviewRecordingViewModel.completedInterview
                 interviewRecordingViewModel.reset()
                 selectedDestination = .interviews
                 showInspector = true
@@ -103,7 +110,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            recoverOrphanedMeetings()
+            checkForInterruptedRecording()
             // Prompt for profile if not configured (with slight delay so window settles)
             if myContactIDString.isEmpty {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
@@ -114,10 +121,56 @@ struct ContentView: View {
         .sheet(isPresented: $showProfileSetup) {
             MyProfileSetupSheet()
         }
+        .alert("Resume Recording?", isPresented: $showResumeAlert) {
+            Button("Resume") {
+                if let meeting = interruptedMeeting {
+                    recordingViewModel.resumeInterruptedRecording(meeting: meeting, in: modelContext)
+                    selectedDestination = .recording
+                    interruptedMeeting = nil
+                }
+            }
+            Button("Discard", role: .destructive) {
+                interruptedMeeting = nil
+                recoverOrphanedMeetings()
+            }
+        } message: {
+            if let meeting = interruptedMeeting {
+                Text("\"\(meeting.title)\" was interrupted. Resume recording or discard it?\n\(meeting.segments.count) segments, \(meeting.formattedDuration) elapsed")
+            }
+        }
     }
 
-    /// On launch, mark any meetings still stuck in .recording or .paused as .completed.
-    /// These are meetings from a previous session that was interrupted before stopRecording ran.
+    /// Check if there's an interrupted recording from a previous session.
+    /// If found, prompt the user to resume or discard. Otherwise, run orphan cleanup.
+    private func checkForInterruptedRecording() {
+        guard let meetingID = RecordingViewModel.interruptedMeetingID() else {
+            recoverOrphanedMeetings()
+            return
+        }
+
+        // Find the meeting in SwiftData
+        let descriptor = FetchDescriptor<Meeting>()
+        guard let meeting = (try? modelContext.fetch(descriptor))?.first(where: { $0.id == meetingID }),
+              meeting.status == .recording || meeting.status == .paused else {
+            // Meeting not found or already completed — clear the marker and clean up
+            UserDefaults.standard.removeObject(forKey: "activeRecordingMeetingID")
+            recoverOrphanedMeetings()
+            return
+        }
+
+        // Don't resume interview meetings — too complex to restore
+        if meeting.isInterviewMeeting {
+            UserDefaults.standard.removeObject(forKey: "activeRecordingMeetingID")
+            recoverOrphanedMeetings()
+            return
+        }
+
+        interruptedMeeting = meeting
+        showResumeAlert = true
+    }
+
+    /// On launch, clean up any meetings still stuck in .recording or .paused from a previous session.
+    /// Empty orphans (0 segments) are deleted; non-empty ones are marked completed (interrupted).
     private func recoverOrphanedMeetings() {
         let statusRecording = MeetingStatus.recording
         let statusPaused = MeetingStatus.paused
@@ -125,17 +178,26 @@ struct ContentView: View {
             predicate: #Predicate { $0.status == statusRecording || $0.status == statusPaused }
         )
         guard let orphans = try? modelContext.fetch(descriptor), !orphans.isEmpty else { return }
+
+        var recovered = 0
+        var deleted = 0
         for meeting in orphans {
-            meeting.status = .completed
-            if meeting.title.hasPrefix("Meeting ") {
-                meeting.title += " (interrupted)"
+            if meeting.segments.isEmpty && meeting.duration < 1 {
+                // No useful data — just delete it
+                modelContext.delete(meeting)
+                deleted += 1
+            } else {
+                meeting.status = .completed
+                if !meeting.title.contains("(interrupted)") {
+                    meeting.title += " (interrupted)"
+                }
+                recovered += 1
             }
-            // Clear stale audio file paths — the files are likely incomplete
-            meeting.audioFilePath = nil
-            meeting.systemAudioFilePath = nil
         }
         try? modelContext.save()
-        LogManager.send("Recovered \(orphans.count) interrupted recording(s)", category: .general)
+        if recovered + deleted > 0 {
+            LogManager.send("Orphan cleanup: \(recovered) recovered, \(deleted) deleted", category: .general)
+        }
     }
 
     private func inspectorDragHandle(containerWidth: CGFloat) -> some View {
@@ -226,6 +288,7 @@ struct ContentView: View {
         case .interviews:
             InterviewHubView(
                 interviewViewModel: interviewRecordingViewModel,
+                selectedInterview: $selectedInterview,
                 showInspector: $showInspector,
                 inspectorWidth: $inspectorWidth
             )
@@ -233,6 +296,12 @@ struct ContentView: View {
             AllTasksView()
         case .people:
             PeopleView()
+        case .topicMap:
+            TopicMapView(onMeetingSelected: { meeting in
+                selectedMeeting = meeting
+                selectedDestination = .meetings
+                showInspector = true
+            })
         case .activityLog:
             LogView()
         case .settings:

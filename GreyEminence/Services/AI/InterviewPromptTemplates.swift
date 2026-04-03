@@ -199,6 +199,53 @@ enum InterviewPromptTemplates {
         return prompt
     }
 
+    /// Prompt for scoring a single rubric section in isolation.
+    static func singleSectionPrompt(
+        section: RubricSectionSnapshot,
+        fullTranscript: String
+    ) -> String {
+        """
+        Evaluate the candidate's performance on this ONE rubric section based on the full \
+        interview transcript below.
+
+        Respond with ONLY valid JSON matching this schema — no prose, no markdown:
+        {
+          "section_scores": [
+            {
+              "section_id": "\(section.id.uuidString)",
+              "section_title": "\(section.title)",
+              "grade": "B+",
+              "confidence": 0.7,
+              "evidence": [
+                {"quote": "...", "timestamp": "[MM:SS]", "criterion": "...", "strength": "strong"}
+              ],
+              "rationale": "Brief explanation",
+              "bonus_signals": {"Signal Label": "yes or no"},
+              "criterion_evaluations": [
+                {
+                  "signal": "criterion text",
+                  "status": "not_yet_discussed|partial_evidence|scored",
+                  "confidence": 0.7,
+                  "evidence": [{"quote": "...", "timestamp": "[MM:SS]", "strength": "strong"}],
+                  "summary": "One-line assessment"
+                }
+              ]
+            }
+          ],
+          "strengths": [],
+          "weaknesses": [],
+          "red_flags": [],
+          "overall_assessment": ""
+        }
+
+        SECTION TO EVALUATE:
+        \(formatSection(section))
+
+        FULL TRANSCRIPT:
+        \(fullTranscript)
+        """
+    }
+
     static func finalAnalysisPrompt(
         rubric: RubricSnapshot,
         accumulatedScores: String,

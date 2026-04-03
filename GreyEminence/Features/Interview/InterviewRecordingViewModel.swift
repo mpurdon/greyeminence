@@ -9,6 +9,7 @@ final class InterviewRecordingViewModel {
 
     // Interview state
     var interview: Interview?
+    var completedInterview: Interview?
     var sectionScores: [InterviewSectionScore] = []
     var impressions: [InterviewImpression] = []
     var bookmarks: [InterviewBookmark] = []
@@ -43,6 +44,9 @@ final class InterviewRecordingViewModel {
 
     func setActivePhase(_ phaseID: UUID) {
         activePhaseID = phaseID
+        // Tag subsequent transcript segments with this section
+        recordingViewModel.currentSectionTag = activeSectionTitle
+        recordingViewModel.currentSectionTagID = phaseID
     }
 
     // Criterion evaluations per section
@@ -135,6 +139,10 @@ final class InterviewRecordingViewModel {
             try? modelContext.save()
         }
 
+        // Tag initial section (Intro)
+        recordingViewModel.currentSectionTag = "Intro"
+        recordingViewModel.currentSectionTagID = Self.introID
+
         // Start rubric analysis loop (offset from standard AI by ~20s)
         self.rubricSnapshot = rubric.toSnapshot()
         startRubricAnalysis()
@@ -143,6 +151,9 @@ final class InterviewRecordingViewModel {
     func stopInterview(in modelContext: ModelContext) {
         rubricAnalysisTask?.cancel()
         rubricAnalysisTask = nil
+
+        // Capture reference before reset clears it
+        completedInterview = interview
 
         if let interview {
             interview.status = .completed
@@ -431,6 +442,9 @@ final class InterviewRecordingViewModel {
     // MARK: - Cleanup
 
     func reset() {
+        // completedInterview is NOT cleared here — ContentView reads it during reset
+        recordingViewModel.currentSectionTag = nil
+        recordingViewModel.currentSectionTagID = nil
         interview = nil
         sectionScores = []
         impressions = []

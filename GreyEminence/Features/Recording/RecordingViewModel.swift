@@ -39,9 +39,15 @@ final class RecordingViewModel {
     var segmentConfidence: [UUID: Float] = [:]
     var prepContext: MeetingPrepContext?
 
+    // Interview section tagging — set by InterviewRecordingViewModel
+    var currentSectionTag: String?
+    var currentSectionTagID: UUID?
+
     private let log = LogManager.shared
     private var timer: Timer?
     private var processingTasks: [Task<Void, Never>] = []
+    private var modelContext: ModelContext?
+    private var lastPersistedSegmentCount: Int = 0
 
     // Audio services
     private let micCapture = MicrophoneCaptureService()
@@ -110,6 +116,47 @@ final class RecordingViewModel {
         return String(format: "%02d:%02d", minutes, seconds)
     }
 
+    /// Check if there's an interrupted recording from a previous session.
+    static func interruptedMeetingID() -> UUID? {
+        guard let str = UserDefaults.standard.string(forKey: "activeRecordingMeetingID") else { return nil }
+        return UUID(uuidString: str)
+    }
+
+    /// Resume recording on a previously interrupted meeting.
+    func resumeInterruptedRecording(meeting: Meeting, in modelContext: ModelContext) {
+        self.modelContext = modelContext
+        currentMeeting = meeting
+        meeting.status = .recording
+
+        // Restore persisted segments into the in-memory array
+        let sorted = meeting.segments.sorted { $0.startTime < $1.startTime }
+        segments = sorted
+        lastPersistedSegmentCount = sorted.count
+
+        // Resume timer from where it left off
+        let previousDuration = meeting.duration
+        state = .recording
+        elapsedTime = previousDuration
+        recordingStartDate = Date().addingTimeInterval(-previousDuration)
+        accumulatedPauseDuration = 0
+        pauseStartDate = nil
+        actionItems = []
+        followUpQuestions = []
+        topics = []
+        streamingSummary = ""
+        errorMessage = nil
+        completedMeeting = nil
+
+        // Re-populate speaker mapper from attendees
+        speakerContactMapper.prepopulate(from: meeting.attendees)
+
+        log.log("Resuming interrupted recording (\(sorted.count) existing segments, \(meeting.formattedDuration) elapsed)", category: .audio)
+        startTimer()
+        startRealCapture(meetingID: meeting.id)
+        startIntelligenceService()
+        startPeriodicPersistence()
+    }
+
     func startRecording(in modelContext: ModelContext) {
         let meeting = Meeting(title: "Meeting \(DateFormatter.shortDate.string(from: .now))")
 
@@ -141,12 +188,14 @@ final class RecordingViewModel {
         }
 
         modelContext.insert(meeting)
+        self.modelContext = modelContext
         currentMeeting = meeting
         state = .recording
         elapsedTime = 0
         recordingStartDate = Date()
         accumulatedPauseDuration = 0
         pauseStartDate = nil
+        lastPersistedSegmentCount = 0
         segments = []
         actionItems = []
         followUpQuestions = []
@@ -155,10 +204,14 @@ final class RecordingViewModel {
         errorMessage = nil
         completedMeeting = nil
 
+        // Persist active recording ID so we can detect interrupted recordings on restart
+        UserDefaults.standard.set(meeting.id.uuidString, forKey: "activeRecordingMeetingID")
+
         log.log("Recording started", category: .audio)
         startTimer()
         startRealCapture(meetingID: meeting.id)
         startIntelligenceService()
+        startPeriodicPersistence()
     }
 
     func pauseRecording() {
@@ -192,6 +245,10 @@ final class RecordingViewModel {
         aiActivityState = .idle
         timer?.invalidate()
         timer = nil
+
+        // Clear active recording marker
+        UserDefaults.standard.removeObject(forKey: "activeRecordingMeetingID")
+        self.modelContext = modelContext
 
         // Cancel all processing tasks
         for task in processingTasks {
@@ -240,7 +297,12 @@ final class RecordingViewModel {
                 self.log.log("Deduplication removed \(dedupResult.removedCount) echo segment(s)", category: .transcription)
             }
 
-            // Save segments to the meeting (mark all as final since recording ended)
+            // Remove any incrementally-persisted segments, then save the final deduped set
+            for existing in meeting.segments {
+                modelContext.delete(existing)
+            }
+            meeting.segments.removeAll()
+
             for segment in self.segments {
                 let persistedSegment = TranscriptSegment(
                     speaker: segment.speaker,
@@ -250,11 +312,14 @@ final class RecordingViewModel {
                     isFinal: true
                 )
                 persistedSegment.confidence = self.segmentConfidence[segment.id] ?? 1.0
+                persistedSegment.sectionTag = segment.sectionTag
+                persistedSegment.sectionTagID = segment.sectionTagID
                 persistedSegment.meeting = meeting
                 meeting.segments.append(persistedSegment)
             }
 
             try? modelContext.save()
+            self.lastPersistedSegmentCount = 0
 
             // Mark as analyzing before navigating so the UI shows a spinner
             meeting.isAnalyzing = true
@@ -354,8 +419,17 @@ final class RecordingViewModel {
                     guard rawSegments.count != self.segments.count
                         || newConfidence.count != self.segmentConfidence.count else { return }
                     let dedupResult = TranscriptDeduplicator.deduplicate(rawSegments)
+                    let previousCount = self.segments.count
                     self.segments = dedupResult.segments
                     self.segmentConfidence = newConfidence
+
+                    // Tag new segments with the current interview section
+                    if let tag = self.currentSectionTag {
+                        for i in previousCount..<self.segments.count {
+                            self.segments[i].sectionTag = tag
+                            self.segments[i].sectionTagID = self.currentSectionTagID
+                        }
+                    }
                 }
             }
         }
@@ -526,6 +600,57 @@ final class RecordingViewModel {
                 isFinal: segment.isFinal
             )
         }
+    }
+
+    // MARK: - Periodic Persistence
+
+    /// Periodically saves new segments and elapsed time to SwiftData so data survives crashes.
+    private func startPeriodicPersistence() {
+        let task = Task { [weak self] in
+            // Wait 30s before first save
+            try? await Task.sleep(for: .seconds(30))
+
+            while !Task.isCancelled {
+                await MainActor.run {
+                    self?.persistIncrementalProgress()
+                }
+                try? await Task.sleep(for: .seconds(30))
+            }
+        }
+        processingTasks.append(task)
+    }
+
+    private func persistIncrementalProgress() {
+        guard let meeting = currentMeeting, let modelContext, state == .recording else { return }
+
+        // Update duration
+        meeting.duration = elapsedTime
+
+        // Persist only new segments since last save
+        let newSegments = Array(segments.dropFirst(lastPersistedSegmentCount))
+        guard !newSegments.isEmpty || lastPersistedSegmentCount == 0 else {
+            try? modelContext.save()
+            return
+        }
+
+        for segment in newSegments {
+            let persisted = TranscriptSegment(
+                speaker: segment.speaker,
+                text: segment.text,
+                startTime: segment.startTime,
+                endTime: segment.endTime,
+                isFinal: segment.isFinal
+            )
+            persisted.confidence = segmentConfidence[segment.id] ?? 1.0
+            persisted.sectionTag = segment.sectionTag
+            persisted.sectionTagID = segment.sectionTagID
+            persisted.meeting = meeting
+            meeting.segments.append(persisted)
+        }
+
+        lastPersistedSegmentCount = segments.count
+        try? modelContext.save()
+        log.log("Persisted \(newSegments.count) new segments (total: \(lastPersistedSegmentCount))", category: .audio)
     }
 
     // MARK: - Helpers

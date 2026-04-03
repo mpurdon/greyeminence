@@ -342,9 +342,26 @@ struct APIKeySettingsView: View {
         panel.message = "Select your ~/.aws directory"
         panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
 
-        if panel.runModal() == .OK, let url = panel.url {
+        let handleSelection = { (url: URL) in
+            // Start accessing the security-scoped resource from the panel URL
+            // before creating the bookmark
+            let didAccess = url.startAccessingSecurityScopedResource()
             AWSCredentialLoader.persistAccess(to: url)
             refreshAWSProfiles()
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        // Present as sheet on the key window so it appears on top of Settings
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window) { response in
+                if response == .OK, let url = panel.url {
+                    handleSelection(url)
+                }
+            }
+        } else if panel.runModal() == .OK, let url = panel.url {
+            handleSelection(url)
         }
     }
 
@@ -359,7 +376,15 @@ struct APIKeySettingsView: View {
         panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude")
 
-        if panel.runModal() == .OK, let url = panel.url {
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window) { response in
+                if response == .OK, let url = panel.url {
+                    TrajectorSettings.persistAccess(to: url)
+                    hasClaudeConfig = TrajectorSettings.load() != nil
+                    refreshAWSProfiles()
+                }
+            }
+        } else if panel.runModal() == .OK, let url = panel.url {
             TrajectorSettings.persistAccess(to: url)
             hasClaudeConfig = TrajectorSettings.load() != nil
             refreshAWSProfiles()

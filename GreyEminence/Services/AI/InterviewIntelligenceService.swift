@@ -182,6 +182,31 @@ actor InterviewIntelligenceService {
         return try parseResponse(response)
     }
 
+    /// Score a single rubric section independently against the full transcript.
+    func scoreSingleSection(
+        section: RubricSectionSnapshot,
+        segments: [SegmentSnapshot]
+    ) async throws -> SectionScoreSnapshot? {
+        let nonEmpty = segments.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !nonEmpty.isEmpty else { return nil }
+
+        let fullTranscript = AIPromptTemplates.formatSegments(nonEmpty)
+        let userPrompt = InterviewPromptTemplates.singleSectionPrompt(
+            section: section,
+            fullTranscript: fullTranscript
+        )
+
+        let response = try await withTimeout(seconds: 60) {
+            try await self.client.sendMessage(
+                system: InterviewPromptTemplates.systemPrompt,
+                userContent: userPrompt
+            )
+        }
+
+        let result = try parseResponse(response)
+        return result.sectionScores.first { $0.sectionID == section.id }
+    }
+
     // MARK: - Parsing
 
     private func parseResponse(_ raw: String) throws -> InterviewAnalysisResult {
