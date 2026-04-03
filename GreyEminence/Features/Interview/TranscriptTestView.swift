@@ -124,12 +124,14 @@ struct TranscriptTestView: View {
                     systemImage: "doc.badge.arrow.up",
                     description: Text("Load a saved transcript file to test against rubrics")
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ContentUnavailableView(
                     "Ready to Analyze",
                     systemImage: "brain",
                     description: Text("Select a rubric and click Analyze to test")
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
