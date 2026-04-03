@@ -23,7 +23,10 @@ struct InterviewScorecardView: View {
     }
 
     private var sortedScores: [InterviewSectionScore] {
-        interview.sectionScores.sorted { $0.sortOrder < $1.sortOrder }
+        // Filter out any potentially deallocated scores (can happen during parallel scoring)
+        interview.sectionScores
+            .filter { !$0.isDeleted }
+            .sorted { $0.sortOrder < $1.sortOrder }
     }
 
     var body: some View {
