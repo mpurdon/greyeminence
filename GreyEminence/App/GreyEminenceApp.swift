@@ -37,6 +37,8 @@ struct GreyEminenceApp: App {
             InterviewBookmark.self,
             InterviewNote.self,
             ScoreEvidence.self,
+            CriterionEvaluation.self,
+            CriterionEvidence.self,
         ])
         let config = ModelConfiguration(
             "GreyEminence",

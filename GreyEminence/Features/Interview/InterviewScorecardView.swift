@@ -160,6 +160,19 @@ struct InterviewScorecardView: View {
         (interview.meeting?.segments ?? []).sorted { $0.startTime < $1.startTime }
     }
 
+    /// Segment IDs where a section marker should be shown (first segment of each new tag).
+    private var markerSegmentIDs: [UUID: String] {
+        var result: [UUID: String] = [:]
+        var lastTag: String?
+        for segment in transcriptSegments {
+            if let tag = segment.sectionTag, tag != lastTag {
+                result[segment.id] = tag
+            }
+            lastTag = segment.sectionTag
+        }
+        return result
+    }
+
     @ViewBuilder
     private var transcriptContent: some View {
         if transcriptSegments.isEmpty {
@@ -169,14 +182,13 @@ struct InterviewScorecardView: View {
                 description: Text("This interview has no transcript segments")
             )
         } else {
+            let markers = markerSegmentIDs
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    var lastTag: String?
                     ForEach(transcriptSegments) { segment in
-                        let showMarker = segment.sectionTag != nil && segment.sectionTag != lastTag
-                        if showMarker {
+                        if let markerTitle = markers[segment.id] {
                             SectionMarkerView(
-                                title: segment.sectionTag!,
+                                title: markerTitle,
                                 timestamp: segment.formattedTimestamp
                             )
                         }
@@ -194,7 +206,6 @@ struct InterviewScorecardView: View {
                                     Button("Clear Tag") { tagSegment(segment, tag: nil, id: nil) }
                                 }
                             }
-                        let _ = { lastTag = segment.sectionTag }()
                     }
                 }
                 .padding()
@@ -202,9 +213,19 @@ struct InterviewScorecardView: View {
         }
     }
 
+    /// Tag from this segment forward until the next segment that already has a different tag.
     private func tagSegment(_ segment: TranscriptSegment, tag: String?, id: UUID?) {
-        segment.sectionTag = tag
-        segment.sectionTagID = id
+        guard let startIndex = transcriptSegments.firstIndex(where: { $0.id == segment.id }) else { return }
+
+        for i in startIndex..<transcriptSegments.count {
+            let seg = transcriptSegments[i]
+            // Stop at the next segment that already has a different tag (unless it's the one we're starting from)
+            if i > startIndex, let existingTag = seg.sectionTag, existingTag != segment.sectionTag {
+                break
+            }
+            seg.sectionTag = tag
+            seg.sectionTagID = id
+        }
         try? modelContext.save()
     }
 
@@ -350,24 +371,47 @@ struct InterviewScorecardView: View {
 
         guard let meeting = interview.meeting else {
             reanalysisError = "No recording linked to this interview."
+            LogManager.send("Scoring aborted: no meeting", category: .ai, level: .error)
             return
         }
         guard let rubric = interview.rubric else {
             reanalysisError = "No rubric linked to this interview."
-            return
-        }
-        guard let client = try? await AIClientFactory.makeClient() else {
-            reanalysisError = "AI not configured. Check Settings."
+            LogManager.send("Scoring aborted: no rubric", category: .ai, level: .error)
             return
         }
 
-        let snapshots: [SegmentSnapshot] = meeting.segments
-            .sorted { $0.startTime < $1.startTime }
-            .map { SegmentSnapshot(speaker: $0.speaker, text: $0.text, formattedTimestamp: $0.formattedTimestamp, isFinal: $0.isFinal) }
+        let client: any AIClient
+        do {
+            guard let c = try await AIClientFactory.makeClient() else {
+                reanalysisError = "AI not configured. Check Settings."
+                LogManager.send("Scoring aborted: AIClientFactory returned nil", category: .ai, level: .error)
+                return
+            }
+            client = c
+        } catch {
+            reanalysisError = "AI client error: \(error.localizedDescription)"
+            LogManager.send("Scoring aborted: \(error.localizedDescription)", category: .ai, level: .error)
+            return
+        }
 
-        guard !snapshots.isEmpty else {
+        let sortedSegments = meeting.segments.sorted { $0.startTime < $1.startTime }
+
+        guard !sortedSegments.isEmpty else {
             reanalysisError = "No transcript segments to analyze."
             return
+        }
+
+        // Build segment snapshots per section (using section tags)
+        let allSnapshots: [SegmentSnapshot] = sortedSegments
+            .map { SegmentSnapshot(speaker: $0.speaker, text: $0.text, formattedTimestamp: $0.formattedTimestamp, isFinal: $0.isFinal) }
+
+        var segmentsBySection: [UUID: [SegmentSnapshot]] = [:]
+        for segment in sortedSegments {
+            if let tagID = segment.sectionTagID {
+                segmentsBySection[tagID, default: []].append(
+                    SegmentSnapshot(speaker: segment.speaker, text: segment.text, formattedTimestamp: segment.formattedTimestamp, isFinal: segment.isFinal)
+                )
+            }
         }
 
         let rubricSnapshot = rubric.toSnapshot()
@@ -377,16 +421,23 @@ struct InterviewScorecardView: View {
             sectionScoringStatus[section.id] = .pending
         }
 
-        // Score all sections in parallel using concurrent tasks
+        // Score all sections in parallel — send only relevant transcript segments
         let meetingID = meeting.id
         let sections = rubricSnapshot.sections
+
+        LogManager.send("Starting parallel scoring: \(sections.count) sections, \(allSnapshots.count) total segments", category: .ai)
+        for section in sections {
+            let tagged = segmentsBySection[section.id]?.count ?? 0
+            LogManager.send("  \(section.title): \(tagged) tagged segments (fallback: \(tagged == 0 ? "full transcript" : "tagged only"))", category: .ai)
+        }
 
         var tasks: [UUID: Task<SectionScoreSnapshot?, Error>] = [:]
         for section in sections {
             sectionScoringStatus[section.id] = .scoring
             let sectionCopy = section
-            let snapshotsCopy = snapshots
             let rubricCopy = rubricSnapshot
+            // Use tagged segments for this section if available, otherwise full transcript
+            let sectionSegments = segmentsBySection[section.id] ?? allSnapshots
             tasks[section.id] = Task.detached {
                 let service = InterviewIntelligenceService(
                     client: client,
@@ -395,7 +446,7 @@ struct InterviewScorecardView: View {
                 )
                 return try await service.scoreSingleSection(
                     section: sectionCopy,
-                    segments: snapshotsCopy
+                    segments: sectionSegments
                 )
             }
         }
@@ -405,27 +456,77 @@ struct InterviewScorecardView: View {
             do {
                 if let score = try await task.value {
                     applySectionScore(score, sectionID: sectionID)
+                    LogManager.send("Section '\(score.sectionTitle)' scored: \(score.grade ?? "nil")", category: .ai)
+                } else {
+                    LogManager.send("Section scoring returned nil for \(sectionID)", category: .ai, level: .warning)
                 }
                 sectionScoringStatus[sectionID] = .done
             } catch {
                 sectionScoringStatus[sectionID] = .failed(error.localizedDescription)
-                LogManager.send("Section scoring failed: \(error.localizedDescription)", category: .ai, level: .warning)
+                reanalysisError = error.localizedDescription
+                LogManager.send("Section scoring failed: \(error.localizedDescription)", category: .ai, level: .error)
             }
         }
 
         try? modelContext.save()
+        LogManager.send("Parallel scoring complete", category: .ai)
     }
 
     private func applySectionScore(_ aiScore: SectionScoreSnapshot, sectionID: UUID) {
         guard let idx = interview.sectionScores.firstIndex(where: { $0.rubricSectionID == sectionID }) else { return }
+        let sectionScore = interview.sectionScores[idx]
+
         if let gradeStr = aiScore.grade {
-            interview.sectionScores[idx].aiGrade = LetterGrade(rawValue: gradeStr)
+            sectionScore.aiGrade = LetterGrade(rawValue: gradeStr)
         }
-        interview.sectionScores[idx].aiConfidence = aiScore.confidence
-        if let evidenceData = try? JSONSerialization.data(withJSONObject: aiScore.evidence),
-           let evidenceStr = String(data: evidenceData, encoding: .utf8) {
-            interview.sectionScores[idx].aiEvidence = evidenceStr
+        sectionScore.aiConfidence = aiScore.confidence
+        sectionScore.aiRationale = aiScore.rationale
+
+        // Persist section-level evidence as JSON for backwards compat
+        let quoteStrings = aiScore.evidence.map { $0.quote }
+        if let data = try? JSONEncoder().encode(quoteStrings),
+           let str = String(data: data, encoding: .utf8) {
+            sectionScore.aiEvidence = str
         }
-        interview.sectionScores[idx].aiRationale = aiScore.rationale
+
+        // Persist structured evidence items
+        for existing in sectionScore.evidenceItems {
+            modelContext.delete(existing)
+        }
+        for ev in aiScore.evidence {
+            let item = ScoreEvidence(
+                quote: ev.quote,
+                timestamp: ev.timestamp,
+                criterionSignal: ev.criterion,
+                strength: EvidenceStrength(rawValue: ev.strength) ?? .moderate
+            )
+            item.sectionScore = sectionScore
+            sectionScore.evidenceItems.append(item)
+        }
+
+        // Persist criterion evaluations
+        for existing in sectionScore.criterionEvaluations {
+            modelContext.delete(existing)
+        }
+        for (i, eval) in aiScore.criterionEvaluations.enumerated() {
+            let ce = CriterionEvaluation(
+                signal: eval.signal,
+                status: eval.status,
+                confidence: eval.confidence,
+                summary: eval.summary,
+                sortOrder: i
+            )
+            ce.sectionScore = sectionScore
+            for ev in eval.evidence {
+                let cev = CriterionEvidence(
+                    quote: ev.quote,
+                    timestamp: ev.timestamp,
+                    strength: EvidenceStrength(rawValue: ev.strength) ?? .moderate
+                )
+                cev.criterionEvaluation = ce
+                ce.evidenceItems.append(cev)
+            }
+            sectionScore.criterionEvaluations.append(ce)
+        }
     }
 }

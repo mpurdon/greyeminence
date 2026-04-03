@@ -43,16 +43,19 @@ enum AWSCredentialLoader {
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         ) else {
+            // Bookmark can't be resolved — clear it so UI shows "Locate" prompt
+            clearBookmark()
             return nil
         }
 
-        _ = url.startAccessingSecurityScopedResource()
+        let didAccess = url.startAccessingSecurityScopedResource()
 
-        if isStale {
+        if isStale || !didAccess {
+            // Try to re-create the bookmark from the resolved URL
             persistAccess(to: url)
         }
 
-        return url
+        return didAccess ? url : nil
     }
 
     static var hasBookmark: Bool {

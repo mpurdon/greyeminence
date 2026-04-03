@@ -317,8 +317,8 @@ struct APIKeySettingsView: View {
     }
 
     private func refreshAWSProfiles() {
-        AWSCredentialLoader.restoreAccess()
-        hasAWSAccess = AWSCredentialLoader.hasBookmark
+        let accessURL = AWSCredentialLoader.restoreAccess()
+        hasAWSAccess = accessURL != nil
         availableProfiles = AWSCredentialLoader.availableProfiles()
         hasClaudeConfig = TrajectorSettings.load() != nil
 

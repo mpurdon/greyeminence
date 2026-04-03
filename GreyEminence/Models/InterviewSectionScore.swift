@@ -107,6 +107,9 @@ final class InterviewSectionScore {
     @Relationship(deleteRule: .cascade, inverse: \ScoreEvidence.sectionScore)
     var evidenceItems: [ScoreEvidence]
 
+    @Relationship(deleteRule: .cascade, inverse: \CriterionEvaluation.sectionScore)
+    var criterionEvaluations: [CriterionEvaluation]
+
     var aiGrade: LetterGrade? {
         get { aiGradeRawValue.flatMap { LetterGrade(rawValue: $0) } }
         set { aiGradeRawValue = newValue?.rawValue }
@@ -139,5 +142,6 @@ final class InterviewSectionScore {
         self.bonusAdjustment = 0.0
         self.createdAt = .now
         self.evidenceItems = []
+        self.criterionEvaluations = []
     }
 }

@@ -188,7 +188,10 @@ actor InterviewIntelligenceService {
         segments: [SegmentSnapshot]
     ) async throws -> SectionScoreSnapshot? {
         let nonEmpty = segments.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        guard !nonEmpty.isEmpty else { return nil }
+        guard !nonEmpty.isEmpty else {
+            LogManager.send("Section scoring '\(section.title)': no non-empty segments", category: .ai, level: .warning, meetingID: meetingID)
+            return nil
+        }
 
         let fullTranscript = AIPromptTemplates.formatSegments(nonEmpty)
         let userPrompt = InterviewPromptTemplates.singleSectionPrompt(
@@ -196,15 +199,27 @@ actor InterviewIntelligenceService {
             fullTranscript: fullTranscript
         )
 
-        let response = try await withTimeout(seconds: 60) {
+        LogManager.send("Section scoring '\(section.title)': sending \(nonEmpty.count) segments (\(userPrompt.count) chars)", category: .ai, meetingID: meetingID)
+
+        let response = try await withTimeout(seconds: 90) {
             try await self.client.sendMessage(
                 system: InterviewPromptTemplates.systemPrompt,
                 userContent: userPrompt
             )
         }
 
+        LogManager.send("Section scoring '\(section.title)': response \(response.count) chars", category: .ai, meetingID: meetingID)
+
         let result = try parseResponse(response)
-        return result.sectionScores.first { $0.sectionID == section.id }
+        let matched = result.sectionScores.first { $0.sectionID == section.id }
+
+        if let matched {
+            LogManager.send("Section scoring '\(section.title)': grade=\(matched.grade ?? "nil"), confidence=\(matched.confidence), criteria=\(matched.criterionEvaluations.count)", category: .ai, meetingID: meetingID)
+        } else {
+            LogManager.send("Section scoring '\(section.title)': no matching score in response (got \(result.sectionScores.map(\.sectionTitle)))", category: .ai, level: .warning, meetingID: meetingID)
+        }
+
+        return matched
     }
 
     // MARK: - Parsing

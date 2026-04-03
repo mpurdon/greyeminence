@@ -42,6 +42,7 @@ final class RecordingViewModel {
     // Interview section tagging — set by InterviewRecordingViewModel
     var currentSectionTag: String?
     var currentSectionTagID: UUID?
+    private var segmentSectionTags: [UUID: (tag: String, tagID: UUID)] = [:]
 
     private let log = LogManager.shared
     private var timer: Timer?
@@ -196,6 +197,7 @@ final class RecordingViewModel {
         accumulatedPauseDuration = 0
         pauseStartDate = nil
         lastPersistedSegmentCount = 0
+        segmentSectionTags = [:]
         segments = []
         actionItems = []
         followUpQuestions = []
@@ -419,15 +421,20 @@ final class RecordingViewModel {
                     guard rawSegments.count != self.segments.count
                         || newConfidence.count != self.segmentConfidence.count else { return }
                     let dedupResult = TranscriptDeduplicator.deduplicate(rawSegments)
-                    let previousCount = self.segments.count
                     self.segments = dedupResult.segments
                     self.segmentConfidence = newConfidence
 
-                    // Tag new segments with the current interview section
-                    if let tag = self.currentSectionTag {
-                        for i in previousCount..<self.segments.count {
-                            self.segments[i].sectionTag = tag
-                            self.segments[i].sectionTagID = self.currentSectionTagID
+                    // Record the current section tag for any segment we haven't seen yet,
+                    // then apply all recorded tags to the segments array.
+                    if let tag = self.currentSectionTag, let tagID = self.currentSectionTagID {
+                        for segment in self.segments where self.segmentSectionTags[segment.id] == nil {
+                            self.segmentSectionTags[segment.id] = (tag: tag, tagID: tagID)
+                        }
+                    }
+                    for i in 0..<self.segments.count {
+                        if let recorded = self.segmentSectionTags[self.segments[i].id] {
+                            self.segments[i].sectionTag = recorded.tag
+                            self.segments[i].sectionTagID = recorded.tagID
                         }
                     }
                 }

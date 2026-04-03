@@ -13,16 +13,27 @@ struct LiveTranscriptView: View {
         self._scrollToSegmentID = scrollToSegmentID
     }
 
+    private var markerSegmentIDs: [UUID: String] {
+        var result: [UUID: String] = [:]
+        var lastTag: String?
+        for segment in segments {
+            if let tag = segment.sectionTag, tag != lastTag {
+                result[segment.id] = tag
+            }
+            lastTag = segment.sectionTag
+        }
+        return result
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
-                    var lastTag: String?
+                    let markers = markerSegmentIDs
                     ForEach(segments) { segment in
-                        let showMarker = segment.sectionTag != nil && segment.sectionTag != lastTag
-                        if showMarker {
+                        if let markerTitle = markers[segment.id] {
                             SectionMarkerView(
-                                title: segment.sectionTag!,
+                                title: markerTitle,
                                 timestamp: segment.formattedTimestamp
                             )
                         }
@@ -37,7 +48,6 @@ struct LiveTranscriptView: View {
                                 : Color.clear
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 4))
-                        let _ = { lastTag = segment.sectionTag }()
                     }
                 }
                 .padding()
