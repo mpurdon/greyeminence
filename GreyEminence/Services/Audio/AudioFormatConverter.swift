@@ -1,7 +1,7 @@
 import AVFoundation
 
-final class AudioFormatConverter: Sendable {
-    static let whisperFormat = AVAudioFormat(
+final class AudioFormatConverter: @unchecked Sendable {
+    static nonisolated(unsafe) let whisperFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: 16000,
         channels: 1,
