@@ -131,7 +131,28 @@ struct InterviewScorecardView: View {
                     .padding(.horizontal)
                 }
 
-                // TODO: Strengths/weaknesses/red flags should be persisted on Interview from AI analysis results
+                // Strengths / Weaknesses / Red Flags
+                if !interview.strengths.isEmpty {
+                    signalSection("Strengths", items: interview.strengths, icon: "hand.thumbsup.fill", color: .green)
+                }
+                if !interview.weaknesses.isEmpty {
+                    signalSection("Weaknesses", items: interview.weaknesses, icon: "hand.thumbsdown.fill", color: .orange)
+                }
+                if !interview.redFlags.isEmpty {
+                    signalSection("Red Flags", items: interview.redFlags, icon: "flag.fill", color: .red)
+                }
+
+                // Overall Assessment
+                if let assessment = interview.overallAssessment, !assessment.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Overall Assessment")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(assessment)
+                            .font(.caption)
+                    }
+                    .padding(.horizontal)
+                }
 
                 // Interviewer notes
                 Section {
@@ -342,6 +363,25 @@ struct InterviewScorecardView: View {
         .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
     }
 
+    private func signalSection(_ title: String, items: [String], icon: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(color)
+            ForEach(items, id: \.self) { item in
+                HStack(alignment: .top, spacing: 6) {
+                    Circle()
+                        .fill(color.opacity(0.5))
+                        .frame(width: 5, height: 5)
+                        .padding(.top, 4)
+                    Text(item)
+                        .font(.caption)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
     // MARK: - Helpers
 
     private func dotColor(_ value: Int) -> Color {
@@ -431,7 +471,7 @@ struct InterviewScorecardView: View {
             LogManager.send("  \(section.title): \(tagged) tagged segments (fallback: \(tagged == 0 ? "full transcript" : "tagged only"))", category: .ai)
         }
 
-        var tasks: [UUID: Task<SectionScoreSnapshot?, Error>] = [:]
+        var tasks: [UUID: Task<InterviewAnalysisResult?, Error>] = [:]
         for section in sections {
             sectionScoringStatus[section.id] = .scoring
             let sectionCopy = section
@@ -451,12 +491,25 @@ struct InterviewScorecardView: View {
             }
         }
 
-        // Collect results as they complete
+        // Collect results and aggregate strengths/weaknesses
+        var allStrengths: [String] = []
+        var allWeaknesses: [String] = []
+        var allRedFlags: [String] = []
+        var assessments: [String] = []
+
         for (sectionID, task) in tasks {
             do {
-                if let score = try await task.value {
-                    applySectionScore(score, sectionID: sectionID)
-                    LogManager.send("Section '\(score.sectionTitle)' scored: \(score.grade ?? "nil")", category: .ai)
+                if let result = try await task.value {
+                    if let score = result.sectionScores.first(where: { $0.sectionID == sectionID }) {
+                        applySectionScore(score, sectionID: sectionID)
+                        LogManager.send("Section '\(score.sectionTitle)' scored: \(score.grade ?? "nil")", category: .ai)
+                    }
+                    allStrengths.append(contentsOf: result.strengths)
+                    allWeaknesses.append(contentsOf: result.weaknesses)
+                    allRedFlags.append(contentsOf: result.redFlags)
+                    if !result.overallAssessment.isEmpty {
+                        assessments.append(result.overallAssessment)
+                    }
                 } else {
                     LogManager.send("Section scoring returned nil for \(sectionID)", category: .ai, level: .warning)
                 }
@@ -467,6 +520,12 @@ struct InterviewScorecardView: View {
                 LogManager.send("Section scoring failed: \(error.localizedDescription)", category: .ai, level: .error)
             }
         }
+
+        // Persist aggregated strengths/weaknesses/assessment
+        interview.strengths = allStrengths
+        interview.weaknesses = allWeaknesses
+        interview.redFlags = allRedFlags
+        interview.overallAssessment = assessments.joined(separator: " ")
 
         try? modelContext.save()
         LogManager.send("Parallel scoring complete", category: .ai)

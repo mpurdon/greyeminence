@@ -186,7 +186,7 @@ actor InterviewIntelligenceService {
     func scoreSingleSection(
         section: RubricSectionSnapshot,
         segments: [SegmentSnapshot]
-    ) async throws -> SectionScoreSnapshot? {
+    ) async throws -> InterviewAnalysisResult? {
         let nonEmpty = segments.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         guard !nonEmpty.isEmpty else {
             LogManager.send("Section scoring '\(section.title)': no non-empty segments", category: .ai, level: .warning, meetingID: meetingID)
@@ -211,15 +211,13 @@ actor InterviewIntelligenceService {
         LogManager.send("Section scoring '\(section.title)': response \(response.count) chars", category: .ai, meetingID: meetingID)
 
         let result = try parseResponse(response)
-        let matched = result.sectionScores.first { $0.sectionID == section.id }
-
-        if let matched {
-            LogManager.send("Section scoring '\(section.title)': grade=\(matched.grade ?? "nil"), confidence=\(matched.confidence), criteria=\(matched.criterionEvaluations.count)", category: .ai, meetingID: meetingID)
+        if let matched = result.sectionScores.first(where: { $0.sectionID == section.id }) {
+            LogManager.send("Section scoring '\(section.title)': grade=\(matched.grade ?? "nil"), confidence=\(matched.confidence), criteria=\(matched.criterionEvaluations.count), strengths=\(result.strengths.count), weaknesses=\(result.weaknesses.count)", category: .ai, meetingID: meetingID)
         } else {
             LogManager.send("Section scoring '\(section.title)': no matching score in response (got \(result.sectionScores.map(\.sectionTitle)))", category: .ai, level: .warning, meetingID: meetingID)
         }
 
-        return matched
+        return result
     }
 
     // MARK: - Parsing

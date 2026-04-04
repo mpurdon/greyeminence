@@ -7,8 +7,16 @@ struct GreyEminenceApp: App {
     @State private var appEnvironment = AppEnvironment()
     @State private var recordingViewModel = RecordingViewModel()
     @State private var interviewRecordingViewModel: InterviewRecordingViewModel?
+    private static var isDebugBuild: Bool {
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
+    }
+
     private let updaterController = SPUStandardUpdaterController(
-        startingUpdater: true,
+        startingUpdater: !isDebugBuild,
         updaterDelegate: nil,
         userDriverDelegate: nil
     )
@@ -56,6 +64,18 @@ struct GreyEminenceApp: App {
         }
     }
 
+    @AppStorage("appFontSize") private var appFontSize = "medium"
+
+    private var dynamicTypeSize: DynamicTypeSize {
+        switch appFontSize {
+        case "xSmall": .xSmall
+        case "small": .small
+        case "large": .large
+        case "xLarge": .xLarge
+        default: .medium
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             if let container = sharedModelContainer {
@@ -63,6 +83,7 @@ struct GreyEminenceApp: App {
                     recordingViewModel: recordingViewModel,
                     interviewRecordingViewModel: resolveInterviewVM()
                 )
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
                     .environment(appEnvironment)
                     .onAppear {
                         appEnvironment.configure(modelContext: container.mainContext)
@@ -76,8 +97,10 @@ struct GreyEminenceApp: App {
         .defaultSize(width: 1200, height: 800)
         .commands {
             CommandGroup(after: .appInfo) {
-                Button("Check for Updates...") {
-                    updaterController.checkForUpdates(nil)
+                if !Self.isDebugBuild {
+                    Button("Check for Updates...") {
+                        updaterController.checkForUpdates(nil)
+                    }
                 }
             }
         }
@@ -92,6 +115,7 @@ struct GreyEminenceApp: App {
         Settings {
             if let container = sharedModelContainer {
                 SettingsView(updater: updaterController.updater)
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
                     .environment(appEnvironment)
                     .modelContainer(container)
             }

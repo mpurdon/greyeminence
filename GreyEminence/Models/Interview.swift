@@ -61,6 +61,10 @@ final class Interview {
     var statusRawValue: String
     var interviewerNotes: String?
     var recommendationRawValue: Int?
+    var strengths: [String] = []
+    var weaknesses: [String] = []
+    var redFlags: [String] = []
+    var overallAssessment: String?
     var createdAt: Date
 
     var candidate: Candidate?

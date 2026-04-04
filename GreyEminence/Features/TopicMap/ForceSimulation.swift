@@ -1,16 +1,19 @@
 import CoreGraphics
 
 enum ForceSimulation {
+    /// Run one step of the force simulation. Call `alpha` with a decaying value
+    /// (e.g. starting at 1.0, multiplied by 0.95 each frame) to cool the simulation.
     static func step(
         nodes: inout [TopicNode],
         edges: [TopicEdge],
         center: CGPoint,
-        damping: CGFloat = 0.85
+        alpha: CGFloat
     ) {
-        let repulsionStrength: CGFloat = 8000
-        let attractionStrength: CGFloat = 0.005
-        let centerGravity: CGFloat = 0.01
-        let maxRepulsionDist: CGFloat = 500
+        let repulsionStrength: CGFloat = 3000 * alpha
+        let attractionStrength: CGFloat = 0.008 * alpha
+        let centerGravity: CGFloat = 0.02 * alpha
+        let maxRepulsionDist: CGFloat = 400
+        let damping: CGFloat = 0.6
 
         let count = nodes.count
         guard count > 0 else { return }
@@ -23,7 +26,6 @@ enum ForceSimulation {
                 let dist = max(hypot(dx, dy), 1)
                 guard dist < maxRepulsionDist else { continue }
 
-                // Scale repulsion by combined radii so larger nodes push harder
                 let radiusScale = (nodes[i].radius + nodes[j].radius) / 24
                 let force = repulsionStrength * radiusScale / (dist * dist)
                 dx = dx / dist * force
@@ -75,9 +77,5 @@ enum ForceSimulation {
             nodes[i].position.x += nodes[i].velocity.x
             nodes[i].position.y += nodes[i].velocity.y
         }
-    }
-
-    static func maxVelocity(in nodes: [TopicNode]) -> CGFloat {
-        nodes.map { hypot($0.velocity.x, $0.velocity.y) }.max() ?? 0
     }
 }

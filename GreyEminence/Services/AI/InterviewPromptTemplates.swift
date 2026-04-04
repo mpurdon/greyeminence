@@ -205,8 +205,14 @@ enum InterviewPromptTemplates {
         fullTranscript: String
     ) -> String {
         """
-        Evaluate the candidate's performance on this ONE rubric section based on the full \
-        interview transcript below.
+        Evaluate the candidate's performance on this ONE rubric section based on the \
+        interview transcript below. The interviewer is labeled "Me" — their questions provide \
+        context for what was being discussed but should NOT be scored. Focus your evaluation \
+        exclusively on the candidate's responses (all non-"Me" speakers).
+
+        Provide specific strengths and weaknesses observed for THIS section, and flag any \
+        red flags. The overall_assessment should summarize the candidate's performance on \
+        this specific area.
 
         Respond with ONLY valid JSON matching this schema — no prose, no markdown:
         {

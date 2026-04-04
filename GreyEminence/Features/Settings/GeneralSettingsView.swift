@@ -10,6 +10,7 @@ struct GeneralSettingsView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("calendarIntegration") private var calendarIntegration = false
     @AppStorage("stalledThresholdDays") private var stalledThresholdDays = 7
+    @AppStorage("appFontSize") private var appFontSize = "medium"
     @AppStorage("myContactID") private var myContactIDString = ""
     @Query(sort: \Contact.name) private var contacts: [Contact]
 
@@ -58,6 +59,21 @@ struct GeneralSettingsView: View {
                 Toggle("Show menu bar icon", isOn: $showMenuBar)
             } header: {
                 Label("Startup", systemImage: "power")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .textCase(nil)
+            }
+
+            Section {
+                Picker("Text Size", selection: $appFontSize) {
+                    Text("Extra Small").tag("xSmall")
+                    Text("Small").tag("small")
+                    Text("Medium (Default)").tag("medium")
+                    Text("Large").tag("large")
+                    Text("Extra Large").tag("xLarge")
+                }
+            } header: {
+                Label("Appearance", systemImage: "textformat.size")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .textCase(nil)

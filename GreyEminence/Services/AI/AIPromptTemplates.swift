@@ -24,7 +24,7 @@ enum AIPromptTemplates {
           ],
           "action_items": [{"text": "description of action", "assignee": "person or null"}],
           "follow_ups": ["question that should be followed up on"],
-          "topics": ["key topic discussed"]
+          "topics": ["Theme Topic", "specific-tool", "ACRONYM", "PersonName"]
         }
 
         Rules:
@@ -40,7 +40,12 @@ enum AIPromptTemplates {
         - "action_items" should only include concrete commitments or tasks, not vague statements. \
         Set "assignee" to the speaker's name if identifiable, otherwise null.
         - "follow_ups" are open questions or unresolved points that need attention after the meeting.
-        - "topics" are the main subjects discussed, ordered by prominence.
+        - "topics" should include TWO types, merged into one flat array ordered by prominence: \
+        (1) Theme topics: broad subjects discussed (e.g. "System Design", "Code Review Process") \
+        (2) Key terms: specific proper nouns, acronyms, tools, services, platforms, libraries, \
+        or named systems mentioned (e.g. "OLP", "AIDC", "Kafka", "DynamoDB", "React"). \
+        Extract ALL specific named entities — these are critical for cross-meeting knowledge mapping. \
+        Prefer the canonical form (e.g. "DynamoDB" not "dynamo", "AIDC" not "aidc").
         - If there is not enough content to produce meaningful insights, return empty arrays and \
         [] for summary. Do not generate placeholder or filler text.
         - When updating a rolling analysis, ALWAYS preserve all previous action items, topics, \
@@ -99,7 +104,9 @@ enum AIPromptTemplates {
         New transcript segments have been recorded since then. Extend your previous analysis \
         with the new content. For the summary: keep all existing sections and points, add new \
         points to relevant existing sections, and add new sections for genuinely new topics. \
-        Keep ALL existing action items, follow-ups, and topics. Add new ones from the new transcript.
+        Keep ALL existing action items, follow-ups, and topics. Add new ones from the new transcript. \
+        For topics: extract both theme topics AND specific key terms (proper nouns, acronyms, \
+        tools, services, platforms) mentioned in the new segments.
 
         NEW TRANSCRIPT:
         \(newTranscript)
@@ -143,7 +150,10 @@ enum AIPromptTemplates {
         - Deduplicate action items — merge near-duplicates, remove redundant ones, \
         and keep the clearest phrasing.
         - Deduplicate follow-up questions — merge similar ones.
-        - Consolidate topics — remove redundant or overly granular topics, order by prominence.
+        - Consolidate topics — remove exact duplicates and merge near-duplicates, but keep both \
+        theme topics (broad subjects) AND key terms (specific names, acronyms, tools, services). \
+        Order themes first by prominence, then key terms alphabetically. Preserve canonical forms \
+        (e.g. "DynamoDB" not "dynamo").
         - Correct any speaker attribution errors that are obvious from context.
 
         ACCUMULATED INSIGHTS FROM LIVE ANALYSIS:

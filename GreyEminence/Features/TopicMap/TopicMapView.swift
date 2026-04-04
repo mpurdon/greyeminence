@@ -71,6 +71,9 @@ struct TopicMapView: View {
     @ViewBuilder
     private var graphContent: some View {
         HStack(spacing: 0) {
+            topicBarChart
+                .frame(width: 220)
+            Divider()
             ZStack(alignment: .topTrailing) {
                 graphCanvas
                 controlButtons
@@ -84,6 +87,54 @@ struct TopicMapView: View {
                 )
                 .frame(width: 280)
             }
+        }
+    }
+
+    private var topicBarChart: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 2) {
+                ForEach(viewModel.rankedNodes) { node in
+                    let isSelected = node.id == viewModel.selectedTopicID
+                    let isHovered = node.id == viewModel.hoveredTopicID
+
+                    Button {
+                        viewModel.selectedTopicID = (viewModel.selectedTopicID == node.id) ? nil : node.id
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("\(node.meetingCount)")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20, alignment: .trailing)
+
+                            GeometryReader { geo in
+                                let fraction = CGFloat(node.meetingCount) / CGFloat(max(viewModel.maxMeetingCount, 1))
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(node.color.opacity(isSelected || isHovered ? 1.0 : 0.7))
+                                    .frame(width: max(fraction * geo.size.width, 4))
+                            }
+                            .frame(height: 12)
+
+                            Text(node.label)
+                                .font(.system(size: 10))
+                                .lineLimit(1)
+                                .foregroundStyle(isSelected ? .primary : .secondary)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            isSelected ? Color.accentColor.opacity(0.12) :
+                            isHovered ? Color.secondary.opacity(0.08) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 4)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        viewModel.hoveredTopicID = hovering ? node.id : nil
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 4)
         }
     }
 
@@ -145,21 +196,27 @@ struct TopicMapView: View {
                     with: .color(node.color.opacity(fillOpacity))
                 )
 
-                // Label
-                let showLabel = viewModel.scale > 0.6 || isSelected || isHovered
+                // Label — only show for hovered, selected, connected, or large nodes at high zoom
+                let showLabel = isSelected || isHovered || isConnected
+                    || (viewModel.scale > 1.2 && node.meetingCount >= 3)
                 if showLabel {
                     let labelText = Text(node.label)
-                        .font(.system(size: max(9, 11 / viewModel.scale)))
+                        .font(.system(size: max(9, 10 / viewModel.scale), weight: isSelected || isHovered ? .semibold : .regular))
                         .foregroundColor(.primary.opacity(opacity))
                     let labelPoint = CGPoint(
                         x: node.position.x,
-                        y: node.position.y + node.radius + 8
+                        y: node.position.y + node.radius + 6
                     )
                     context.draw(labelText, at: labelPoint, anchor: .top)
                 }
 
-                // Meeting count badge
-                if isSelected || isHovered {
+                // Meeting count badge inside node for larger nodes
+                if node.radius >= 16 {
+                    let badge = Text("\(node.meetingCount)")
+                        .font(.system(size: min(node.radius * 0.6, 11), weight: .bold))
+                        .foregroundColor(.white.opacity(0.9))
+                    context.draw(badge, at: node.position, anchor: .center)
+                } else if isSelected || isHovered {
                     let badge = Text("\(node.meetingCount)")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.white)
@@ -224,11 +281,46 @@ struct TopicMapView: View {
                     .frame(width: 26, height: 26)
             }
 
-            Text("\(viewModel.nodes.count) topics")
+            Divider()
+                .frame(width: 20)
+
+            // Density controls
+            VStack(spacing: 2) {
+                Text("Nodes")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+                Stepper("\(viewModel.maxNodeCount)", value: $viewModel.maxNodeCount, in: 10...200, step: 10)
+                    .font(.system(size: 9))
+                    .labelsHidden()
+                Text("\(viewModel.maxNodeCount)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            .onChange(of: viewModel.maxNodeCount) {
+                rebuildIfNeeded()
+            }
+
+            VStack(spacing: 2) {
+                Text("Links")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+                Stepper("\(viewModel.minEdgeWeight)", value: $viewModel.minEdgeWeight, in: 1...10)
+                    .font(.system(size: 9))
+                    .labelsHidden()
+                Text("\u{2265}\(viewModel.minEdgeWeight)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            .onChange(of: viewModel.minEdgeWeight) {
+                rebuildIfNeeded()
+            }
+
+            Text("\(viewModel.nodes.count) / \(viewModel.edges.count)")
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
         }
         .padding(8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func rebuildIfNeeded() {

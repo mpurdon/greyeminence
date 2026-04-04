@@ -22,7 +22,8 @@ final class TopicMapViewModel {
     // Aggregated data
     private(set) var topicMeetings: [String: [Meeting]] = [:]
     private var coOccurrence: [TopicPair: Int] = [:]
-    private var maxNodeCount = 150
+    var maxNodeCount = 40
+    var minEdgeWeight = 2
 
     // MARK: - Graph Building
 
@@ -81,7 +82,7 @@ final class TopicMapViewModel {
 
         // Build nodes
         let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
-        let circleRadius = min(canvasSize.width, canvasSize.height) * 0.35
+        let circleRadius = min(canvasSize.width, canvasSize.height) * 0.4
 
         var newNodes: [TopicNode] = []
         var indexMap: [String: Int] = [:]
@@ -107,9 +108,10 @@ final class TopicMapViewModel {
             newNodes.append(node)
         }
 
-        // Build edges
+        // Build edges (only co-occurrences at or above threshold)
         var newEdges: [TopicEdge] = []
         for (pair, weight) in coOccurrence {
+            guard weight >= minEdgeWeight else { continue }
             guard let si = indexMap[pair.a], let ti = indexMap[pair.b] else { continue }
             newEdges.append(TopicEdge(sourceIndex: si, targetIndex: ti, weight: weight))
         }
@@ -132,15 +134,30 @@ final class TopicMapViewModel {
         isSimulating = true
 
         simulationTask = Task { [weak self] in
-            while !Task.isCancelled {
+            var alpha: CGFloat = 1.0
+            let decay: CGFloat = 0.96
+            let minAlpha: CGFloat = 0.01
+            let maxFrames = 200
+
+            for _ in 0..<maxFrames {
+                guard !Task.isCancelled else { return }
                 guard let self, self.isSimulating else { return }
-                let canvasCenter = center
-                ForceSimulation.step(nodes: &self.nodes, edges: self.edges, center: canvasCenter)
-                if ForceSimulation.maxVelocity(in: self.nodes) < 0.5 {
-                    self.isSimulating = false
-                    return
-                }
+
+                ForceSimulation.step(nodes: &self.nodes, edges: self.edges, center: center, alpha: alpha)
+                alpha *= decay
+                if alpha < minAlpha { break }
+
                 try? await Task.sleep(for: .milliseconds(16))
+            }
+
+            await MainActor.run { [weak self] in
+                // Zero out all velocities so nodes are fully static
+                if let self {
+                    for i in 0..<self.nodes.count {
+                        self.nodes[i].velocity = .zero
+                    }
+                    self.isSimulating = false
+                }
             }
         }
     }
@@ -233,6 +250,26 @@ final class TopicMapViewModel {
     }
 
     var isSearchActive: Bool { !searchText.isEmpty }
+
+    /// Nodes sorted by meeting count descending, then label ascending.
+    var rankedNodes: [TopicNode] {
+        let filtered: [TopicNode]
+        if isSearchActive {
+            filtered = nodes.filter { searchMatches.contains($0.id) }
+        } else {
+            filtered = nodes
+        }
+        return filtered.sorted {
+            if $0.meetingCount != $1.meetingCount {
+                return $0.meetingCount > $1.meetingCount
+            }
+            return $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending
+        }
+    }
+
+    var maxMeetingCount: Int {
+        nodes.map(\.meetingCount).max() ?? 1
+    }
 
     func nodeOpacity(for node: TopicNode) -> Double {
         if !isSearchActive { return 1.0 }
