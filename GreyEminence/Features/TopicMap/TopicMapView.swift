@@ -386,7 +386,10 @@ struct TopicMapView: View {
                 let insight = MeetingInsight(
                     summary: result.summary,
                     followUpQuestions: result.followUps,
-                    topics: result.topics
+                    topics: result.topics,
+                    rawLLMResponse: result.rawResponse,
+                    modelIdentifier: client.modelIdentifier,
+                    promptVersion: AIPromptTemplates.promptVersion
                 )
                 insight.meeting = meeting
                 modelContext.insert(insight)

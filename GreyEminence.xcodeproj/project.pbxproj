@@ -71,6 +71,7 @@
 		7E1823E29DFDFD8A58B894D6 /* InterviewSectionScoreCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467A2217512A73AC48F65308 /* InterviewSectionScoreCard.swift */; };
 		7F635C78864C77293458EC6B /* Department.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463CA7B7E7481F99C5ED9D93 /* Department.swift */; };
 		818879FDFE90846E3A165E26 /* AIIntelligenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66D41A4DDC8876D46E90AD7 /* AIIntelligenceService.swift */; };
+		81A67F2528B2291F0FBA53CD /* DeveloperPromptEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A58B8B68B5A249D975F355 /* DeveloperPromptEditorView.swift */; };
 		82E0731B8F98E1C689F629DC /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035F3AE9352BFA1B1EC72E90 /* SidebarView.swift */; };
 		86D3B5E6153AE30228461601 /* AudioFormatConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3064E03937611C03B74553CD /* AudioFormatConverter.swift */; };
 		87041339499E41CA9C187A95 /* OrganizationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAE2A31F9F164242D15B47A /* OrganizationSettingsView.swift */; };
@@ -107,6 +108,7 @@
 		CAE631B21FD4390A98F4BD5E /* InterviewPromptTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9A10AF91F15CA169F503A2 /* InterviewPromptTemplates.swift */; };
 		D0D02AD902D348ADFE6F2935 /* InterviewListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1883C32FA38176C32ED9B57 /* InterviewListView.swift */; };
 		D15B92644A209FBBF7B31D8D /* MeetingPrepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A449FC8E55341990C8A3A7A /* MeetingPrepView.swift */; };
+		D1BCC317E4B910D757CB9FC6 /* PromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FB7CEC0E14991A2743BEB83 /* PromptStore.swift */; };
 		D59E4FDE79625794D5A8A32E /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6774606B2258926F847E4C4 /* AppEnvironment.swift */; };
 		D685F38BB10ABFCCD46702B1 /* TopicGraphTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E9BD9C1EDBF636CD6482196 /* TopicGraphTypes.swift */; };
 		D844A67123CE2E80F33DA503 /* TrajectorSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93C28939DE9447A9DCE2636A /* TrajectorSettings.swift */; };
@@ -130,6 +132,7 @@
 		F9E5B7B92D5523164E3619A8 /* SectionMarkerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBBBD940532534CC8B5F6BD /* SectionMarkerView.swift */; };
 		FA8953738B11A84516D35908 /* CandidateListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EE35BB1B53FA715D0E3B606 /* CandidateListView.swift */; };
 		FAF507B483908D2C3227910D /* SystemAudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A9A340B566AD4ABDBB929D /* SystemAudioCaptureService.swift */; };
+		FC91687C779A58699CF98D54 /* PersistenceGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B06EAD3F5A91BFA54D382AB2 /* PersistenceGate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -150,6 +153,7 @@
 		1ABED09F9C41DEF26FDD8CB3 /* GreyEminence.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GreyEminence.entitlements; sourceTree = "<group>"; };
 		1B95809735E6E5534ED30962 /* InterviewSectionScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewSectionScore.swift; sourceTree = "<group>"; };
 		1F2EE3D3FF1C35A523A8F56C /* InterviewNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewNote.swift; sourceTree = "<group>"; };
+		1FB7CEC0E14991A2743BEB83 /* PromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptStore.swift; sourceTree = "<group>"; };
 		22EBC71AC684DEC93517AF36 /* RubricSectionEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RubricSectionEditorView.swift; sourceTree = "<group>"; };
 		233B5632B22BFA4C7E512907 /* MeetingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetailView.swift; sourceTree = "<group>"; };
 		2B5081D914CE6F311AA9EB21 /* NoteInputBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteInputBar.swift; sourceTree = "<group>"; };
@@ -213,6 +217,7 @@
 		ABFD6367AB1A91EBD9D2A865 /* AddContactSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddContactSheet.swift; sourceTree = "<group>"; };
 		ACFC782BC165D3DA75DFE688 /* MicrophoneCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophoneCaptureService.swift; sourceTree = "<group>"; };
 		AFB956B7F4F0CA68BF37E5F5 /* MeetingListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingListView.swift; sourceTree = "<group>"; };
+		B06EAD3F5A91BFA54D382AB2 /* PersistenceGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceGate.swift; sourceTree = "<group>"; };
 		B1883C32FA38176C32ED9B57 /* InterviewListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewListView.swift; sourceTree = "<group>"; };
 		B18B5B7B23A1F23EB5D7BFCA /* MeetingAttendeesRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingAttendeesRow.swift; sourceTree = "<group>"; };
 		B46CD3C11445ADB010BAFCF7 /* AudioFileWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFileWriter.swift; sourceTree = "<group>"; };
@@ -228,6 +233,7 @@
 		BBB5B7F2625CA891A0A4FE73 /* MeetingIntelligenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingIntelligenceView.swift; sourceTree = "<group>"; };
 		BD246F57B67011F22F1AF64A /* TranscriptionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionCoordinator.swift; sourceTree = "<group>"; };
 		C048A116939EC01A529A4FDC /* ActionItemsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionItemsSection.swift; sourceTree = "<group>"; };
+		C0A58B8B68B5A249D975F355 /* DeveloperPromptEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperPromptEditorView.swift; sourceTree = "<group>"; };
 		C0FFE615EDF257D5D3EC87E1 /* LiveTranscriptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTranscriptView.swift; sourceTree = "<group>"; };
 		C1042E6A22B62FFEFCB01BAA /* GreyEminenceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreyEminenceApp.swift; sourceTree = "<group>"; };
 		C28472798341F1E27B7D42F4 /* TopicDetailPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopicDetailPanel.swift; sourceTree = "<group>"; };
@@ -368,6 +374,7 @@
 				8363D29DBB4CADCC8DD08381 /* InterviewIntelligenceService.swift */,
 				6A9A10AF91F15CA169F503A2 /* InterviewPromptTemplates.swift */,
 				B844FF1A1E3ECA5753702A38 /* MeetingPrepService.swift */,
+				1FB7CEC0E14991A2743BEB83 /* PromptStore.swift */,
 				93C28939DE9447A9DCE2636A /* TrajectorSettings.swift */,
 				EA282F9DB6AE4DA53A6FFDDF /* TranscriptFile.swift */,
 			);
@@ -428,6 +435,7 @@
 			children = (
 				5B83B40FCCFC9C150D3A4578 /* KeychainHelper.swift */,
 				8141402D9688729287F5C68F /* MeetingStore.swift */,
+				B06EAD3F5A91BFA54D382AB2 /* PersistenceGate.swift */,
 				A0AF2329398C06BB75B022FF /* StorageManager.swift */,
 			);
 			path = Persistence;
@@ -631,6 +639,7 @@
 			children = (
 				10F8F5AD9A2BC34E742295DC /* APIKeySettingsView.swift */,
 				657275C542280701138F3D42 /* AudioSettingsView.swift */,
+				C0A58B8B68B5A249D975F355 /* DeveloperPromptEditorView.swift */,
 				A9CE69F8422EE39E764DCC50 /* DeveloperSettingsView.swift */,
 				97149F3BA600B75B86FBBC1A /* GeneralSettingsView.swift */,
 				87D1BE56DAC018A93D783368 /* MyProfileSetupSheet.swift */,
@@ -764,6 +773,7 @@
 				6B3B7042DBD6D529106704B5 /* DashboardView.swift in Sources */,
 				A02605F83C29F34FD45E8B79 /* DedupDebugRow.swift in Sources */,
 				7F635C78864C77293458EC6B /* Department.swift in Sources */,
+				81A67F2528B2291F0FBA53CD /* DeveloperPromptEditorView.swift in Sources */,
 				D98A288BDF846F04DB63D39E /* DeveloperSettingsView.swift in Sources */,
 				C0317E10EB971EE94147B831 /* EditableTranscriptSegmentRow.swift in Sources */,
 				BCFE8F9A5D779015BD38FA97 /* FluidAsrService.swift in Sources */,
@@ -813,6 +823,8 @@
 				DBDF5229655F6F36425F0F6F /* ObsidianSettingsView.swift in Sources */,
 				87041339499E41CA9C187A95 /* OrganizationSettingsView.swift in Sources */,
 				A173DAAD896AF99772AC00EA /* PeopleView.swift in Sources */,
+				FC91687C779A58699CF98D54 /* PersistenceGate.swift in Sources */,
+				D1BCC317E4B910D757CB9FC6 /* PromptStore.swift in Sources */,
 				6428B269561C1610AE114AB8 /* RecordingToolbar.swift in Sources */,
 				166B9F5D6DE977883E7A1EC7 /* RecordingView.swift in Sources */,
 				1B0D1DC060B9CA9E2A87E2DD /* RecordingViewModel.swift in Sources */,
@@ -928,13 +940,13 @@
 				CODE_SIGN_ENTITLEMENTS = GreyEminence/GreyEminence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260403175000;
+				CURRENT_PROJECT_VERSION = 20260409120000;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.8.1;
+				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -950,13 +962,13 @@
 				CODE_SIGN_ENTITLEMENTS = GreyEminence/GreyEminence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260403175000;
+				CURRENT_PROJECT_VERSION = 20260409120000;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.8.1;
+				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

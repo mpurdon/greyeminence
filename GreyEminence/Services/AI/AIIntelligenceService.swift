@@ -15,6 +15,9 @@ struct AnalysisResult: Sendable {
     let actionItems: [ParsedActionItem]
     let followUps: [String]
     let topics: [String]
+    /// Raw text returned by the model, kept alongside the parsed result so callers
+    /// can persist it for debugging / replay. Present whenever parsing succeeded.
+    let rawResponse: String
 }
 
 struct ParsedActionItem: Sendable {
@@ -106,7 +109,7 @@ actor AIIntelligenceService {
         }
         LogManager.send("AI raw response (\(response.count) chars): \(response.prefix(500))", category: .ai, meetingID: meetingID)
 
-        let result = try parseResponse(response)
+        let result = try parseResponse(response, raw: response)
         previousSummary = result.summary
         previousActionItems = result.actionItems
         previousFollowUps = result.followUps
@@ -145,16 +148,16 @@ actor AIIntelligenceService {
         }
         LogManager.send("AI final cleanup raw response (\(response.count) chars): \(response.prefix(500))", category: .ai, meetingID: meetingID)
 
-        let result = try parseResponse(response)
+        let result = try parseResponse(response, raw: response)
         LogManager.send("AI final cleanup complete", category: .ai, meetingID: meetingID)
         return result
     }
 
     // MARK: - Private
 
-    private func parseResponse(_ raw: String) throws -> AnalysisResult {
+    private func parseResponse(_ response: String, raw: String) throws -> AnalysisResult {
         // Strip markdown fences if present
-        var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleaned.hasPrefix("```json") {
             cleaned = String(cleaned.dropFirst(7))
         } else if cleaned.hasPrefix("```") {
@@ -202,7 +205,8 @@ actor AIIntelligenceService {
             summary: summary,
             actionItems: actionItems,
             followUps: followUps,
-            topics: topics
+            topics: topics,
+            rawResponse: raw
         )
     }
 }

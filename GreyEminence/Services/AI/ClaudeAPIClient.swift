@@ -4,6 +4,8 @@ struct ClaudeAPIClient: AIClient, Sendable {
     private let apiKey: String
     private let model: String
 
+    var modelIdentifier: String { "anthropic:\(model)" }
+
     init(apiKey: String, model: String = "claude-sonnet-4-20250514") {
         self.apiKey = apiKey
         self.model = model

@@ -136,30 +136,74 @@ struct MeetingIntelligenceView: View {
                 meeting.title = title
             }
 
-            // Persist new insight
+            // Persist new insight (append; keep history of prior insights)
             let insight = MeetingInsight(
                 summary: result.summary,
                 followUpQuestions: result.followUps,
-                topics: result.topics
+                topics: result.topics,
+                rawLLMResponse: result.rawResponse,
+                modelIdentifier: client.modelIdentifier,
+                promptVersion: AIPromptTemplates.promptVersion
             )
             insight.meeting = meeting
             modelContext.insert(insight)
 
-            // Replace action items (delete old, add new)
-            for old in meeting.actionItems {
-                modelContext.delete(old)
-            }
-            for parsed in result.actionItems {
-                let item = ActionItem(text: parsed.text, assignee: parsed.assignee)
-                item.meeting = meeting
-                modelContext.insert(item)
-            }
+            // Merge action items: preserve any with user state (completed, due date,
+            // assigned contact) and add new parsed items that don't already exist by text.
+            mergeActionItems(parsed: result.actionItems, into: meeting)
 
-            try modelContext.save()
+            let saved = PersistenceGate.save(
+                modelContext,
+                site: "MeetingIntelligenceView.reanalyze",
+                critical: true,
+                meetingID: meeting.id
+            )
+            if !saved {
+                reanalysisError = "Reanalysis succeeded but saving to database failed: \(PersistenceGate.lastFailureMessage ?? "unknown")"
+            }
         } catch {
             reanalysisError = error.localizedDescription
             LogManager.send("Reanalysis failed: \(error.localizedDescription)", category: .ai, level: .error)
         }
+    }
+
+    /// Merges AI-parsed action items into the meeting while preserving user state
+    /// (completion, due dates, assigned contacts). Existing items with matching
+    /// normalized text are kept; new parsed items are appended. Items the user has
+    /// already completed or assigned are never deleted by a re-run.
+    private func mergeActionItems(parsed: [ParsedActionItem], into meeting: Meeting) {
+        let existing = meeting.actionItems
+        let existingKeys = Set(existing.map { Self.actionItemKey($0.text) })
+
+        // Delete only existing items that have no user state attached AND that the
+        // new parse no longer produces. This keeps the list fresh for unstarted items
+        // while protecting anything the user has touched.
+        let parsedKeys = Set(parsed.map { Self.actionItemKey($0.text) })
+        let stale = existing.filter { item in
+            let untouched = !item.isCompleted
+                && item.dueDate == nil
+                && item.assignedContact == nil
+            let droppedByNewRun = !parsedKeys.contains(Self.actionItemKey(item.text))
+            return untouched && droppedByNewRun
+        }
+        for item in stale {
+            modelContext.delete(item)
+        }
+
+        // Append new parsed items that don't already exist.
+        for parsedItem in parsed where !existingKeys.contains(Self.actionItemKey(parsedItem.text)) {
+            let item = ActionItem(text: parsedItem.text, assignee: parsedItem.assignee)
+            item.meeting = meeting
+            modelContext.insert(item)
+        }
+    }
+
+    /// Normalized key for action-item deduping: lowercased, whitespace-collapsed,
+    /// trailing punctuation stripped.
+    private static func actionItemKey(_ text: String) -> String {
+        let lowered = text.lowercased()
+        let collapsed = lowered.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        return collapsed.trimmingCharacters(in: CharacterSet(charactersIn: " .!?,;:"))
     }
 }
 

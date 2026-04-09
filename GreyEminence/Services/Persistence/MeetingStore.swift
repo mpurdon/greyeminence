@@ -13,17 +13,17 @@ final class MeetingStore {
     func createMeeting(title: String = "New Meeting") -> Meeting {
         let meeting = Meeting(title: title)
         modelContext.insert(meeting)
-        try? modelContext.save()
+        PersistenceGate.save(modelContext, site: "MeetingStore.createMeeting")
         return meeting
     }
 
     func deleteMeeting(_ meeting: Meeting) {
         modelContext.delete(meeting)
-        try? modelContext.save()
+        PersistenceGate.save(modelContext, site: "MeetingStore.deleteMeeting")
     }
 
     func save() {
-        try? modelContext.save()
+        PersistenceGate.save(modelContext, site: "MeetingStore.save")
     }
 
     func addSegment(
@@ -43,7 +43,7 @@ final class MeetingStore {
         )
         segment.meeting = meeting
         meeting.segments.append(segment)
-        try? modelContext.save()
+        PersistenceGate.save(modelContext, site: "MeetingStore.addSegment", meetingID: meeting.id)
         return segment
     }
 
@@ -51,13 +51,13 @@ final class MeetingStore {
         let item = ActionItem(text: text, assignee: assignee)
         item.meeting = meeting
         meeting.actionItems.append(item)
-        try? modelContext.save()
+        PersistenceGate.save(modelContext, site: "MeetingStore.addActionItem", meetingID: meeting.id)
         return item
     }
 
     func toggleActionItem(_ item: ActionItem) {
         item.isCompleted.toggle()
-        try? modelContext.save()
+        PersistenceGate.save(modelContext, site: "MeetingStore.toggleActionItem", meetingID: item.meeting?.id)
     }
 
     func addInsight(
@@ -73,7 +73,7 @@ final class MeetingStore {
         )
         insight.meeting = meeting
         meeting.insights.append(insight)
-        try? modelContext.save()
+        PersistenceGate.save(modelContext, site: "MeetingStore.addInsight", meetingID: meeting.id)
         return insight
     }
 }

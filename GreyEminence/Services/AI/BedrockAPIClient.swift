@@ -6,6 +6,8 @@ struct BedrockAPIClient: AIClient, Sendable {
     private let region: String
     private let model: String
 
+    var modelIdentifier: String { "bedrock:\(region):\(model)" }
+
     init(credentials: AWSCredentials, region: String, model: String) {
         self.credentials = credentials
         self.region = region

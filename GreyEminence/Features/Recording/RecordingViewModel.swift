@@ -53,8 +53,11 @@ final class RecordingViewModel {
     // Audio services
     private let micCapture = MicrophoneCaptureService()
     private let systemCapture = SystemAudioCaptureService()
-    private let micFileWriter = AudioFileWriter(outputURL: URL(fileURLWithPath: "/dev/null"))
-    private let systemFileWriter = AudioFileWriter(outputURL: URL(fileURLWithPath: "/dev/null"))
+    /// Live audio writers for the current recording. Created in `startRealCapture`
+    /// so the periodic persistence loop can call `checkpoint()` on them to bound
+    /// audio loss on crash. `nil` outside an active recording.
+    private var micFileWriter: AudioFileWriter?
+    private var systemFileWriter: AudioFileWriter?
 
     // Transcription
     private let coordinator = TranscriptionCoordinator()
@@ -67,6 +70,10 @@ final class RecordingViewModel {
 
     // AI Intelligence
     private var intelligenceService: AIIntelligenceService?
+    private var aiModelIdentifier: String?
+    /// Raw response from the most recent successful AI analysis (rolling or final).
+    /// Persisted alongside the final MeetingInsight for debugging and replay.
+    private var latestRawResponse: String?
 
     var isRecording: Bool { state == .recording }
     var isPaused: Bool { state == .paused }
@@ -263,11 +270,15 @@ final class RecordingViewModel {
 
         guard let meeting = currentMeeting else {
             // No meeting — just clean up
+            let micWriter = micFileWriter
+            let sysWriter = systemFileWriter
+            micFileWriter = nil
+            systemFileWriter = nil
             Task {
                 await micCapture.stopCapture()
                 await systemCapture.stopCapture()
-                await micFileWriter.stop()
-                await systemFileWriter.stop()
+                await micWriter?.stop()
+                await sysWriter?.stop()
                 await coordinator.stop()
             }
             return
@@ -282,8 +293,12 @@ final class RecordingViewModel {
             // Stop audio capture first (no more audio flowing in)
             await micCapture.stopCapture()
             await systemCapture.stopCapture()
-            await micFileWriter.stop()
-            await systemFileWriter.stop()
+            let finalMicWriter = self.micFileWriter
+            let finalSysWriter = self.systemFileWriter
+            self.micFileWriter = nil
+            self.systemFileWriter = nil
+            await finalMicWriter?.stop()
+            await finalSysWriter?.stop()
 
             // Stop coordinator — drains remaining recognition results and diarization
             await coordinator.stop()
@@ -320,12 +335,25 @@ final class RecordingViewModel {
                 meeting.segments.append(persistedSegment)
             }
 
-            try? modelContext.save()
+            let finalSegmentsOK = PersistenceGate.save(
+                modelContext,
+                site: "stopRecording/finalSegments",
+                critical: true,
+                meetingID: meeting.id
+            )
+            if !finalSegmentsOK {
+                self.errorMessage = "Failed to save final transcript. The recording files are preserved on disk; please check disk space and retry export."
+            }
             self.lastPersistedSegmentCount = 0
 
             // Mark as analyzing before navigating so the UI shows a spinner
             meeting.isAnalyzing = true
-            try? modelContext.save()
+            PersistenceGate.save(
+                modelContext,
+                site: "stopRecording/markAnalyzing",
+                critical: false,
+                meetingID: meeting.id
+            )
 
             // Navigate to completed meeting
             self.completedMeeting = meeting
@@ -339,6 +367,7 @@ final class RecordingViewModel {
                         self.actionItems = result.actionItems.map { ActionItem(text: $0.text, assignee: $0.assignee) }
                         self.followUpQuestions = result.followUps
                         self.topics = result.topics
+                        self.latestRawResponse = result.rawResponse
                         if let title = result.title, !title.isEmpty {
                             meeting.title = title
                         }
@@ -358,7 +387,10 @@ final class RecordingViewModel {
                 let insight = MeetingInsight(
                     summary: summary,
                     followUpQuestions: self.followUpQuestions,
-                    topics: self.topics
+                    topics: self.topics,
+                    rawLLMResponse: self.latestRawResponse,
+                    modelIdentifier: self.aiModelIdentifier,
+                    promptVersion: AIPromptTemplates.promptVersion
                 )
                 insight.meeting = meeting
                 meeting.insights.append(insight)
@@ -368,7 +400,15 @@ final class RecordingViewModel {
                     meeting.actionItems.append(actionItem)
                 }
 
-                try? modelContext.save()
+                let insightsOK = PersistenceGate.save(
+                    modelContext,
+                    site: "stopRecording/finalInsights",
+                    critical: true,
+                    meetingID: meeting.id
+                )
+                if !insightsOK && self.errorMessage == nil {
+                    self.errorMessage = "Failed to save AI insights — the transcript is still saved, try Reanalyze from the meeting detail view."
+                }
             }
         }
     }
@@ -442,13 +482,17 @@ final class RecordingViewModel {
         }
         processingTasks.append(observeTask)
 
+        // Create the live writers up front so the persistence loop can reach
+        // them for `checkpoint()`. Captured into the tasks below.
+        let micWriter = AudioFileWriter(outputURL: storageManager.micAudioURL(for: meetingID))
+        let sysWriter = AudioFileWriter(outputURL: storageManager.systemAudioURL(for: meetingID))
+        self.micFileWriter = micWriter
+        self.systemFileWriter = sysWriter
+
         // Start microphone capture
         let micTask = Task {
             do {
                 let micStream = try await micCapture.startCapture()
-
-                // Set up file writer for mic audio
-                let micWriter = AudioFileWriter(outputURL: storageManager.micAudioURL(for: meetingID))
 
                 for await taggedBuffer in micStream {
                     guard !Task.isCancelled else { break }
@@ -481,8 +525,6 @@ final class RecordingViewModel {
         let sysTask = Task {
             do {
                 let sysStream = try await systemCapture.startCapture()
-
-                let sysWriter = AudioFileWriter(outputURL: storageManager.systemAudioURL(for: meetingID))
 
                 for await taggedBuffer in sysStream {
                     guard !Task.isCancelled else { break }
@@ -535,8 +577,10 @@ final class RecordingViewModel {
             }
             let meetingID = await MainActor.run { self.currentMeeting?.id }
             let service = AIIntelligenceService(client: client, prepContext: prepCtx, meetingID: meetingID)
+            let clientModelID = client.modelIdentifier
             await MainActor.run {
                 self.intelligenceService = service
+                self.aiModelIdentifier = clientModelID
             }
 
             // Countdown before first analysis
@@ -561,6 +605,7 @@ final class RecordingViewModel {
                             }
                             self.followUpQuestions = result.followUps
                             self.topics = result.topics
+                            self.latestRawResponse = result.rawResponse
                             self.log.log("AI analysis complete (\(result.actionItems.count) actions, \(result.topics.count) topics)", category: .ai)
                         }
                     }
@@ -612,16 +657,22 @@ final class RecordingViewModel {
     // MARK: - Periodic Persistence
 
     /// Periodically saves new segments and elapsed time to SwiftData so data survives crashes.
+    /// Seconds between transcript flushes during active recording. Small enough
+    /// that a crash only costs a handful of segments, large enough not to churn
+    /// SwiftData on every new word.
+    private static let persistenceInterval: Duration = .seconds(10)
+
     private func startPeriodicPersistence() {
         let task = Task { [weak self] in
-            // Wait 30s before first save
-            try? await Task.sleep(for: .seconds(30))
+            // First save happens one interval in, so the very first segments
+            // are durable shortly after recording begins.
+            try? await Task.sleep(for: Self.persistenceInterval)
 
             while !Task.isCancelled {
                 await MainActor.run {
                     self?.persistIncrementalProgress()
                 }
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: Self.persistenceInterval)
             }
         }
         processingTasks.append(task)
@@ -630,13 +681,23 @@ final class RecordingViewModel {
     private func persistIncrementalProgress() {
         guard let meeting = currentMeeting, let modelContext, state == .recording else { return }
 
+        // If the persistence layer has faulted, stop trying to write — further
+        // appends would just accumulate unsavable state. Surface a clear message
+        // so the user can investigate (disk full, permissions, corruption).
+        if PersistenceGate.isFaulted {
+            if errorMessage == nil {
+                errorMessage = "Saving transcript to database failed repeatedly. Recording is paused. Check disk space and permissions. (\(PersistenceGate.lastFailureMessage ?? "unknown error"))"
+            }
+            return
+        }
+
         // Update duration
         meeting.duration = elapsedTime
 
         // Persist only new segments since last save
         let newSegments = Array(segments.dropFirst(lastPersistedSegmentCount))
         guard !newSegments.isEmpty || lastPersistedSegmentCount == 0 else {
-            try? modelContext.save()
+            PersistenceGate.save(modelContext, site: "persistIncrementalProgress/touchOnly", critical: true, meetingID: meeting.id)
             return
         }
 
@@ -656,8 +717,30 @@ final class RecordingViewModel {
         }
 
         lastPersistedSegmentCount = segments.count
-        try? modelContext.save()
-        log.log("Persisted \(newSegments.count) new segments (total: \(lastPersistedSegmentCount))", category: .audio)
+        let ok = PersistenceGate.save(modelContext, site: "persistIncrementalProgress", critical: true, meetingID: meeting.id)
+        if ok {
+            log.log("Persisted \(newSegments.count) new segments (total: \(lastPersistedSegmentCount))", category: .audio)
+        }
+
+        // Checkpoint the audio writers so the current chunks are finalized on disk.
+        // AVAudioFile doesn't expose fsync, and only writes the AAC container metadata
+        // when the file is closed — so without chunking, a crash mid-recording leaves
+        // all audio unplayable. Chunk files cap the loss window to roughly
+        // `persistenceInterval`.
+        let micWriter = micFileWriter
+        let sysWriter = systemFileWriter
+        Task {
+            do {
+                try await micWriter?.checkpoint()
+            } catch {
+                LogManager.send("Mic audio checkpoint failed: \(error.localizedDescription)", category: .audio, level: .warning)
+            }
+            do {
+                try await sysWriter?.checkpoint()
+            } catch {
+                LogManager.send("System audio checkpoint failed: \(error.localizedDescription)", category: .audio, level: .warning)
+            }
+        }
     }
 
     // MARK: - Helpers
