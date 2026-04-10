@@ -125,7 +125,7 @@ private func seedInterviewDefaults(in context: ModelContext) {
         for (name, category, order) in RoleLevel.defaultLevels {
             context.insert(RoleLevel(name: name, category: category, sortOrder: order))
         }
-        try? context.save()
+        PersistenceGate.save(context, site: "seedInterviewDefaults/roleLevels")
     }
 
     // Seed impression traits if empty
@@ -136,7 +136,7 @@ private func seedInterviewDefaults(in context: ModelContext) {
                 name: name, label1: l1, label2: l2, label3: l3, label4: l4, label5: l5, sortOrder: order
             ))
         }
-        try? context.save()
+        PersistenceGate.save(context, site: "seedInterviewDefaults/impressionTraits")
     }
 
     // One-time repair: wipe broken org seed data and re-seed properly
@@ -157,7 +157,7 @@ private func seedInterviewDefaults(in context: ModelContext) {
     for item in (try? context.fetch(FetchDescriptor<InterviewRole>())) ?? [] { context.delete(item) }
     for item in (try? context.fetch(FetchDescriptor<Team>())) ?? [] { context.delete(item) }
     for item in (try? context.fetch(FetchDescriptor<Department>())) ?? [] { context.delete(item) }
-    try? context.save()
+    PersistenceGate.save(context, site: "seedInterviewDefaults/wipeOrg")
 
     seedOrganizationAndRubrics(in: context)
     UserDefaults.standard.set(4, forKey: "interviewSeedVersion")
@@ -201,7 +201,7 @@ private func seedOrganizationAndRubrics(in context: ModelContext) {
     let platform = insertTeam("Platform", sortOrder: 0, department: platEng)
     _ = insertTeam("Support", sortOrder: 1, department: platEng)
 
-    try? context.save()
+    PersistenceGate.save(context, site: "seedOrganizationAndRubrics/departments")
 
     // --- Roles ---
 
@@ -250,7 +250,7 @@ private func seedOrganizationAndRubrics(in context: ModelContext) {
     context.insert(dataRubric)
     seedDataTeamRubric(dataRubric, in: context)
 
-    try? context.save()
+    PersistenceGate.save(context, site: "seedOrganizationAndRubrics/final")
 }
 
 // MARK: - General Engineering Rubric (System Design + Coding Exercise)

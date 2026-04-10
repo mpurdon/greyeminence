@@ -247,7 +247,11 @@ struct InterviewScorecardView: View {
             seg.sectionTag = tag
             seg.sectionTagID = id
         }
-        try? modelContext.save()
+        PersistenceGate.save(
+            modelContext,
+            site: "InterviewScorecardView.tagSegment",
+            meetingID: interview.meeting?.id
+        )
     }
 
     // MARK: - Overall Score
@@ -527,7 +531,12 @@ struct InterviewScorecardView: View {
         interview.redFlags = allRedFlags
         interview.overallAssessment = assessments.joined(separator: " ")
 
-        try? modelContext.save()
+        PersistenceGate.save(
+            modelContext,
+            site: "InterviewScorecardView.parallelScoring",
+            critical: true,
+            meetingID: interview.meeting?.id
+        )
         LogManager.send("Parallel scoring complete", category: .ai)
     }
 

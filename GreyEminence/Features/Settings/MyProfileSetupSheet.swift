@@ -118,7 +118,7 @@ struct MyProfileSetupSheet: View {
             )
             contact.isInterviewer = true
             modelContext.insert(contact)
-            try? modelContext.save()
+            PersistenceGate.save(modelContext, site: "MyProfileSetupSheet.saveProfile")
             myContactIDString = contact.id.uuidString
         }
     }

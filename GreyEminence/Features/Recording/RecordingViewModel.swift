@@ -227,8 +227,12 @@ final class RecordingViewModel {
         errorMessage = nil
         completedMeeting = nil
 
-        // Persist active recording ID so we can detect interrupted recordings on restart
+        // Persist active recording ID so we can detect interrupted recordings on restart.
+        // Two-layer breadcrumb: UserDefaults for fast lookup, lock file on disk as a
+        // fallback in case UserDefaults is cleared. The lock file also makes the
+        // in-progress state visible to the user in Finder.
         UserDefaults.standard.set(meeting.id.uuidString, forKey: "activeRecordingMeetingID")
+        RecordingLockFile.write(for: meeting.id, isInterviewMeeting: meeting.isInterviewMeeting)
 
         log.log("Recording started", category: .audio)
         startTimer()
@@ -269,8 +273,12 @@ final class RecordingViewModel {
         timer?.invalidate()
         timer = nil
 
-        // Clear active recording marker
+        // Clear active recording marker (both layers). The lock file is
+        // removed here so a clean stop produces a quiet directory on disk.
         UserDefaults.standard.removeObject(forKey: "activeRecordingMeetingID")
+        if let meetingID = currentMeeting?.id {
+            RecordingLockFile.remove(for: meetingID)
+        }
         self.modelContext = modelContext
 
         // Cancel all processing tasks

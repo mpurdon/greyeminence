@@ -171,13 +171,42 @@ struct ContentView: View {
 
     /// On launch, clean up any meetings still stuck in .recording or .paused from a previous session.
     /// Empty orphans (0 segments) are deleted; non-empty ones are marked completed (interrupted).
+    /// Also cross-references on-disk `recording.lock` sidecar files so we can detect
+    /// audio that was captured before SwiftData even got a chance to save the meeting row.
     private func recoverOrphanedMeetings() {
         let statusRecording = MeetingStatus.recording
         let statusPaused = MeetingStatus.paused
         let descriptor = FetchDescriptor<Meeting>(
             predicate: #Predicate { $0.status == statusRecording || $0.status == statusPaused }
         )
-        guard let orphans = try? modelContext.fetch(descriptor), !orphans.isEmpty else { return }
+        let orphansFetched = (try? modelContext.fetch(descriptor)) ?? []
+
+        // Scan disk lock files. Any lock file whose meeting ID isn't in the
+        // orphan set OR in the main meetings list represents audio on disk
+        // that has no SwiftData row — a persistence failure during an earlier
+        // session. Log it loudly so the user can investigate.
+        let lockFiles = RecordingLockFile.scanAll()
+        if !lockFiles.isEmpty {
+            let allMeetings = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
+            let knownIDs = Set(allMeetings.map(\.id))
+            let ghosts = lockFiles.filter { !knownIDs.contains($0.meetingID) }
+            for ghost in ghosts {
+                LogManager.send(
+                    "Ghost recording detected on disk: \(ghost.meetingID) started \(ghost.startedAt) — audio files exist but no meeting row. Check Recordings/\(ghost.meetingID.uuidString)/",
+                    category: .general,
+                    level: .warning
+                )
+            }
+            // Clean up lock files that correspond to meetings we're about to
+            // mark completed/deleted — otherwise they'll stay and re-warn.
+            let touched = Set(orphansFetched.map(\.id))
+            for file in lockFiles where touched.contains(file.meetingID) {
+                RecordingLockFile.remove(for: file.meetingID)
+            }
+        }
+
+        guard !orphansFetched.isEmpty else { return }
+        let orphans = orphansFetched
 
         var recovered = 0
         var deleted = 0
@@ -194,7 +223,13 @@ struct ContentView: View {
                 recovered += 1
             }
         }
-        try? modelContext.save()
+        // Critical: if we can't save here, the orphan meetings stay stuck in
+        // .recording forever and will re-prompt on every launch.
+        PersistenceGate.save(
+            modelContext,
+            site: "ContentView.recoverOrphanedMeetings",
+            critical: true
+        )
         if recovered + deleted > 0 {
             LogManager.send("Orphan cleanup: \(recovered) recovered, \(deleted) deleted", category: .general)
         }

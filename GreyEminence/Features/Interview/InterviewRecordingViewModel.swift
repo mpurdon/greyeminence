@@ -124,7 +124,11 @@ final class InterviewRecordingViewModel {
         self.redFlags = []
         self.overallAssessment = ""
 
-        try? modelContext.save()
+        PersistenceGate.save(
+            modelContext,
+            site: "InterviewRecordingViewModel.startInterview/initialInsert",
+            critical: true
+        )
 
         recordingViewModel.startRecording(in: modelContext)
         if let meeting = recordingViewModel.currentMeeting {
@@ -136,7 +140,12 @@ final class InterviewRecordingViewModel {
                     meeting.attendees.append(contact)
                 }
             }
-            try? modelContext.save()
+            PersistenceGate.save(
+                modelContext,
+                site: "InterviewRecordingViewModel.startInterview/linkMeeting",
+                critical: true,
+                meetingID: meeting.id
+            )
         }
 
         // Tag initial section (Intro)
@@ -162,7 +171,12 @@ final class InterviewRecordingViewModel {
             interview.bookmarks = bookmarks
             interview.notes = notes.filter { $0.parentNote == nil }
         }
-        try? modelContext.save()
+        PersistenceGate.save(
+            modelContext,
+            site: "InterviewRecordingViewModel.stopInterview",
+            critical: true,
+            meetingID: recordingViewModel.currentMeeting?.id
+        )
 
         // Capture what we need for the final analysis before stopping
         let hasRubric = rubricSnapshot != nil
@@ -205,7 +219,12 @@ final class InterviewRecordingViewModel {
                 if let interview {
                     interview.sectionScores = sectionScores
                 }
-                try? modelContext.save()
+                PersistenceGate.save(
+                    modelContext,
+                    site: "InterviewRecordingViewModel.runFinalRubricAnalysis",
+                    critical: true,
+                    meetingID: meetingID
+                )
                 LogManager.shared.log("Final rubric analysis complete", category: .ai)
             }
         } catch {

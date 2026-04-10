@@ -400,7 +400,11 @@ struct TopicMapView: View {
                     modelContext.insert(action)
                 }
 
-                try? modelContext.save()
+                PersistenceGate.save(
+                    modelContext,
+                    site: "TopicMapView.batchReanalyze",
+                    meetingID: meeting.id
+                )
             } catch {
                 continue
             }
