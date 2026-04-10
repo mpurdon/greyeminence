@@ -101,11 +101,14 @@ actor AIIntelligenceService {
         }
 
         LogManager.send("AI analysis starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)
-        let response = try await withTimeout(seconds: 90) {
-            try await self.client.sendMessage(
-                system: self.effectiveSystemPrompt,
-                userContent: userPrompt
-            )
+        let capturedMeetingID = meetingID
+        let response = try await AIRetry.run(label: "analyze", meetingID: capturedMeetingID) { [client, effectiveSystemPrompt, userPrompt] in
+            try await withTimeout(seconds: 90) {
+                try await client.sendMessage(
+                    system: effectiveSystemPrompt,
+                    userContent: userPrompt
+                )
+            }
         }
         LogManager.send("AI raw response (\(response.count) chars): \(response.prefix(500))", category: .ai, meetingID: meetingID)
 
@@ -140,11 +143,14 @@ actor AIIntelligenceService {
         )
 
         LogManager.send("AI final cleanup starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)
-        let response = try await withTimeout(seconds: 90) {
-            try await self.client.sendMessage(
-                system: self.effectiveSystemPrompt,
-                userContent: userPrompt
-            )
+        let capturedMeetingID = meetingID
+        let response = try await AIRetry.run(label: "finalCleanup", meetingID: capturedMeetingID) { [client, effectiveSystemPrompt, userPrompt] in
+            try await withTimeout(seconds: 90) {
+                try await client.sendMessage(
+                    system: effectiveSystemPrompt,
+                    userContent: userPrompt
+                )
+            }
         }
         LogManager.send("AI final cleanup raw response (\(response.count) chars): \(response.prefix(500))", category: .ai, meetingID: meetingID)
 

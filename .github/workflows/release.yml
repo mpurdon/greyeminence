@@ -84,6 +84,17 @@ jobs:
             -project GreyEminence.xcodeproj \
             -scheme "$SCHEME"
 
+      - name: Run tests
+        run: |
+          xcodebuild test \
+            -project GreyEminence.xcodeproj \
+            -scheme "$SCHEME" \
+            -destination "platform=macOS,arch=arm64" \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
       - name: Build archive
         run: |
           BUILD_TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")

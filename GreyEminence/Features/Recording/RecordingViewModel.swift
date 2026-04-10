@@ -180,6 +180,15 @@ final class RecordingViewModel {
     }
 
     func startRecording(in modelContext: ModelContext) {
+        // Guard against rapid double-click / stale UI triggering two starts in
+        // a row. If we're already recording or paused, ignore silently and log
+        // — creating a second meeting on top of a live one corrupts segment
+        // attribution and leaks audio files.
+        guard state == .idle else {
+            log.log("startRecording ignored: already in state \(state)", category: .audio, level: .warning)
+            return
+        }
+
         let meeting = Meeting(title: "Meeting \(DateFormatter.shortDate.string(from: .now))")
 
         // Calendar integration: auto-set title and match attendees

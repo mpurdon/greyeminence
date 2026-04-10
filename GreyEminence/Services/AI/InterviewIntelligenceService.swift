@@ -139,11 +139,14 @@ actor InterviewIntelligenceService {
         }
 
         LogManager.send("Interview rubric analysis starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)
-        let response = try await withTimeout(seconds: 90) {
-            try await self.client.sendMessage(
-                system: InterviewPromptTemplates.systemPrompt,
-                userContent: userPrompt
-            )
+        let capturedMeetingID = meetingID
+        let response = try await AIRetry.run(label: "interviewRubric", meetingID: capturedMeetingID) { [client, userPrompt] in
+            try await withTimeout(seconds: 90) {
+                try await client.sendMessage(
+                    system: InterviewPromptTemplates.systemPrompt,
+                    userContent: userPrompt
+                )
+            }
         }
         LogManager.send("Interview rubric response (\(response.count) chars)", category: .ai, meetingID: meetingID)
 
@@ -171,11 +174,14 @@ actor InterviewIntelligenceService {
         )
 
         LogManager.send("Interview final analysis starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)
-        let response = try await withTimeout(seconds: 90) {
-            try await self.client.sendMessage(
-                system: InterviewPromptTemplates.systemPrompt,
-                userContent: userPrompt
-            )
+        let capturedMeetingID = meetingID
+        let response = try await AIRetry.run(label: "interviewFinal", meetingID: capturedMeetingID) { [client, userPrompt] in
+            try await withTimeout(seconds: 90) {
+                try await client.sendMessage(
+                    system: InterviewPromptTemplates.systemPrompt,
+                    userContent: userPrompt
+                )
+            }
         }
         LogManager.send("Interview final response (\(response.count) chars)", category: .ai, meetingID: meetingID)
 
@@ -201,11 +207,15 @@ actor InterviewIntelligenceService {
 
         LogManager.send("Section scoring '\(section.title)': sending \(nonEmpty.count) segments (\(userPrompt.count) chars)", category: .ai, meetingID: meetingID)
 
-        let response = try await withTimeout(seconds: 90) {
-            try await self.client.sendMessage(
-                system: InterviewPromptTemplates.systemPrompt,
-                userContent: userPrompt
-            )
+        let capturedMeetingID = meetingID
+        let sectionTitle = section.title
+        let response = try await AIRetry.run(label: "sectionScore[\(sectionTitle)]", meetingID: capturedMeetingID) { [client, userPrompt] in
+            try await withTimeout(seconds: 90) {
+                try await client.sendMessage(
+                    system: InterviewPromptTemplates.systemPrompt,
+                    userContent: userPrompt
+                )
+            }
         }
 
         LogManager.send("Section scoring '\(section.title)': response \(response.count) chars", category: .ai, meetingID: meetingID)
