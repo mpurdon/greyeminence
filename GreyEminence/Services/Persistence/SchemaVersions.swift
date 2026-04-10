@@ -20,9 +20,14 @@ import SwiftData
 /// Safety net: even if a schema change goes wrong, `StoreBackupService` keeps
 /// daily copies of the store in `AppSupport/GreyEminence/backups/` for 7 days.
 enum SchemaV1: VersionedSchema {
-    static let versionIdentifier = Schema.Version(1, 0, 0)
+    // Computed properties rather than `static let` because `Schema.Version`
+    // isn't `Sendable` on Xcode 16's toolchain — storing it as a stored static
+    // fails Swift 6 strict concurrency checking. Computing it per-access
+    // sidesteps the shared-mutable-state check cleanly.
+    static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
 
-    static let models: [any PersistentModel.Type] = [
+    static var models: [any PersistentModel.Type] {
+        [
         Meeting.self,
         TranscriptSegment.self,
         ActionItem.self,
@@ -47,7 +52,8 @@ enum SchemaV1: VersionedSchema {
         ScoreEvidence.self,
         CriterionEvaluation.self,
         CriterionEvidence.self,
-    ]
+        ]
+    }
 }
 
 /// Migration plan for the SwiftData store. Each new `SchemaV*` version is
@@ -55,11 +61,11 @@ enum SchemaV1: VersionedSchema {
 /// `stages`. Lightweight migration (adding optional fields, etc.) works
 /// automatically and doesn't need an explicit stage.
 enum GreyEminenceMigrationPlan: SchemaMigrationPlan {
-    static let schemas: [any VersionedSchema.Type] = [
-        SchemaV1.self,
-    ]
+    static var schemas: [any VersionedSchema.Type] {
+        [SchemaV1.self]
+    }
 
-    static let stages: [MigrationStage] = [
+    static var stages: [MigrationStage] {
         // No migrations yet — SchemaV1 is the first versioned snapshot.
         // When you add SchemaV2, add a stage like:
         //   .lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)
@@ -70,5 +76,6 @@ enum GreyEminenceMigrationPlan: SchemaMigrationPlan {
         //     willMigrate: { context in ... },
         //     didMigrate: { context in ... }
         //   )
-    ]
+        []
+    }
 }
