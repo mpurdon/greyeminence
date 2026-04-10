@@ -39,6 +39,14 @@ actor AudioFileWriter {
 
     func start(inputFormat: AVAudioFormat) throws {
         startedFormat = inputFormat
+        // If we're resuming an interrupted recording, the base URL and/or
+        // its part siblings may already exist on disk from the prior session.
+        // Writing into the base URL via AVAudioFile(forWriting:) would truncate
+        // those files and lose audio — so before opening anything, scan for
+        // existing chunks and bump `chunkIndex` past the highest one found.
+        chunkIndex = Self.nextChunkIndex(base: baseURL)
+        // Previously-existing chunks are preserved but not tracked as ours;
+        // callers can enumerate them with `Self.existingChunkURLs(base:)`.
         try openChunk(inputFormat: inputFormat)
     }
 
@@ -108,6 +116,35 @@ actor AudioFileWriter {
         return parent
             .appendingPathComponent(chunkName)
             .appendingPathExtension(ext)
+    }
+
+    /// Enumerate all existing chunks for the given base URL, sorted by index.
+    /// Used by resume to validate or play back prior sessions' audio.
+    nonisolated static func existingChunkURLs(base: URL) -> [URL] {
+        var urls: [URL] = []
+        if FileManager.default.fileExists(atPath: base.path) {
+            urls.append(base)
+        }
+        // Walk siblings named `<stem>.partNNN.<ext>`. Stop at the first gap so
+        // we don't include unrelated `.part999.m4a` files that might be lying
+        // around from testing.
+        var i = 1
+        while true {
+            let url = chunkURL(base: base, index: i)
+            guard FileManager.default.fileExists(atPath: url.path) else { break }
+            urls.append(url)
+            i += 1
+        }
+        return urls
+    }
+
+    /// Returns the chunk index that new audio should be written to, given any
+    /// existing chunks on disk for this base URL. If nothing exists, returns 0.
+    /// If there are N existing chunks (indices 0..<N), returns N — so we write
+    /// to a fresh file and never truncate prior session audio on resume.
+    nonisolated static func nextChunkIndex(base: URL) -> Int {
+        let existing = existingChunkURLs(base: base)
+        return existing.count
     }
 }
 

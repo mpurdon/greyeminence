@@ -18,6 +18,7 @@ struct MeetingDetailView: View {
     @State private var sortedSegments: [TranscriptSegment] = []
     @State private var showDedupDebug = false
     @State private var showTranscriptSavePanel = false
+    @State private var editSaveError: String?
     @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
 
     var onSplitMeeting: ((Meeting) -> Void)?
@@ -45,6 +46,25 @@ struct MeetingDetailView: View {
             // Editing toolbar (completed meetings only)
             if meeting.status == .completed && !sortedSegments.isEmpty {
                 transcriptToolbar
+                Divider()
+            }
+
+            if let editSaveError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(editSaveError)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Dismiss") { self.editSaveError = nil }
+                        .font(.caption)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.blue)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+                .background(.bar)
                 Divider()
             }
 
@@ -223,7 +243,7 @@ struct MeetingDetailView: View {
                 Button {
                     do {
                         _ = try ObsidianExportService.export(meeting: meeting)
-                        try? modelContext.save()
+                        PersistenceGate.save(modelContext, site: "MeetingDetailView.obsidianExport", meetingID: meeting.id)
                         exportState = .success
                     } catch {
                         exportState = .error(error.localizedDescription)
@@ -398,7 +418,7 @@ struct MeetingDetailView: View {
         meeting.segments.removeAll { $0.id == segment.id }
         modelContext.delete(segment)
         selectedSegmentIDs.remove(segment.id)
-        try? modelContext.save()
+        saveEdit(site: "deleteSegment")
     }
 
     private func deleteSelectedSegments() {
@@ -408,7 +428,7 @@ struct MeetingDetailView: View {
             modelContext.delete(segment)
         }
         selectedSegmentIDs.removeAll()
-        try? modelContext.save()
+        saveEdit(site: "deleteSelectedSegments")
     }
 
     private func mergeSegmentWithNext(_ segment: TranscriptSegment) {
@@ -433,7 +453,7 @@ struct MeetingDetailView: View {
         meeting.segments.removeAll { $0.id == next.id }
         modelContext.delete(next)
         selectedSegmentIDs.remove(next.id)
-        try? modelContext.save()
+        saveEdit(site: "mergeSegmentWithNext")
     }
 
     private func splitSegment(_ segment: TranscriptSegment, before: String, after: String) {
@@ -464,7 +484,7 @@ struct MeetingDetailView: View {
         )
         newSegment.meeting = meeting
         meeting.segments.append(newSegment)
-        try? modelContext.save()
+        saveEdit(site: "splitSegment")
     }
 
     private func reassignSelectedSegments(to speaker: Speaker) {
@@ -476,7 +496,7 @@ struct MeetingDetailView: View {
             segment.speaker = speaker
             segment.isEdited = true
         }
-        try? modelContext.save()
+        saveEdit(site: "reassignSelectedSegments")
     }
 
     private func deduplicateTranscript() {
@@ -488,7 +508,7 @@ struct MeetingDetailView: View {
                 modelContext.delete(seg)
             }
         }
-        try? modelContext.save()
+        saveEdit(site: "deduplicateTranscript")
         sortedSegments = meeting.segments.sorted { $0.startTime < $1.startTime }
         LogManager.send("Manual dedup removed \(result.removedCount) segment(s)", category: .transcription)
     }
@@ -505,7 +525,7 @@ struct MeetingDetailView: View {
             segment.originalSpeakerData = nil
             segment.isEdited = false
         }
-        try? modelContext.save()
+        saveEdit(site: "revertAllEdits")
     }
 
     private func toggleSelection(_ segment: TranscriptSegment) {
@@ -526,7 +546,24 @@ struct MeetingDetailView: View {
             seg.speaker = newSpeaker
             seg.isEdited = true
         }
-        try? modelContext.save()
+        saveEdit(site: "changeSpeakerForAll")
+    }
+
+    /// Persist a user edit and surface failures. Used by all segment-editing
+    /// actions (delete, merge, split, reassign, dedup, revert). On failure
+    /// we log and show a transient error banner — if the user doesn't know
+    /// their edit was dropped, they'll lose work silently.
+    private func saveEdit(site: String) {
+        let ok = PersistenceGate.save(
+            modelContext,
+            site: "MeetingDetailView.\(site)",
+            meetingID: meeting.id
+        )
+        if !ok {
+            editSaveError = "Edit couldn't be saved: \(PersistenceGate.lastFailureMessage ?? "unknown error"). Try again, or check disk space."
+        } else {
+            editSaveError = nil
+        }
     }
 
     // Only disallow splitting at the very first segment (nothing would remain in the original).
@@ -580,7 +617,16 @@ struct MeetingDetailView: View {
         for old in newMeeting.insights { modelContext.delete(old) }
         for old in newMeeting.actionItems { modelContext.delete(old) }
 
-        try? modelContext.save()
+        let splitSplitOK = PersistenceGate.save(
+            modelContext,
+            site: "splitMeeting/afterSegmentMove",
+            critical: true,
+            meetingID: meeting.id
+        )
+        if !splitSplitOK {
+            editSaveError = "Split failed while saving the new meeting layout — both meetings may be in an inconsistent state. Check the activity log and consider reverting."
+            return
+        }
 
         // Snapshot segments synchronously before any await — avoids reading
         // SwiftData relationships across an async suspension point.
@@ -599,12 +645,24 @@ struct MeetingDetailView: View {
 
         meeting.isAnalyzing = true
         newMeeting.isAnalyzing = true
-        try? modelContext.save()
+        PersistenceGate.save(
+            modelContext,
+            site: "splitMeeting/markAnalyzing",
+            meetingID: meeting.id
+        )
 
         await analyzeMeetingAfterSplit(meeting, snapshots: originalSnapshots, client: client)
         await analyzeMeetingAfterSplit(newMeeting, snapshots: newSnapshots, client: client)
 
-        try? modelContext.save()
+        let finalOK = PersistenceGate.save(
+            modelContext,
+            site: "splitMeeting/finalInsights",
+            critical: true,
+            meetingID: meeting.id
+        )
+        if !finalOK {
+            editSaveError = "Split re-analysis completed but saving insights failed. Both meetings have transcripts but may be missing AI insights — use Reanalyze to retry."
+        }
 
         onSplitMeeting?(newMeeting)
     }

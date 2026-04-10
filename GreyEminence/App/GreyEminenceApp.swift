@@ -22,38 +22,21 @@ struct GreyEminenceApp: App {
     )
 
     var sharedModelContainer: ModelContainer? = {
-        let schema = Schema([
-            Meeting.self,
-            TranscriptSegment.self,
-            ActionItem.self,
-            MeetingInsight.self,
-            Contact.self,
-            // Interview feature
-            Department.self,
-            Team.self,
-            RoleLevel.self,
-            InterviewRole.self,
-            Rubric.self,
-            RubricSection.self,
-            RubricCriterion.self,
-            RubricBonusSignal.self,
-            Candidate.self,
-            Interview.self,
-            InterviewSectionScore.self,
-            InterviewImpression.self,
-            InterviewImpressionTrait.self,
-            InterviewBookmark.self,
-            InterviewNote.self,
-            ScoreEvidence.self,
-            CriterionEvaluation.self,
-            CriterionEvidence.self,
-        ])
+        // Versioned schema + migration plan — see SchemaVersions.swift.
+        // Every model change should bump to a new SchemaV* and register a
+        // migration stage so existing user stores evolve safely instead of
+        // breaking silently.
+        let schema = Schema(versionedSchema: SchemaV1.self)
         let config = ModelConfiguration(
             "GreyEminence",
             schema: schema,
             isStoredInMemoryOnly: false
         )
-        return try? ModelContainer(for: schema, configurations: [config])
+        return try? ModelContainer(
+            for: schema,
+            migrationPlan: GreyEminenceMigrationPlan.self,
+            configurations: [config]
+        )
     }()
 
     private var menuBarIcon: String {
@@ -88,6 +71,7 @@ struct GreyEminenceApp: App {
                     .onAppear {
                         appEnvironment.configure(modelContext: container.mainContext)
                         seedInterviewDefaults(in: container.mainContext)
+                        StoreBackupService.runIfNeeded(for: container)
                     }
                     .modelContainer(container)
             } else {

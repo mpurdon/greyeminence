@@ -159,6 +159,20 @@ final class RecordingViewModel {
         speakerContactMapper.prepopulate(from: meeting.attendees)
 
         log.log("Resuming interrupted recording (\(sorted.count) existing segments, \(meeting.formattedDuration) elapsed)", category: .audio)
+
+        // Validate any audio chunks left on disk from the interrupted session.
+        // Broken (unfinalized) chunks are renamed to .corrupted so they're
+        // preserved for forensic recovery but excluded from playback.
+        // AudioFileWriter.start will scan existing valid chunks and resume
+        // writing at the next index, so prior audio is never truncated.
+        let storageManager = StorageManager.shared
+        let micBase = storageManager.micAudioURL(for: meeting.id)
+        let sysBase = storageManager.systemAudioURL(for: meeting.id)
+        Task.detached {
+            _ = await AudioChunkValidator.validateChunks(base: micBase)
+            _ = await AudioChunkValidator.validateChunks(base: sysBase)
+        }
+
         startTimer()
         startRealCapture(meetingID: meeting.id)
         startIntelligenceService()
