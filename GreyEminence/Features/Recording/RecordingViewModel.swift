@@ -218,6 +218,16 @@ final class RecordingViewModel {
             log.log("Calendar event matched: \(event.title ?? "untitled")", category: .general)
         }
 
+        // Always add "me" as an attendee — the user must be present to record.
+        let myContactIDString = UserDefaults.standard.string(forKey: "myContactID") ?? ""
+        if let myID = UUID(uuidString: myContactIDString),
+           !meeting.attendees.contains(where: { $0.id == myID }) {
+            let descriptor = FetchDescriptor<Contact>(predicate: #Predicate { $0.id == myID })
+            if let me = try? modelContext.fetch(descriptor).first {
+                meeting.attendees.append(me)
+            }
+        }
+
         modelContext.insert(meeting)
         self.modelContext = modelContext
         currentMeeting = meeting

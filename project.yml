@@ -42,8 +42,8 @@ targets:
         INFOPLIST_FILE: GreyEminence/Info.plist
         CODE_SIGN_ENTITLEMENTS: GreyEminence/GreyEminence.entitlements
         PRODUCT_NAME: Grey Eminence
-        MARKETING_VERSION: "0.9.4"
-        CURRENT_PROJECT_VERSION: "20260410010000"
+        MARKETING_VERSION: "0.9.5"
+        CURRENT_PROJECT_VERSION: "20260410020000"
         COMBINE_HIDPI_IMAGES: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic

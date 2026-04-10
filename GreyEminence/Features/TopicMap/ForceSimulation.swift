@@ -9,11 +9,11 @@ enum ForceSimulation {
         center: CGPoint,
         alpha: CGFloat
     ) {
-        let repulsionStrength: CGFloat = 3000 * alpha
-        let attractionStrength: CGFloat = 0.008 * alpha
-        let centerGravity: CGFloat = 0.02 * alpha
-        let maxRepulsionDist: CGFloat = 400
-        let damping: CGFloat = 0.6
+        let repulsionStrength: CGFloat = 5000 * alpha
+        let attractionStrength: CGFloat = 0.005 * alpha
+        let centerGravity: CGFloat = 0.015 * alpha
+        let maxRepulsionDist: CGFloat = 500
+        let damping: CGFloat = 0.55
 
         let count = nodes.count
         guard count > 0 else { return }
@@ -26,7 +26,7 @@ enum ForceSimulation {
                 let dist = max(hypot(dx, dy), 1)
                 guard dist < maxRepulsionDist else { continue }
 
-                let radiusScale = (nodes[i].radius + nodes[j].radius) / 24
+                let radiusScale = (nodes[i].radius + nodes[j].radius) / 16
                 let force = repulsionStrength * radiusScale / (dist * dist)
                 dx = dx / dist * force
                 dy = dy / dist * force
@@ -48,7 +48,7 @@ enum ForceSimulation {
             let dy = nodes[j].position.y - nodes[i].position.y
             let dist = max(hypot(dx, dy), 1)
 
-            let restLength = nodes[i].radius + nodes[j].radius + 40
+            let restLength = nodes[i].radius + nodes[j].radius + 60
             let displacement = dist - restLength
             let weightScale = CGFloat(min(edge.weight, 10)) / 3.0
             let force = attractionStrength * displacement * weightScale

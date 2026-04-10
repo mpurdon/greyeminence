@@ -4,6 +4,7 @@ import Sparkle
 
 struct GeneralSettingsView: View {
     var updater: SPUUpdater?
+    @ObservedObject private var updateViewModel: CheckForUpdatesViewModel
     @Environment(\.modelContext) private var modelContext
     @AppStorage("autoStartRecording") private var autoStart = false
     @AppStorage("showMenuBarIcon") private var showMenuBar = true
@@ -13,6 +14,15 @@ struct GeneralSettingsView: View {
     @AppStorage("appFontSize") private var appFontSize = "medium"
     @AppStorage("myContactID") private var myContactIDString = ""
     @Query(sort: \Contact.name) private var contacts: [Contact]
+
+    init(updater: SPUUpdater?) {
+        self.updater = updater
+        if let updater {
+            self._updateViewModel = ObservedObject(wrappedValue: CheckForUpdatesViewModel(updater: updater))
+        } else {
+            self._updateViewModel = ObservedObject(wrappedValue: CheckForUpdatesViewModel())
+        }
+    }
 
     private var myContact: Contact? {
         guard let id = UUID(uuidString: myContactIDString) else { return nil }
@@ -107,12 +117,19 @@ struct GeneralSettingsView: View {
 
             Section {
                 LabeledContent("Version") {
-                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")
+                    HStack(spacing: 8) {
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")
+                        if let lastCheck = updateViewModel.lastUpdateCheckDate {
+                            Text("Last checked \(lastCheck, format: .relative(presentation: .named))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 Button("Check for Updates") {
                     updater?.checkForUpdates()
                 }
-                .disabled(updater == nil)
+                .disabled(!updateViewModel.canCheckForUpdates)
             } header: {
                 Label("About", systemImage: "info.circle")
                     .font(.subheadline.weight(.semibold))

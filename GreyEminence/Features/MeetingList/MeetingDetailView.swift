@@ -173,7 +173,9 @@ struct MeetingDetailView: View {
         .onChange(of: showTranscriptSavePanel) { _, show in
             guard show else { return }
             showTranscriptSavePanel = false
-            saveTranscriptFile()
+            DispatchQueue.main.async {
+                saveTranscriptFile()
+            }
         }
     }
 
@@ -251,11 +253,11 @@ struct MeetingDetailView: View {
                 } label: {
                     switch exportState {
                     case .idle:
-                        Label("Export", systemImage: "arrow.up.doc")
+                        Label("Sync to Obsidian", systemImage: "arrow.up.doc")
                     case .success:
-                        Label("Exported", systemImage: "checkmark.circle.fill")
+                        Label("Synced to Obsidian", systemImage: "checkmark.circle.fill")
                     case .error:
-                        Label("Export Failed", systemImage: "exclamation.triangle.fill")
+                        Label("Sync Failed", systemImage: "exclamation.triangle.fill")
                     }
                 }
                 .disabled(UserDefaults.standard.string(forKey: "obsidianVaultPath")?.isEmpty != false)
@@ -708,8 +710,8 @@ struct MeetingDetailView: View {
 
     private var exportHelpText: String {
         switch exportState {
-        case .idle: "Export to Obsidian vault"
-        case .success: "Successfully exported"
+        case .idle: "Sync to Obsidian vault"
+        case .success: "Successfully synced to Obsidian"
         case .error(let msg): msg
         }
     }

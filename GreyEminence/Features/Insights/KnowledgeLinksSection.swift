@@ -28,18 +28,42 @@ struct KnowledgeLinksSection: View {
     }
 }
 
-struct TopicBadge: View {
-    let topic: String
+// MARK: - Topic Navigation Environment
 
-    var body: some View {
-        Text(topic)
-            .font(.caption)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(.purple.opacity(0.1), in: Capsule())
-            .foregroundStyle(.purple)
+private struct TopicMapViewModelKey: EnvironmentKey {
+    static let defaultValue: TopicMapViewModel? = nil
+}
+
+extension EnvironmentValues {
+    var topicMapViewModel: TopicMapViewModel? {
+        get { self[TopicMapViewModelKey.self] }
+        set { self[TopicMapViewModelKey.self] = newValue }
     }
 }
+
+// MARK: - Topic Badge
+
+struct TopicBadge: View {
+    let topic: String
+    @Environment(\.topicMapViewModel) private var topicMapViewModel
+
+    var body: some View {
+        Button {
+            topicMapViewModel?.pendingFocusTopic = topic
+        } label: {
+            Text(topic)
+                .font(.caption)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(.purple.opacity(0.1), in: Capsule())
+                .foregroundStyle(.purple)
+        }
+        .buttonStyle(.plain)
+        .help("View in Topic Map")
+    }
+}
+
+// MARK: - Flow Layout
 
 struct FlowLayout: Layout {
     var spacing: CGFloat

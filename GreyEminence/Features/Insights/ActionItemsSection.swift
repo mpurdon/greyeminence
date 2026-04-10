@@ -2,13 +2,14 @@ import SwiftUI
 
 struct ActionItemsSection: View {
     let items: [ActionItem]
+    var onDelete: ((ActionItem) -> Void)?
     @State private var isExpanded = true
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(items) { item in
-                    ActionItemRow(item: item)
+                    ActionItemRow(item: item, onDelete: onDelete)
                 }
             }
             .padding(.top, 4)

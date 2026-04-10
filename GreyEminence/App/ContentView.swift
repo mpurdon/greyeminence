@@ -54,6 +54,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var selectedDestination: SidebarDestination? = .dashboard
     @State private var selectedMeeting: Meeting?
+    @State private var topicMapViewModel = TopicMapViewModel()
     @State private var showInspector = true
     @State private var sidebarExpanded = false
     @State private var inspectorWidth: CGFloat?
@@ -76,6 +77,12 @@ struct ContentView: View {
             contentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.top, 8)
+                .environment(\.topicMapViewModel, topicMapViewModel)
+                .onChange(of: topicMapViewModel.pendingFocusTopic) { _, topic in
+                    if topic != nil {
+                        selectedDestination = .topicMap
+                    }
+                }
         }
         .toolbar {
             if selectedDestination == .meetings || selectedDestination == .recording || selectedDestination == .interviews {
@@ -332,7 +339,7 @@ struct ContentView: View {
         case .people:
             PeopleView()
         case .topicMap:
-            TopicMapView(onMeetingSelected: { meeting in
+            TopicMapView(viewModel: topicMapViewModel, onMeetingSelected: { meeting in
                 selectedMeeting = meeting
                 selectedDestination = .meetings
                 showInspector = true
@@ -436,6 +443,7 @@ struct AllTasksView: View {
 
 struct ActionItemRow: View {
     @Bindable var item: ActionItem
+    var onDelete: ((ActionItem) -> Void)?
     @State private var showContactPicker = false
 
     private var excludedIDs: Set<PersistentIdentifier> {
@@ -504,6 +512,12 @@ struct ActionItemRow: View {
             if item.assignedContact != nil {
                 Button("Unlink Contact") {
                     item.assignedContact = nil
+                }
+            }
+            if let onDelete {
+                Divider()
+                Button("Delete", role: .destructive) {
+                    onDelete(item)
                 }
             }
         }

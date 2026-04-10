@@ -5,7 +5,7 @@ struct TopicMapView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var insights: [MeetingInsight]
     @Query(sort: \Meeting.date, order: .reverse) private var allMeetings: [Meeting]
-    @State private var viewModel = TopicMapViewModel()
+    @Bindable var viewModel: TopicMapViewModel
     @State private var canvasSize: CGSize = .zero
     @State private var isReanalyzing = false
     @State private var reanalyzeProgress: (current: Int, total: Int)?
@@ -57,12 +57,16 @@ struct TopicMapView: View {
             .onAppear {
                 canvasSize = size
                 rebuildIfNeeded()
+                applyPendingFocus()
             }
             .onChange(of: size) { _, newSize in
                 canvasSize = newSize
             }
             .onChange(of: insights.count) {
                 rebuildIfNeeded()
+            }
+            .onChange(of: viewModel.isSimulating) { _, simulating in
+                if !simulating { applyPendingFocus() }
             }
         }
         .searchable(text: $viewModel.searchText, prompt: "Search topics")
@@ -71,9 +75,6 @@ struct TopicMapView: View {
     @ViewBuilder
     private var graphContent: some View {
         HStack(spacing: 0) {
-            topicBarChart
-                .frame(width: 220)
-            Divider()
             ZStack(alignment: .topTrailing) {
                 graphCanvas
                 controlButtons
@@ -87,54 +88,6 @@ struct TopicMapView: View {
                 )
                 .frame(width: 280)
             }
-        }
-    }
-
-    private var topicBarChart: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(viewModel.rankedNodes) { node in
-                    let isSelected = node.id == viewModel.selectedTopicID
-                    let isHovered = node.id == viewModel.hoveredTopicID
-
-                    Button {
-                        viewModel.selectedTopicID = (viewModel.selectedTopicID == node.id) ? nil : node.id
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text("\(node.meetingCount)")
-                                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 20, alignment: .trailing)
-
-                            GeometryReader { geo in
-                                let fraction = CGFloat(node.meetingCount) / CGFloat(max(viewModel.maxMeetingCount, 1))
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(node.color.opacity(isSelected || isHovered ? 1.0 : 0.7))
-                                    .frame(width: max(fraction * geo.size.width, 4))
-                            }
-                            .frame(height: 12)
-
-                            Text(node.label)
-                                .font(.system(size: 10))
-                                .lineLimit(1)
-                                .foregroundStyle(isSelected ? .primary : .secondary)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(
-                            isSelected ? Color.accentColor.opacity(0.12) :
-                            isHovered ? Color.secondary.opacity(0.08) : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 4)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { hovering in
-                        viewModel.hoveredTopicID = hovering ? node.id : nil
-                    }
-                }
-            }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 4)
         }
     }
 
@@ -158,7 +111,7 @@ struct TopicMapView: View {
                 path.addLine(to: to)
                 context.stroke(
                     path,
-                    with: .color(.secondary.opacity(opacity)),
+                    with: .color(.primary.opacity(opacity)),
                     lineWidth: viewModel.edgeWidth(for: edge)
                 )
             }
@@ -175,52 +128,51 @@ struct TopicMapView: View {
                     height: node.radius * 2
                 )
 
-                // Highlight ring for selected/hovered
                 let isSelected = node.id == viewModel.selectedTopicID
                 let isHovered = node.id == viewModel.hoveredTopicID
                 let isConnected = viewModel.isConnectedToSelected(node.id)
                     || viewModel.isConnectedToHovered(node.id)
 
-                if isSelected || isHovered {
-                    let ringRect = rect.insetBy(dx: -3, dy: -3)
+                // Glow ring for selected
+                if isSelected {
+                    let ringRect = rect.insetBy(dx: -4, dy: -4)
                     context.fill(
                         Circle().path(in: ringRect),
-                        with: .color(.accentColor.opacity(0.3))
+                        with: .color(.accentColor.opacity(0.25))
                     )
                 }
 
-                // Node fill
-                let fillOpacity = isConnected ? max(opacity, 0.6) : opacity
+                // Node fill — monochrome with emphasis on focus cluster
+                let fillColor: Color
+                if isSelected {
+                    fillColor = .accentColor
+                } else if isHovered {
+                    fillColor = .primary
+                } else if isConnected {
+                    fillColor = .primary.opacity(0.7)
+                } else {
+                    fillColor = .secondary
+                }
+
                 context.fill(
                     Circle().path(in: rect),
-                    with: .color(node.color.opacity(fillOpacity))
+                    with: .color(fillColor.opacity(opacity))
                 )
 
-                // Label — only show for hovered, selected, connected, or large nodes at high zoom
+                // Label — only show for hovered, selected, connected nodes, or large nodes when zoomed
                 let showLabel = isSelected || isHovered || isConnected
-                    || (viewModel.scale > 1.2 && node.meetingCount >= 3)
+                    || (viewModel.scale > 1.5 && node.meetingCount >= 3)
                 if showLabel {
+                    let weight: Font.Weight = (isSelected || isHovered) ? .semibold : .regular
+                    let labelOpacity = (isSelected || isHovered) ? 1.0 : 0.7
                     let labelText = Text(node.label)
-                        .font(.system(size: max(9, 10 / viewModel.scale), weight: isSelected || isHovered ? .semibold : .regular))
-                        .foregroundColor(.primary.opacity(opacity))
+                        .font(.system(size: max(9, 10 / viewModel.scale), weight: weight))
+                        .foregroundColor(.primary.opacity(labelOpacity * opacity))
                     let labelPoint = CGPoint(
                         x: node.position.x,
-                        y: node.position.y + node.radius + 6
+                        y: node.position.y + node.radius + 4
                     )
                     context.draw(labelText, at: labelPoint, anchor: .top)
-                }
-
-                // Meeting count badge inside node for larger nodes
-                if node.radius >= 16 {
-                    let badge = Text("\(node.meetingCount)")
-                        .font(.system(size: min(node.radius * 0.6, 11), weight: .bold))
-                        .foregroundColor(.white.opacity(0.9))
-                    context.draw(badge, at: node.position, anchor: .center)
-                } else if isSelected || isHovered {
-                    let badge = Text("\(node.meetingCount)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white)
-                    context.draw(badge, at: node.position, anchor: .center)
                 }
             }
         }
@@ -330,6 +282,17 @@ struct TopicMapView: View {
         viewModel.buildGraph(from: topicInsights, canvasSize: canvasSize)
     }
 
+    private func applyPendingFocus() {
+        guard let topic = viewModel.pendingFocusTopic,
+              !viewModel.nodes.isEmpty,
+              canvasSize.width > 0 else { return }
+        viewModel.pendingFocusTopic = nil
+        // Small delay so the canvas has rendered at least once
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            viewModel.focusOnTopic(topic, canvasSize: canvasSize)
+        }
+    }
+
     /// Meetings that have transcript segments but no insight with topics.
     private var meetingsNeedingAnalysis: Int {
         let meetingsWithTopics = Set(
@@ -369,13 +332,8 @@ struct TopicMapView: View {
 
             do {
                 // Seed with first pass, then final
-                let firstPass = try await service.analyze(segments: snapshots)
-                let result: AnalysisResult
-                if let r = firstPass {
-                    result = r
-                } else if let r = try await service.performFinalAnalysis(segments: snapshots) {
-                    result = r
-                } else {
+                _ = try await service.analyze(segments: snapshots)
+                guard let result = try await service.performFinalAnalysis(segments: snapshots) else {
                     continue
                 }
 

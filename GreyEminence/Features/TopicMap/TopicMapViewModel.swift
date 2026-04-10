@@ -241,6 +241,28 @@ final class TopicMapViewModel {
         }
     }
 
+    /// Select a topic by its normalized ID and pan/zoom so the node is centered.
+    func focusOnTopic(_ topicLabel: String, canvasSize: CGSize) {
+        let normalized = topicLabel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let node = nodes.first(where: { $0.id == normalized }) else { return }
+        selectedTopicID = normalized
+
+        // Zoom in slightly and center on the node
+        let targetScale: CGFloat = 1.6
+        let centerX = canvasSize.width / 2
+        let centerY = canvasSize.height / 2
+        withAnimation(.easeInOut(duration: 0.4)) {
+            scale = targetScale
+            offset = CGPoint(
+                x: centerX - node.position.x * targetScale,
+                y: centerY - node.position.y * targetScale
+            )
+        }
+    }
+
+    /// A topic label queued from external navigation. The view clears this after focusing.
+    var pendingFocusTopic: String?
+
     // MARK: - Visual State
 
     var searchMatches: Set<String> {
@@ -251,41 +273,49 @@ final class TopicMapViewModel {
 
     var isSearchActive: Bool { !searchText.isEmpty }
 
-    /// Nodes sorted by meeting count descending, then label ascending.
-    var rankedNodes: [TopicNode] {
-        let filtered: [TopicNode]
-        if isSearchActive {
-            filtered = nodes.filter { searchMatches.contains($0.id) }
-        } else {
-            filtered = nodes
-        }
-        return filtered.sorted {
-            if $0.meetingCount != $1.meetingCount {
-                return $0.meetingCount > $1.meetingCount
+/// Whether a node is part of the active focus cluster (selected or connected to selected/hovered).
+    private var focusCluster: Set<String> {
+        var cluster = Set<String>()
+        if let id = selectedTopicID { cluster.insert(id) }
+        if let id = hoveredTopicID { cluster.insert(id) }
+        for id in cluster {
+            if let idx = nodes.firstIndex(where: { $0.id == id }) {
+                for edge in edges {
+                    if edge.sourceIndex == idx { cluster.insert(nodes[edge.targetIndex].id) }
+                    if edge.targetIndex == idx { cluster.insert(nodes[edge.sourceIndex].id) }
+                }
             }
-            return $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending
         }
+        return cluster
     }
 
-    var maxMeetingCount: Int {
-        nodes.map(\.meetingCount).max() ?? 1
+    private var hasFocus: Bool {
+        selectedTopicID != nil || hoveredTopicID != nil
     }
 
     func nodeOpacity(for node: TopicNode) -> Double {
-        if !isSearchActive { return 1.0 }
-        return searchMatches.contains(node.id) ? 1.0 : 0.12
+        if isSearchActive {
+            return searchMatches.contains(node.id) ? 1.0 : 0.08
+        }
+        if !hasFocus { return 0.45 }
+        return focusCluster.contains(node.id) ? 1.0 : 0.12
     }
 
     func edgeOpacity(for edge: TopicEdge) -> Double {
-        let baseOpacity = min(Double(edge.weight) / 5.0, 0.8)
-        if !isSearchActive { return baseOpacity }
-        let sourceMatch = searchMatches.contains(nodes[edge.sourceIndex].id)
-        let targetMatch = searchMatches.contains(nodes[edge.targetIndex].id)
-        return (sourceMatch && targetMatch) ? baseOpacity : 0.03
+        if isSearchActive {
+            let sourceMatch = searchMatches.contains(nodes[edge.sourceIndex].id)
+            let targetMatch = searchMatches.contains(nodes[edge.targetIndex].id)
+            return (sourceMatch && targetMatch) ? 0.4 : 0.03
+        }
+        if !hasFocus { return 0.08 }
+        let cluster = focusCluster
+        let sourceIn = cluster.contains(nodes[edge.sourceIndex].id)
+        let targetIn = cluster.contains(nodes[edge.targetIndex].id)
+        return (sourceIn && targetIn) ? 0.5 : 0.04
     }
 
     func edgeWidth(for edge: TopicEdge) -> CGFloat {
-        CGFloat(min(edge.weight, 8)) * 0.5 + 0.5
+        CGFloat(min(edge.weight, 6)) * 0.3 + 0.5
     }
 
     var selectedNode: TopicNode? {

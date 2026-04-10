@@ -12,7 +12,7 @@ struct TopicDetailPanel: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(node.label)
                             .font(.title3.weight(.bold))
-                        Text("Mentioned in \(node.meetingCount) meeting\(node.meetingCount == 1 ? "" : "s")")
+                        Text("\(node.meetingCount) meeting\(node.meetingCount == 1 ? "" : "s")")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -33,8 +33,8 @@ struct TopicDetailPanel: View {
                             } label: {
                                 HStack(spacing: 8) {
                                     Circle()
-                                        .fill(node.color)
-                                        .frame(width: 6, height: 6)
+                                        .fill(.primary.opacity(0.3))
+                                        .frame(width: 5, height: 5)
                                     VStack(alignment: .leading, spacing: 1) {
                                         Text(meeting.title)
                                             .font(.caption.weight(.medium))

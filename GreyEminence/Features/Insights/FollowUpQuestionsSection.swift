@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FollowUpQuestionsSection: View {
     let questions: [String]
+    var onDelete: ((Int) -> Void)?
     @State private var isExpanded = true
 
     var body: some View {
@@ -17,6 +18,18 @@ struct FollowUpQuestionsSection: View {
                         Text(question)
                             .font(.body)
                             .textSelection(.enabled)
+                    }
+                    .contextMenu {
+                        Button("Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(question, forType: .string)
+                        }
+                        if let onDelete {
+                            Divider()
+                            Button("Delete", role: .destructive) {
+                                onDelete(index)
+                            }
+                        }
                     }
                 }
             }

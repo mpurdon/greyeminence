@@ -69,8 +69,14 @@ struct MeetingIntelligenceView: View {
 
                 if let insight = meeting.latestInsight {
                     AISummarySection(summary: insight.summary)
-                    ActionItemsSection(items: meeting.actionItems)
-                    FollowUpQuestionsSection(questions: insight.followUpQuestions)
+                    ActionItemsSection(items: meeting.actionItems) { item in
+                        modelContext.delete(item)
+                        PersistenceGate.save(modelContext, site: "MeetingIntelligenceView.deleteActionItem", meetingID: meeting.id)
+                    }
+                    FollowUpQuestionsSection(questions: insight.followUpQuestions) { index in
+                        insight.followUpQuestions.remove(at: index)
+                        PersistenceGate.save(modelContext, site: "MeetingIntelligenceView.deleteFollowUp", meetingID: meeting.id)
+                    }
                     KnowledgeLinksSection(topics: insight.topics)
                 } else if meeting.isAnalyzing || isReanalyzing {
                     VStack(spacing: 12) {
@@ -119,14 +125,11 @@ struct MeetingIntelligenceView: View {
                 return
             }
 
-            // Seed with analyze() first; performFinalAnalysis needs a prior summary to produce output.
-            let firstPass = try await service.analyze(segments: snapshots)
-            let result: AnalysisResult
-            if let r = firstPass {
-                result = r
-            } else if let r = try await service.performFinalAnalysis(segments: snapshots) {
-                result = r
-            } else {
+            // Seed with analyze() first so performFinalAnalysis has a prior
+            // summary to refine. Then always run the final pass — it produces
+            // the polished result including the meeting title.
+            _ = try await service.analyze(segments: snapshots)
+            guard let result = try await service.performFinalAnalysis(segments: snapshots) else {
                 reanalysisError = "Analysis returned no results."
                 return
             }
