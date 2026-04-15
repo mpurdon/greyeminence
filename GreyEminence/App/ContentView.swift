@@ -286,14 +286,18 @@ struct ContentView: View {
                         let clampedWidth = min(max(width, 280), geo.size.width * 0.7)
 
                         HStack(spacing: 0) {
-                            MeetingDetailView(meeting: meeting, onSplitMeeting: { newMeeting in
-                                selectedMeeting = newMeeting
-                            })
+                            VStack(spacing: 0) {
+                                MeetingHeaderBar(meeting: meeting)
+                                Divider()
+                                MeetingIntelligenceView(meeting: meeting)
+                            }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             if showInspector {
                                 inspectorDragHandle(containerWidth: geo.size.width)
-                                MeetingIntelligenceView(meeting: meeting)
-                                    .frame(width: clampedWidth)
+                                TranscriptPanelView(meeting: meeting, onSplitMeeting: { newMeeting in
+                                    selectedMeeting = newMeeting
+                                })
+                                .frame(width: clampedWidth)
                             }
                         }
                     }

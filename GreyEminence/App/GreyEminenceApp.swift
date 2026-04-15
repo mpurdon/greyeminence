@@ -16,7 +16,7 @@ struct GreyEminenceApp: App {
     }
 
     private let updaterController = SPUStandardUpdaterController(
-        startingUpdater: !isDebugBuild,
+        startingUpdater: true,
         updaterDelegate: nil,
         userDriverDelegate: nil
     )
@@ -81,10 +81,8 @@ struct GreyEminenceApp: App {
         .defaultSize(width: 1200, height: 800)
         .commands {
             CommandGroup(after: .appInfo) {
-                if !Self.isDebugBuild {
-                    Button("Check for Updates...") {
-                        updaterController.checkForUpdates(nil)
-                    }
+                Button("Check for Updates...") {
+                    updaterController.checkForUpdates(nil)
                 }
             }
         }
