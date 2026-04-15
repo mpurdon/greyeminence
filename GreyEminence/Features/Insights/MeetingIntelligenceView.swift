@@ -6,6 +6,7 @@ struct MeetingIntelligenceView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var isReanalyzing = false
     @State private var reanalysisError: String?
+    @State private var reanalyzeTask: Task<Void, Never>?
 
     var body: some View {
         ScrollView {
@@ -26,16 +27,25 @@ struct MeetingIntelligenceView: View {
 
                     if meeting.status == .completed && !meeting.segments.isEmpty {
                         if isReanalyzing || meeting.isAnalyzing {
-                            HStack(spacing: 4) {
+                            HStack(spacing: 6) {
                                 ProgressView()
                                     .controlSize(.small)
                                 Text("Analyzing...")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                Button {
+                                    cancelAnalysis()
+                                } label: {
+                                    Label("Cancel", systemImage: "stop.circle")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .help("Cancel the in-progress analysis and reset the meeting state")
                             }
                         } else {
                             Button {
-                                Task { await reanalyze() }
+                                reanalyzeTask = Task { await reanalyze() }
                             } label: {
                                 Label("Reanalyze", systemImage: "arrow.clockwise")
                                     .font(.caption)
@@ -168,6 +178,21 @@ struct MeetingIntelligenceView: View {
             reanalysisError = error.localizedDescription
             LogManager.send("Reanalysis failed: \(error.localizedDescription)", category: .ai, level: .error)
         }
+    }
+
+    @MainActor
+    private func cancelAnalysis() {
+        reanalyzeTask?.cancel()
+        reanalyzeTask = nil
+        isReanalyzing = false
+        meeting.isAnalyzing = false
+        meeting.analysisError = "Analysis canceled by user."
+        PersistenceGate.save(
+            modelContext,
+            site: "MeetingIntelligenceView.cancelAnalysis",
+            meetingID: meeting.id
+        )
+        LogManager.send("Analysis canceled for meeting \(meeting.id)", category: .ai, level: .info)
     }
 
     /// Merges AI-parsed action items into the meeting while preserving user state

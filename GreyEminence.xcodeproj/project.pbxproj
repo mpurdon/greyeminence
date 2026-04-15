@@ -56,6 +56,7 @@
 		55A2068CDD71B2430C84E5DE /* MeetingAttendeesRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B18B5B7B23A1F23EB5D7BFCA /* MeetingAttendeesRow.swift */; };
 		55A5B3B4215E63B6E5107C20 /* APIKeySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F8F5AD9A2BC34E742295DC /* APIKeySettingsView.swift */; };
 		5B0D134A768087BDA747466F /* TranscriptDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3808CC293C20D0583278C3F9 /* TranscriptDeduplicator.swift */; };
+		5BE06B68015F12B69EB436D8 /* TranscriptPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5225DE7E98248F22B00C08CB /* TranscriptPanelView.swift */; };
 		6428B269561C1610AE114AB8 /* RecordingToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130974A6F8E2B27E4705F6A3 /* RecordingToolbar.swift */; };
 		645FB051CDDEF1925D77944A /* BedrockAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59A4997345983696DC9017FF /* BedrockAPIClient.swift */; };
 		6632545DC3BCE1347E7D2AAF /* VocabularyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A49043AC4DC48EF88C729BE /* VocabularyManager.swift */; };
@@ -81,6 +82,7 @@
 		8B007657E79B35D0EE9E89A3 /* AIClientFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D73DBC02E9A067276E806B8 /* AIClientFactory.swift */; };
 		8C25916DB63984A44D34D1E1 /* RubricSectionEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EBC71AC684DEC93517AF36 /* RubricSectionEditorView.swift */; };
 		8C6B05D3E05E3B1B03E2C29A /* RubricSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF52CED04CA1D2F4347E1DED /* RubricSection.swift */; };
+		8EF9F7BDD81C860D0B0BE8EC /* MeetingHeaderBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F56A5B034BDA436C319D0C /* MeetingHeaderBar.swift */; };
 		93DA0C25320EE99EC20C1EA7 /* LiveInterviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85571895F31B17D9B41094BB /* LiveInterviewView.swift */; };
 		9612CE638E6815D0234D9A09 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FACAFB70049A918A9CC576F /* CalendarService.swift */; };
 		96FC88F4A50DBC442D684EA9 /* TaggedAudioBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D9941CB56A4C5A85C1223D /* TaggedAudioBuffer.swift */; };
@@ -197,6 +199,7 @@
 		4DAA9CB7A537E882B021ABF4 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4EBBBD940532534CC8B5F6BD /* SectionMarkerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionMarkerView.swift; sourceTree = "<group>"; };
 		4F179608AFFAA08AE6B8ADE1 /* AISummarySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISummarySection.swift; sourceTree = "<group>"; };
+		5225DE7E98248F22B00C08CB /* TranscriptPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptPanelView.swift; sourceTree = "<group>"; };
 		52BA4CA49EBD1B2A041D5E84 /* LiveInterviewIntelligenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveInterviewIntelligenceView.swift; sourceTree = "<group>"; };
 		5765DCC2A9C69824B80708F8 /* CheckForUpdatesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesViewModel.swift; sourceTree = "<group>"; };
 		57B9AB151CD1BBDDDCB15B67 /* ClaudeAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAPIClient.swift; sourceTree = "<group>"; };
@@ -208,6 +211,7 @@
 		657275C542280701138F3D42 /* AudioSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSettingsView.swift; sourceTree = "<group>"; };
 		69AB1E3DF6577FB00871B539 /* AIPromptTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIPromptTemplates.swift; sourceTree = "<group>"; };
 		69C5FDC952292078A71B2650 /* FluidAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FluidAudio; path = LocalPackages/FluidAudio; sourceTree = SOURCE_ROOT; };
+		69F56A5B034BDA436C319D0C /* MeetingHeaderBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingHeaderBar.swift; sourceTree = "<group>"; };
 		6A9A10AF91F15CA169F503A2 /* InterviewPromptTemplates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewPromptTemplates.swift; sourceTree = "<group>"; };
 		6CA97EAE00616CBA74905937 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6D71B4ACDF2860C265D2E456 /* ContactDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactDetailView.swift; sourceTree = "<group>"; };
@@ -602,8 +606,10 @@
 				CCD46DD530F5CE11FE209E36 /* DedupDebugRow.swift */,
 				C6F5DC8974A4F45DDF6B19FC /* EditableTranscriptSegmentRow.swift */,
 				233B5632B22BFA4C7E512907 /* MeetingDetailView.swift */,
+				69F56A5B034BDA436C319D0C /* MeetingHeaderBar.swift */,
 				AFB956B7F4F0CA68BF37E5F5 /* MeetingListView.swift */,
 				4B86DBE859B4EF56428216AA /* MeetingRowView.swift */,
+				5225DE7E98248F22B00C08CB /* TranscriptPanelView.swift */,
 			);
 			path = MeetingList;
 			sourceTree = "<group>";
@@ -875,6 +881,7 @@
 				ECFE81215DB0777BFBCD5FA7 /* Meeting.swift in Sources */,
 				55A2068CDD71B2430C84E5DE /* MeetingAttendeesRow.swift in Sources */,
 				EACA65399C1BFB8738DC1428 /* MeetingDetailView.swift in Sources */,
+				8EF9F7BDD81C860D0B0BE8EC /* MeetingHeaderBar.swift in Sources */,
 				1511D8ED93545EDCA506CFE1 /* MeetingInsight.swift in Sources */,
 				BBB05812E8776A60C628AD0B /* MeetingIntelligenceView.swift in Sources */,
 				3BFAC0DA58C2B59A7B9DDADC /* MeetingListView.swift in Sources */,
@@ -927,6 +934,7 @@
 				D844A67123CE2E80F33DA503 /* TrajectorSettings.swift in Sources */,
 				5B0D134A768087BDA747466F /* TranscriptDeduplicator.swift in Sources */,
 				24A51E8E58619EC0E363982F /* TranscriptFile.swift in Sources */,
+				5BE06B68015F12B69EB436D8 /* TranscriptPanelView.swift in Sources */,
 				2A3497DC017555A3BE9E29C3 /* TranscriptSegment.swift in Sources */,
 				F15D9A6FD119A8B208111A26 /* TranscriptSegmentRow.swift in Sources */,
 				F1C63EC5E3E3C89899D43533 /* TranscriptTestView.swift in Sources */,
