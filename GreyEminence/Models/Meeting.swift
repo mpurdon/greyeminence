@@ -22,6 +22,15 @@ final class Meeting {
     var isInterviewMeeting: Bool = false
     var createdAt: Date
 
+    /// Normalized keys of action items the user has explicitly deleted.
+    /// The AI is instructed not to re-suggest these during reanalysis, and
+    /// any that slip through are filtered out post-parse.
+    var suppressedActionItems: [String] = []
+
+    /// Follow-up questions the user has explicitly deleted — same semantics
+    /// as suppressedActionItems but stored as normalized question text.
+    var suppressedFollowUps: [String] = []
+
     // Calendar integration
     var calendarEventID: String?
     var calendarEventTitle: String?

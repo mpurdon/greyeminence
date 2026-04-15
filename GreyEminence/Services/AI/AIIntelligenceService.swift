@@ -58,16 +58,26 @@ actor AIIntelligenceService {
     private let client: any AIClient
     private let prepContext: MeetingPrepContext?
     private let meetingID: UUID?
+    private let suppressedActionItems: [String]
+    private let suppressedFollowUps: [String]
     private var previousSummary: String = ""
     private var previousActionItems: [ParsedActionItem] = []
     private var previousFollowUps: [String] = []
     private var previousTopics: [String] = []
     private var lastAnalyzedSegmentCount: Int = 0
 
-    init(client: any AIClient, prepContext: MeetingPrepContext? = nil, meetingID: UUID? = nil) {
+    init(
+        client: any AIClient,
+        prepContext: MeetingPrepContext? = nil,
+        meetingID: UUID? = nil,
+        suppressedActionItems: [String] = [],
+        suppressedFollowUps: [String] = []
+    ) {
         self.client = client
         self.prepContext = prepContext
         self.meetingID = meetingID
+        self.suppressedActionItems = suppressedActionItems
+        self.suppressedFollowUps = suppressedFollowUps
     }
 
     private var effectiveSystemPrompt: String {
@@ -96,7 +106,9 @@ actor AIIntelligenceService {
                 previousActionItems: previousActionItems,
                 previousFollowUps: previousFollowUps,
                 previousTopics: previousTopics,
-                newTranscript: transcript
+                newTranscript: transcript,
+                suppressedActionItems: suppressedActionItems,
+                suppressedFollowUps: suppressedFollowUps
             )
         }
 
@@ -139,7 +151,9 @@ actor AIIntelligenceService {
             currentSummary: previousSummary,
             currentActionItems: previousActionItems,
             currentFollowUps: previousFollowUps,
-            currentTopics: previousTopics
+            currentTopics: previousTopics,
+            suppressedActionItems: suppressedActionItems,
+            suppressedFollowUps: suppressedFollowUps
         )
 
         LogManager.send("AI final cleanup starting (\(nonEmpty.count) segments)", category: .ai, meetingID: meetingID)

@@ -80,10 +80,19 @@ struct MeetingIntelligenceView: View {
                 if let insight = meeting.latestInsight {
                     AISummarySection(summary: insight.summary)
                     ActionItemsSection(items: meeting.actionItems) { item in
+                        let key = Self.normalizeKey(item.text)
+                        if !meeting.suppressedActionItems.contains(key) {
+                            meeting.suppressedActionItems.append(key)
+                        }
                         modelContext.delete(item)
                         PersistenceGate.save(modelContext, site: "MeetingIntelligenceView.deleteActionItem", meetingID: meeting.id)
                     }
                     FollowUpQuestionsSection(questions: insight.followUpQuestions) { index in
+                        let question = insight.followUpQuestions[index]
+                        let key = Self.normalizeKey(question)
+                        if !meeting.suppressedFollowUps.contains(key) {
+                            meeting.suppressedFollowUps.append(key)
+                        }
                         insight.followUpQuestions.remove(at: index)
                         PersistenceGate.save(modelContext, site: "MeetingIntelligenceView.deleteFollowUp", meetingID: meeting.id)
                     }
@@ -124,7 +133,12 @@ struct MeetingIntelligenceView: View {
                 reanalysisError = "AI not configured. Check Settings."
                 return
             }
-            let service = AIIntelligenceService(client: client, meetingID: meeting.id)
+            let service = AIIntelligenceService(
+                client: client,
+                meetingID: meeting.id,
+                suppressedActionItems: meeting.suppressedActionItems,
+                suppressedFollowUps: meeting.suppressedFollowUps
+            )
 
             let snapshots: [SegmentSnapshot] = meeting.segments
                 .sorted { $0.startTime < $1.startTime }
@@ -139,10 +153,23 @@ struct MeetingIntelligenceView: View {
             // summary to refine. Then always run the final pass — it produces
             // the polished result including the meeting title.
             _ = try await service.analyze(segments: snapshots)
-            guard let result = try await service.performFinalAnalysis(segments: snapshots) else {
+            guard let rawResult = try await service.performFinalAnalysis(segments: snapshots) else {
                 reanalysisError = "Analysis returned no results."
                 return
             }
+
+            // Belt-and-braces: enforce the user's suppression list locally even if
+            // the model ignored the prompt instruction and re-suggested items.
+            let suppressedActions = Set(meeting.suppressedActionItems)
+            let suppressedQuestions = Set(meeting.suppressedFollowUps)
+            let result = AnalysisResult(
+                title: rawResult.title,
+                summary: rawResult.summary,
+                actionItems: rawResult.actionItems.filter { !suppressedActions.contains(Self.normalizeKey($0.text)) },
+                followUps: rawResult.followUps.filter { !suppressedQuestions.contains(Self.normalizeKey($0)) },
+                topics: rawResult.topics,
+                rawResponse: rawResult.rawResponse
+            )
 
             // Update meeting title if generated
             if let title = result.title, !title.isEmpty {
@@ -201,25 +228,28 @@ struct MeetingIntelligenceView: View {
     /// already completed or assigned are never deleted by a re-run.
     private func mergeActionItems(parsed: [ParsedActionItem], into meeting: Meeting) {
         let existing = meeting.actionItems
-        let existingKeys = Set(existing.map { Self.actionItemKey($0.text) })
+        let existingKeys = Set(existing.map { Self.normalizeKey($0.text) })
+        let suppressedKeys = Set(meeting.suppressedActionItems)
 
         // Delete only existing items that have no user state attached AND that the
         // new parse no longer produces. This keeps the list fresh for unstarted items
         // while protecting anything the user has touched.
-        let parsedKeys = Set(parsed.map { Self.actionItemKey($0.text) })
+        let parsedKeys = Set(parsed.map { Self.normalizeKey($0.text) })
         let stale = existing.filter { item in
             let untouched = !item.isCompleted
                 && item.dueDate == nil
                 && item.assignedContact == nil
-            let droppedByNewRun = !parsedKeys.contains(Self.actionItemKey(item.text))
+            let droppedByNewRun = !parsedKeys.contains(Self.normalizeKey(item.text))
             return untouched && droppedByNewRun
         }
         for item in stale {
             modelContext.delete(item)
         }
 
-        // Append new parsed items that don't already exist.
-        for parsedItem in parsed where !existingKeys.contains(Self.actionItemKey(parsedItem.text)) {
+        // Append new parsed items that don't already exist and aren't suppressed.
+        for parsedItem in parsed {
+            let key = Self.normalizeKey(parsedItem.text)
+            guard !existingKeys.contains(key), !suppressedKeys.contains(key) else { continue }
             let item = ActionItem(text: parsedItem.text, assignee: parsedItem.assignee)
             item.meeting = meeting
             modelContext.insert(item)
@@ -228,7 +258,7 @@ struct MeetingIntelligenceView: View {
 
     /// Normalized key for action-item deduping: lowercased, whitespace-collapsed,
     /// trailing punctuation stripped.
-    private static func actionItemKey(_ text: String) -> String {
+    private static func normalizeKey(_ text: String) -> String {
         let lowered = text.lowercased()
         let collapsed = lowered.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
         return collapsed.trimmingCharacters(in: CharacterSet(charactersIn: " .!?,;:"))

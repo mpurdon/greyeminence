@@ -29,7 +29,9 @@ enum AIPromptTemplates {
         previousActionItems: [ParsedActionItem],
         previousFollowUps: [String],
         previousTopics: [String],
-        newTranscript: String
+        newTranscript: String,
+        suppressedActionItems: [String] = [],
+        suppressedFollowUps: [String] = []
     ) -> String {
         let template = PromptStore.shared.get(.meetingRolling, default: defaultRollingAnalysisPrompt)
         return PromptStore.render(template, values: [
@@ -38,6 +40,7 @@ enum AIPromptTemplates {
             "previousFollowUps": formatNumberedList(previousFollowUps),
             "previousTopics": formatTopics(previousTopics),
             "newTranscript": newTranscript,
+            "suppressionBlock": suppressionBlock(actionItems: suppressedActionItems, followUps: suppressedFollowUps),
         ])
     }
 
@@ -46,7 +49,9 @@ enum AIPromptTemplates {
         currentSummary: String,
         currentActionItems: [ParsedActionItem],
         currentFollowUps: [String],
-        currentTopics: [String]
+        currentTopics: [String],
+        suppressedActionItems: [String] = [],
+        suppressedFollowUps: [String] = []
     ) -> String {
         let template = PromptStore.shared.get(.meetingFinal, default: defaultFinalCleanupPrompt)
         return PromptStore.render(template, values: [
@@ -55,7 +60,29 @@ enum AIPromptTemplates {
             "currentActionItems": formatActionItems(currentActionItems),
             "currentFollowUps": formatNumberedList(currentFollowUps),
             "currentTopics": formatTopics(currentTopics),
+            "suppressionBlock": suppressionBlock(actionItems: suppressedActionItems, followUps: suppressedFollowUps),
         ])
+    }
+
+    /// Builds a "DO NOT RE-SUGGEST" block for prompts when the user has deleted
+    /// action items or follow-ups on a prior run. Returns an empty string when
+    /// both lists are empty so the template renders cleanly.
+    private static func suppressionBlock(actionItems: [String], followUps: [String]) -> String {
+        guard !actionItems.isEmpty || !followUps.isEmpty else { return "" }
+        var block = "\n\nSUPPRESSED ITEMS — DO NOT RE-SUGGEST:\nThe user has explicitly deleted the following from a prior analysis. Do NOT include these (or semantically equivalent rewordings) in `action_items` or `follow_ups`.\n"
+        if !actionItems.isEmpty {
+            block += "\nSuppressed action items:\n"
+            for item in actionItems {
+                block += "- \(item)\n"
+            }
+        }
+        if !followUps.isEmpty {
+            block += "\nSuppressed follow-up questions:\n"
+            for q in followUps {
+                block += "- \(q)\n"
+            }
+        }
+        return block
     }
 
     /// Return the built-in default for a key. Used by the editor to show a diff /
@@ -215,6 +242,7 @@ enum AIPromptTemplates {
 
         NEW TRANSCRIPT:
         {{newTranscript}}
+        {{suppressionBlock}}
         """
 
     private static let defaultFinalCleanupPrompt: String = """
@@ -254,5 +282,6 @@ enum AIPromptTemplates {
 
         FULL TRANSCRIPT:
         {{fullTranscript}}
+        {{suppressionBlock}}
         """
 }
