@@ -28,3 +28,5 @@ final class ActionItem {
         assignedContact?.name ?? assignee
     }
 }
+
+extension ActionItem: Identifiable {}

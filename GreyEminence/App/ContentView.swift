@@ -362,22 +362,60 @@ struct ContentView: View {
     }
 }
 
+enum TaskFilter: String, CaseIterable, Identifiable {
+    case mine = "Mine + Unassigned"
+    case all = "All"
+    var id: String { rawValue }
+}
+
 struct AllTasksView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage("stalledThresholdDays") private var stalledThresholdDays = 7
+    @AppStorage("myContactID") private var myContactIDString = ""
+    @AppStorage("taskFilter") private var filterRaw = TaskFilter.mine.rawValue
     @Query(filter: #Predicate<ActionItem> { !$0.isCompleted })
     private var pendingItems: [ActionItem]
 
     @Query(filter: #Predicate<ActionItem> { $0.isCompleted })
     private var completedItems: [ActionItem]
 
+    @State private var detailTask: ActionItem?
+
+    private var filter: TaskFilter {
+        get { TaskFilter(rawValue: filterRaw) ?? .mine }
+    }
+
+    private var myContactID: UUID? {
+        UUID(uuidString: myContactIDString)
+    }
+
+    private func isVisible(_ item: ActionItem) -> Bool {
+        switch filter {
+        case .all:
+            return true
+        case .mine:
+            guard let assigned = item.assignedContact else { return true }  // unassigned
+            return assigned.id == myContactID
+        }
+    }
+
     private var stalledItems: [StalledCommitment] {
-        CommitmentTrackingService().stalledCommitments(in: modelContext, threshold: stalledThresholdDays)
+        CommitmentTrackingService()
+            .stalledCommitments(in: modelContext, threshold: stalledThresholdDays)
+            .filter { isVisible($0.actionItem) }
+    }
+
+    private var visiblePending: [ActionItem] {
+        pendingItems.filter(isVisible)
+    }
+
+    private var visibleCompleted: [ActionItem] {
+        completedItems.filter(isVisible)
     }
 
     private var nonStalledPending: [ActionItem] {
         let stalledIDs = Set(stalledItems.map(\.id))
-        return pendingItems.filter { !stalledIDs.contains($0.id) }
+        return visiblePending.filter { !stalledIDs.contains($0.id) }
     }
 
     var body: some View {
@@ -386,7 +424,7 @@ struct AllTasksView: View {
                 Section {
                     ForEach(stalledItems) { stalled in
                         HStack {
-                            ActionItemRow(item: stalled.actionItem)
+                            ActionItemRow(item: stalled.actionItem, onShowDetails: { detailTask = $0 })
                             Spacer()
                             Text("\(stalled.daysStalled)d")
                                 .font(.caption2)
@@ -410,7 +448,7 @@ struct AllTasksView: View {
 
             Section {
                 ForEach(nonStalledPending) { item in
-                    ActionItemRow(item: item)
+                    ActionItemRow(item: item, onShowDetails: { detailTask = $0 })
                 }
             } header: {
                 Label("Pending (\(nonStalledPending.count))", systemImage: "circle")
@@ -419,13 +457,13 @@ struct AllTasksView: View {
                     .textCase(nil)
             }
 
-            if !completedItems.isEmpty {
+            if !visibleCompleted.isEmpty {
                 Section {
-                    ForEach(completedItems) { item in
-                        ActionItemRow(item: item)
+                    ForEach(visibleCompleted) { item in
+                        ActionItemRow(item: item, onShowDetails: { detailTask = $0 })
                     }
                 } header: {
-                    Label("Completed (\(completedItems.count))", systemImage: "checkmark.circle.fill")
+                    Label("Completed (\(visibleCompleted.count))", systemImage: "checkmark.circle.fill")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
                         .textCase(nil)
@@ -433,14 +471,37 @@ struct AllTasksView: View {
             }
         }
         .navigationTitle("All Tasks")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Picker("Filter", selection: $filterRaw) {
+                    ForEach(TaskFilter.allCases) { f in
+                        Text(f.rawValue).tag(f.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .help(myContactIDString.isEmpty
+                      ? "Set your contact in Settings to filter by Mine"
+                      : "Filter tasks")
+                .disabled(myContactIDString.isEmpty)
+            }
+        }
         .overlay {
-            if pendingItems.isEmpty && completedItems.isEmpty {
+            if visiblePending.isEmpty && visibleCompleted.isEmpty {
                 ContentUnavailableView(
-                    "No Action Items",
+                    pendingItems.isEmpty && completedItems.isEmpty
+                        ? "No Action Items"
+                        : "No Tasks Match Filter",
                     systemImage: "checkmark.circle",
-                    description: Text("Action items from meetings will appear here")
+                    description: Text(
+                        pendingItems.isEmpty && completedItems.isEmpty
+                            ? "Action items from meetings will appear here"
+                            : "Switch to All to see tasks assigned to others"
+                    )
                 )
             }
+        }
+        .sheet(item: $detailTask) { task in
+            TaskDetailView(task: task)
         }
     }
 }
@@ -448,6 +509,7 @@ struct AllTasksView: View {
 struct ActionItemRow: View {
     @Bindable var item: ActionItem
     var onDelete: ((ActionItem) -> Void)?
+    var onShowDetails: ((ActionItem) -> Void)?
     @State private var showContactPicker = false
 
     private var excludedIDs: Set<PersistentIdentifier> {
@@ -498,8 +560,24 @@ struct ActionItemRow: View {
                     .buttonStyle(.plain)
                 }
             }
+            if onShowDetails != nil {
+                Spacer()
+                Button {
+                    onShowDetails?(item)
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Show task details")
+            }
         }
         .contextMenu {
+            if onShowDetails != nil {
+                Button("Show Details") { onShowDetails?(item) }
+                Divider()
+            }
             Button("Copy") {
                 NSPasteboard.general.clearContents()
                 let text = if let assignee = item.displayAssignee {
