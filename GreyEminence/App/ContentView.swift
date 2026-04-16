@@ -368,25 +368,73 @@ enum TaskFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum TaskSort: String, CaseIterable, Identifiable {
+    case created = "Newest"
+    case dueDate = "Due Date"
+    case meetingDate = "Meeting Date"
+    case alphabetical = "A–Z"
+    var id: String { rawValue }
+}
+
+private let selfAssigneeSynonyms: Set<String> = ["me", "myself", "i"]
+
 struct AllTasksView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage("stalledThresholdDays") private var stalledThresholdDays = 7
     @AppStorage("myContactID") private var myContactIDString = ""
     @AppStorage("taskFilter") private var filterRaw = TaskFilter.mine.rawValue
+    @AppStorage("taskSort") private var sortRaw = TaskSort.created.rawValue
+    @AppStorage("taskShowCompleted") private var showCompleted = true
     @Query(filter: #Predicate<ActionItem> { !$0.isCompleted })
     private var pendingItems: [ActionItem]
 
     @Query(filter: #Predicate<ActionItem> { $0.isCompleted })
     private var completedItems: [ActionItem]
 
+    @Query private var allContacts: [Contact]
+
     @State private var detailTask: ActionItem?
 
     private var filter: TaskFilter {
-        get { TaskFilter(rawValue: filterRaw) ?? .mine }
+        TaskFilter(rawValue: filterRaw) ?? .mine
     }
 
-    private var myContactID: UUID? {
-        UUID(uuidString: myContactIDString)
+    private var sort: TaskSort {
+        TaskSort(rawValue: sortRaw) ?? .created
+    }
+
+    private var myContact: Contact? {
+        guard let id = UUID(uuidString: myContactIDString) else { return nil }
+        return allContacts.first { $0.id == id }
+    }
+
+    /// Normalized tokens that should match an assignee string if it refers to "me".
+    /// Includes raw synonyms ("me", "myself"), the full contact name, and the first
+    /// word of the name — enough to catch the common AI-parsed forms.
+    private var mySelfTokens: Set<String> {
+        var tokens = selfAssigneeSynonyms
+        if let name = myContact?.name {
+            let lower = name.lowercased()
+            tokens.insert(lower)
+            if let first = lower.split(separator: " ").first {
+                tokens.insert(String(first))
+            }
+        }
+        return tokens
+    }
+
+    private func isUnassigned(_ item: ActionItem) -> Bool {
+        item.assignedContact == nil
+            && (item.assignee?.trimmingCharacters(in: .whitespaces).isEmpty ?? true)
+    }
+
+    private func isMine(_ item: ActionItem) -> Bool {
+        if let assigned = item.assignedContact {
+            return assigned.id == myContact?.id
+        }
+        guard let raw = item.assignee?.trimmingCharacters(in: .whitespaces),
+              !raw.isEmpty else { return false }
+        return mySelfTokens.contains(raw.lowercased())
     }
 
     private func isVisible(_ item: ActionItem) -> Bool {
@@ -394,8 +442,28 @@ struct AllTasksView: View {
         case .all:
             return true
         case .mine:
-            guard let assigned = item.assignedContact else { return true }  // unassigned
-            return assigned.id == myContactID
+            return isMine(item) || isUnassigned(item)
+        }
+    }
+
+    private func sorted(_ items: [ActionItem]) -> [ActionItem] {
+        switch sort {
+        case .created:
+            return items.sorted { $0.createdAt > $1.createdAt }
+        case .dueDate:
+            // Nil due dates sink to the bottom.
+            return items.sorted { a, b in
+                switch (a.dueDate, b.dueDate) {
+                case let (.some(x), .some(y)): return x < y
+                case (.some, .none): return true
+                case (.none, .some): return false
+                case (.none, .none): return a.createdAt > b.createdAt
+                }
+            }
+        case .meetingDate:
+            return items.sorted { ($0.meeting?.date ?? .distantPast) > ($1.meeting?.date ?? .distantPast) }
+        case .alphabetical:
+            return items.sorted { $0.text.localizedCaseInsensitiveCompare($1.text) == .orderedAscending }
         }
     }
 
@@ -406,11 +474,11 @@ struct AllTasksView: View {
     }
 
     private var visiblePending: [ActionItem] {
-        pendingItems.filter(isVisible)
+        sorted(pendingItems.filter(isVisible))
     }
 
     private var visibleCompleted: [ActionItem] {
-        completedItems.filter(isVisible)
+        showCompleted ? sorted(completedItems.filter(isVisible)) : []
     }
 
     private var nonStalledPending: [ActionItem] {
@@ -483,6 +551,23 @@ struct AllTasksView: View {
                       ? "Set your contact in Settings to filter by Mine"
                       : "Filter tasks")
                 .disabled(myContactIDString.isEmpty)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Section("Sort by") {
+                        Picker("Sort", selection: $sortRaw) {
+                            ForEach(TaskSort.allCases) { s in
+                                Text(s.rawValue).tag(s.rawValue)
+                            }
+                        }
+                    }
+                    Section {
+                        Toggle("Show Completed", isOn: $showCompleted)
+                    }
+                } label: {
+                    Label("Options", systemImage: "line.3.horizontal.decrease.circle")
+                }
+                .help("Sort and display options")
             }
         }
         .overlay {
