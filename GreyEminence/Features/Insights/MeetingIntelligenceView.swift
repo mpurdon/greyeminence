@@ -78,15 +78,6 @@ struct MeetingIntelligenceView: View {
                 }
 
                 if let insight = meeting.latestInsight {
-                    AISummarySection(summary: insight.summary)
-                    ActionItemsSection(items: meeting.actionItems) { item in
-                        let key = Self.normalizeKey(item.text)
-                        if !meeting.suppressedActionItems.contains(key) {
-                            meeting.suppressedActionItems.append(key)
-                        }
-                        modelContext.delete(item)
-                        PersistenceGate.save(modelContext, site: "MeetingIntelligenceView.deleteActionItem", meetingID: meeting.id)
-                    }
                     FollowUpQuestionsSection(questions: insight.followUpQuestions) { index in
                         let question = insight.followUpQuestions[index]
                         let key = Self.normalizeKey(question)
@@ -96,6 +87,15 @@ struct MeetingIntelligenceView: View {
                         insight.followUpQuestions.remove(at: index)
                         PersistenceGate.save(modelContext, site: "MeetingIntelligenceView.deleteFollowUp", meetingID: meeting.id)
                     }
+                    ActionItemsSection(items: meeting.actionItems) { item in
+                        let key = Self.normalizeKey(item.text)
+                        if !meeting.suppressedActionItems.contains(key) {
+                            meeting.suppressedActionItems.append(key)
+                        }
+                        modelContext.delete(item)
+                        PersistenceGate.save(modelContext, site: "MeetingIntelligenceView.deleteActionItem", meetingID: meeting.id)
+                    }
+                    AISummarySection(summary: insight.summary)
                     KnowledgeLinksSection(topics: insight.topics)
                 } else if meeting.isAnalyzing || isReanalyzing {
                     VStack(spacing: 12) {
@@ -314,16 +314,16 @@ struct LiveMeetingIntelligenceView: View {
                     }
                 }
 
-                if !summary.isEmpty {
-                    AISummarySection(summary: summary)
+                if !followUpQuestions.isEmpty {
+                    FollowUpQuestionsSection(questions: followUpQuestions)
                 }
 
                 if !actionItems.isEmpty {
                     LiveActionItemsSection(items: actionItems)
                 }
 
-                if !followUpQuestions.isEmpty {
-                    FollowUpQuestionsSection(questions: followUpQuestions)
+                if !summary.isEmpty {
+                    AISummarySection(summary: summary)
                 }
 
                 if !topics.isEmpty {

@@ -5,6 +5,10 @@ import AppKit
 struct RecordingView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: RecordingViewModel
+    /// When true, the live transcript fills the body. When false, the live
+    /// intelligence view fills the body and the transcript is expected to live
+    /// in a separate pane (e.g. the inspector).
+    var showsTranscript: Bool = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,10 +18,18 @@ struct RecordingView: View {
 
             if viewModel.state == .idle {
                 idleState
-            } else {
+            } else if showsTranscript {
                 LiveTranscriptView(
                     segments: viewModel.segments,
                     segmentConfidence: viewModel.segmentConfidence
+                )
+            } else {
+                LiveMeetingIntelligenceView(
+                    summary: viewModel.streamingSummary,
+                    actionItems: viewModel.actionItems,
+                    followUpQuestions: viewModel.followUpQuestions,
+                    topics: viewModel.topics,
+                    aiActivityState: viewModel.aiActivityState
                 )
             }
 

@@ -316,16 +316,13 @@ struct ContentView: View {
                 let clampedWidth = min(max(width, 280), geo.size.width * 0.7)
 
                 HStack(spacing: 0) {
-                    RecordingView(viewModel: recordingViewModel)
+                    RecordingView(viewModel: recordingViewModel, showsTranscript: false)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if showInspector {
                         inspectorDragHandle(containerWidth: geo.size.width)
-                        LiveMeetingIntelligenceView(
-                            summary: recordingViewModel.streamingSummary,
-                            actionItems: recordingViewModel.actionItems,
-                            followUpQuestions: recordingViewModel.followUpQuestions,
-                            topics: recordingViewModel.topics,
-                            aiActivityState: recordingViewModel.aiActivityState
+                        LiveTranscriptView(
+                            segments: recordingViewModel.segments,
+                            segmentConfidence: recordingViewModel.segmentConfidence
                         )
                         .frame(width: clampedWidth)
                     }
