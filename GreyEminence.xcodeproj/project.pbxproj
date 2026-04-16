@@ -116,6 +116,7 @@
 		CA397207ABB9967B21A63E08 /* ContactPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1894E666B02691D0316570C /* ContactPicker.swift */; };
 		CA4D93E6FAEA9C013721DD8D /* AIPromptTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69AB1E3DF6577FB00871B539 /* AIPromptTemplates.swift */; };
 		CAE631B21FD4390A98F4BD5E /* InterviewPromptTemplates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9A10AF91F15CA169F503A2 /* InterviewPromptTemplates.swift */; };
+		CC29BCBB453D0F8515604013 /* SparkleUpdaterDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02203A251A6442629C7C3EA5 /* SparkleUpdaterDelegate.swift */; };
 		D0D02AD902D348ADFE6F2935 /* InterviewListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1883C32FA38176C32ED9B57 /* InterviewListView.swift */; };
 		D15B92644A209FBBF7B31D8D /* MeetingPrepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A449FC8E55341990C8A3A7A /* MeetingPrepView.swift */; };
 		D1BCC317E4B910D757CB9FC6 /* PromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FB7CEC0E14991A2743BEB83 /* PromptStore.swift */; };
@@ -159,6 +160,7 @@
 
 /* Begin PBXFileReference section */
 		00113CB03ECCACD1B6516101 /* ModelDownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloadManager.swift; sourceTree = "<group>"; };
+		02203A251A6442629C7C3EA5 /* SparkleUpdaterDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdaterDelegate.swift; sourceTree = "<group>"; };
 		035F3AE9352BFA1B1EC72E90 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		0364AF825A0A158818A2C86D /* CriterionEvaluation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriterionEvaluation.swift; sourceTree = "<group>"; };
 		06649713AEC967601987522A /* GreyEminence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GreyEminence.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -368,6 +370,7 @@
 				8FE72467F7F1DEAB283B230B /* Obsidian */,
 				659932D8AA986AA0029A97B2 /* Persistence */,
 				C55C0EF6982FAB185A23C343 /* Transcription */,
+				422794061E0AFB134EF099BC /* Updates */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -401,6 +404,14 @@
 				BA1A084FCAEDCA30D57F7BF5 /* Assets.xcassets */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		422794061E0AFB134EF099BC /* Updates */ = {
+			isa = PBXGroup;
+			children = (
+				02203A251A6442629C7C3EA5 /* SparkleUpdaterDelegate.swift */,
+			);
+			path = Updates;
 			sourceTree = "<group>";
 		};
 		4D7D79D83BC93637D07DEE04 /* AI */ = {
@@ -929,6 +940,7 @@
 				F9E5B7B92D5523164E3619A8 /* SectionMarkerView.swift in Sources */,
 				74CC2E4DBCD6DE379F332162 /* SettingsView.swift in Sources */,
 				82E0731B8F98E1C689F629DC /* SidebarView.swift in Sources */,
+				CC29BCBB453D0F8515604013 /* SparkleUpdaterDelegate.swift in Sources */,
 				6FAA39AF5B2ECCCC58143107 /* Speaker.swift in Sources */,
 				35E1728D83EE5E36848E0733 /* SpeakerContactMapper.swift in Sources */,
 				77072DF00BC4524199A52DC2 /* SpeakerDiarizationService.swift in Sources */,
@@ -1050,13 +1062,13 @@
 				CODE_SIGN_ENTITLEMENTS = GreyEminence/GreyEminence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260416040000;
+				CURRENT_PROJECT_VERSION = 20260416050000;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.14;
+				MARKETING_VERSION = 0.9.15;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1072,13 +1084,13 @@
 				CODE_SIGN_ENTITLEMENTS = GreyEminence/GreyEminence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260416040000;
+				CURRENT_PROJECT_VERSION = 20260416050000;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.14;
+				MARKETING_VERSION = 0.9.15;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

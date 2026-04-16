@@ -14,6 +14,7 @@ struct LogEntry: Identifiable {
         case transcription
         case ai
         case obsidian
+        case update
         case general
 
         var id: String { rawValue }

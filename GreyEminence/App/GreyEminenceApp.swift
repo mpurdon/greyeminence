@@ -15,11 +15,18 @@ struct GreyEminenceApp: App {
         #endif
     }
 
-    private let updaterController = SPUStandardUpdaterController(
-        startingUpdater: true,
-        updaterDelegate: nil,
-        userDriverDelegate: nil
-    )
+    private let updaterDelegate: SparkleUpdaterDelegate
+    private let updaterController: SPUStandardUpdaterController
+
+    init() {
+        let delegate = SparkleUpdaterDelegate()
+        self.updaterDelegate = delegate
+        self.updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: delegate,
+            userDriverDelegate: delegate
+        )
+    }
 
     var sharedModelContainer: ModelContainer? = {
         // Versioned schema + migration plan — see SchemaVersions.swift.
