@@ -366,10 +366,16 @@ enum TaskFilter: String, CaseIterable, Identifiable {
 }
 
 enum TaskSort: String, CaseIterable, Identifiable {
-    case created = "Newest"
+    case created = "Date Created"
     case dueDate = "Due Date"
     case meetingDate = "Meeting Date"
-    case alphabetical = "A–Z"
+    case alphabetical = "Alphabetical"
+    var id: String { rawValue }
+}
+
+enum TaskSortDirection: String, CaseIterable, Identifiable {
+    case descending = "Descending"
+    case ascending = "Ascending"
     var id: String { rawValue }
 }
 
@@ -381,6 +387,7 @@ struct AllTasksView: View {
     @AppStorage("myContactID") private var myContactIDString = ""
     @AppStorage("taskFilter") private var filterRaw = TaskFilter.mine.rawValue
     @AppStorage("taskSort") private var sortRaw = TaskSort.created.rawValue
+    @AppStorage("taskSortDirection") private var sortDirectionRaw = TaskSortDirection.descending.rawValue
     @AppStorage("taskShowCompleted") private var showCompleted = true
     @Query(filter: #Predicate<ActionItem> { !$0.isCompleted })
     private var pendingItems: [ActionItem]
@@ -398,6 +405,10 @@ struct AllTasksView: View {
 
     private var sort: TaskSort {
         TaskSort(rawValue: sortRaw) ?? .created
+    }
+
+    private var sortDirection: TaskSortDirection {
+        TaskSortDirection(rawValue: sortDirectionRaw) ?? .descending
     }
 
     private var myContact: Contact? {
@@ -443,31 +454,41 @@ struct AllTasksView: View {
         }
     }
 
-    private func sorted(_ items: [ActionItem]) -> [ActionItem] {
+    /// Single comparator used by every sorted view in this screen so the
+    /// stalled section, the pending section, and the completed section all
+    /// reorder consistently when the user picks a sort.
+    private func compare(_ a: ActionItem, _ b: ActionItem) -> Bool {
+        let ascending = sortDirection == .ascending
         switch sort {
         case .created:
-            return items.sorted { $0.createdAt > $1.createdAt }
+            return ascending ? a.createdAt < b.createdAt : a.createdAt > b.createdAt
         case .dueDate:
-            // Nil due dates sink to the bottom.
-            return items.sorted { a, b in
-                switch (a.dueDate, b.dueDate) {
-                case let (.some(x), .some(y)): return x < y
-                case (.some, .none): return true
-                case (.none, .some): return false
-                case (.none, .none): return a.createdAt > b.createdAt
-                }
+            // Nil due dates always sink to the bottom regardless of direction.
+            switch (a.dueDate, b.dueDate) {
+            case (.some, .none): return true
+            case (.none, .some): return false
+            case (.none, .none): return a.createdAt > b.createdAt
+            case let (.some(x), .some(y)): return ascending ? x < y : x > y
             }
         case .meetingDate:
-            return items.sorted { ($0.meeting?.date ?? .distantPast) > ($1.meeting?.date ?? .distantPast) }
+            let ad = a.meeting?.date ?? .distantPast
+            let bd = b.meeting?.date ?? .distantPast
+            return ascending ? ad < bd : ad > bd
         case .alphabetical:
-            return items.sorted { $0.text.localizedCaseInsensitiveCompare($1.text) == .orderedAscending }
+            let result = a.text.localizedCaseInsensitiveCompare(b.text)
+            return ascending ? result == .orderedAscending : result == .orderedDescending
         }
+    }
+
+    private func sorted(_ items: [ActionItem]) -> [ActionItem] {
+        items.sorted(by: compare)
     }
 
     private var stalledItems: [StalledCommitment] {
         CommitmentTrackingService()
             .stalledCommitments(in: modelContext, threshold: stalledThresholdDays)
             .filter { isVisible($0.actionItem) }
+            .sorted { compare($0.actionItem, $1.actionItem) }
     }
 
     private var visiblePending: [ActionItem] {
@@ -555,6 +576,16 @@ struct AllTasksView: View {
                         Picker("Sort", selection: $sortRaw) {
                             ForEach(TaskSort.allCases) { s in
                                 Text(s.rawValue).tag(s.rawValue)
+                            }
+                        }
+                    }
+                    Section("Direction") {
+                        Picker("Direction", selection: $sortDirectionRaw) {
+                            ForEach(TaskSortDirection.allCases) { d in
+                                Label(
+                                    d.rawValue,
+                                    systemImage: d == .ascending ? "arrow.up" : "arrow.down"
+                                ).tag(d.rawValue)
                             }
                         }
                     }
