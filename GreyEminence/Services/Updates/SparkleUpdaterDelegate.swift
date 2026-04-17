@@ -72,11 +72,11 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, @preconcurrenc
     nonisolated func updater(_ updater: SPUUpdater, didFinishLoading appcast: SUAppcast) {
         let count = appcast.items.count
         let latest = appcast.items.first.map { Self.describe($0) } ?? "<none>"
-        Self.log("Appcast loaded (items=\(count))", detail: "latest: \(latest)")
+        Self.log("Appcast loaded (items=\(count)) — latest: \(latest)")
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
-        Self.log("Found valid update", detail: Self.describe(item))
+        Self.log("Found valid update — \(Self.describe(item))")
     }
 
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
@@ -84,36 +84,36 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, @preconcurrenc
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
-        Self.log("Download finished", detail: Self.describe(item))
+        Self.log("Download finished — \(Self.describe(item))")
     }
 
     nonisolated func updater(_ updater: SPUUpdater, willExtractUpdate item: SUAppcastItem) {
-        Self.log("Will extract update", detail: Self.describe(item))
+        Self.log("Will extract update — \(Self.describe(item))")
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didExtractUpdate item: SUAppcastItem) {
-        Self.log("Extracted update", detail: Self.describe(item))
+        Self.log("Extracted update — \(Self.describe(item))")
     }
 
     nonisolated func updater(_ updater: SPUUpdater, willInstallUpdate item: SUAppcastItem) {
-        Self.log("Will install update", detail: Self.describe(item))
+        Self.log("Will install update — \(Self.describe(item))")
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didStartInstallingUpdate item: SUAppcastItem) {
-        Self.log("Started installing update", detail: Self.describe(item))
+        Self.log("Started installing update — \(Self.describe(item))")
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        Self.log("Updater aborted", level: .error, detail: Self.describe(error))
+        Self.log("Updater aborted — \(Self.describe(error))", level: .error)
     }
 
     nonisolated func updater(_ updater: SPUUpdater, failedToDownloadUpdate item: SUAppcastItem, error: Error) {
-        Self.log("Failed to download update", level: .error, detail: "\(Self.describe(item)) || \(Self.describe(error))")
+        Self.log("Failed to download update — \(Self.describe(item)) || \(Self.describe(error))", level: .error)
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
         if let error {
-            Self.log("Update cycle finished with error (check=\(updateCheck.rawValue))", level: .error, detail: Self.describe(error))
+            Self.log("Update cycle finished with error (check=\(updateCheck.rawValue)) — \(Self.describe(error))", level: .error)
         } else {
             Self.log("Update cycle finished cleanly (check=\(updateCheck.rawValue))")
         }
@@ -122,7 +122,7 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, @preconcurrenc
     // MARK: - SPUStandardUserDriverDelegate
 
     func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem, andInState state: SPUUserUpdateState) -> Bool {
-        Self.log("UserDriver: showing scheduled update", detail: "\(Self.describe(update)) | userInitiated=\(state.userInitiated)")
+        Self.log("UserDriver: showing scheduled update — \(Self.describe(update)) | userInitiated=\(state.userInitiated)")
         return true
     }
 
