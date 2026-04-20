@@ -1,6 +1,18 @@
 import SwiftUI
 import SwiftData
 
+enum TopicMapSort: String, CaseIterable {
+    case mentions
+    case recent
+
+    var label: String {
+        switch self {
+        case .mentions: "Mentions"
+        case .recent: "Recent"
+        }
+    }
+}
+
 struct TopicMapView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var insights: [MeetingInsight]
@@ -9,6 +21,7 @@ struct TopicMapView: View {
     @State private var canvasSize: CGSize = .zero
     @State private var isReanalyzing = false
     @State private var reanalyzeProgress: (current: Int, total: Int)?
+    @AppStorage("topicMapSort") private var sortOrder: TopicMapSort = .mentions
     var onMeetingSelected: ((Meeting) -> Void)?
 
     var body: some View {
@@ -75,6 +88,9 @@ struct TopicMapView: View {
     @ViewBuilder
     private var graphContent: some View {
         HStack(spacing: 0) {
+            topicSidebar
+                .frame(width: 220)
+            Divider()
             ZStack(alignment: .topTrailing) {
                 graphCanvas
                 controlButtons
@@ -88,6 +104,88 @@ struct TopicMapView: View {
                 )
                 .frame(width: 280)
             }
+        }
+    }
+
+    private var rankedNodes: [TopicNode] {
+        switch sortOrder {
+        case .mentions:
+            return viewModel.nodes.sorted { $0.meetingCount > $1.meetingCount }
+        case .recent:
+            return viewModel.nodes.sorted {
+                ($0.lastMeetingDate ?? .distantPast) > ($1.lastMeetingDate ?? .distantPast)
+            }
+        }
+    }
+
+    private var maxMeetingCount: Int {
+        viewModel.nodes.map(\.meetingCount).max() ?? 1
+    }
+
+    private var topicSidebar: some View {
+        VStack(spacing: 0) {
+            Picker("Sort", selection: $sortOrder) {
+                ForEach(TopicMapSort.allCases, id: \.self) { option in
+                    Text(option.label).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    ForEach(rankedNodes) { node in
+                        topicRow(node)
+                    }
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 4)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func topicRow(_ node: TopicNode) -> some View {
+        let isSelected = node.id == viewModel.selectedTopicID
+        let isHovered = node.id == viewModel.hoveredTopicID
+
+        Button {
+            viewModel.selectedTopicID = (viewModel.selectedTopicID == node.id) ? nil : node.id
+        } label: {
+            HStack(spacing: 6) {
+                Text("\(node.meetingCount)")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, alignment: .trailing)
+
+                GeometryReader { geo in
+                    let fraction = CGFloat(node.meetingCount) / CGFloat(max(maxMeetingCount, 1))
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.accentColor.opacity(isSelected || isHovered ? 1.0 : 0.55))
+                        .frame(width: max(fraction * geo.size.width, 4))
+                }
+                .frame(height: 10)
+
+                Text(node.label)
+                    .font(.system(size: 10))
+                    .lineLimit(1)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                isSelected ? Color.accentColor.opacity(0.15) :
+                isHovered ? Color.secondary.opacity(0.08) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 4)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            viewModel.hoveredTopicID = hovering ? node.id : nil
         }
     }
 

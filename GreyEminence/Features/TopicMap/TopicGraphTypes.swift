@@ -5,6 +5,7 @@ struct TopicNode: Identifiable {
     let label: String       // display form (most frequent casing)
     let meetingCount: Int
     let meetingIDs: Set<UUID>
+    let lastMeetingDate: Date?
     var position: CGPoint
     var velocity: CGPoint = .zero
     var radius: CGFloat

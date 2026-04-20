@@ -100,6 +100,7 @@ final class TopicMapViewModel {
                 label: bestLabel,
                 meetingCount: count,
                 meetingIDs: meetingsByTopic[norm] ?? [],
+                lastMeetingDate: meetingObjectsByTopic[norm]?.map(\.date).max(),
                 position: pos,
                 radius: TopicNode.radius(for: count),
                 color: TopicNode.color(for: norm)
