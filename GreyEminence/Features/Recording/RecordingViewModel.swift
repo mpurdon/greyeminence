@@ -68,6 +68,10 @@ final class RecordingViewModel {
     let calendarService = CalendarService()
     private let meetingPrepService = MeetingPrepService()
 
+    // Auto-detection of external meeting activity (Teams/Zoom/etc.)
+    let meetingDetector = MeetingDetectionService()
+    private var autoDetectionConfigured = false
+
     // AI Intelligence
     private var intelligenceService: AIIntelligenceService?
     private var aiModelIdentifier: String?
@@ -179,7 +183,40 @@ final class RecordingViewModel {
         startPeriodicPersistence()
     }
 
-    func startRecording(in modelContext: ModelContext) {
+    /// Wire the auto-detection service to this view model. Called once from the
+    /// view layer so the detector can reach back through `modelContextProvider`
+    /// to start/stop recordings when external mic activity rises and falls.
+    func configureAutoDetection(enabled: Bool, modelContextProvider: @escaping @MainActor () -> ModelContext?) {
+        if !autoDetectionConfigured {
+            meetingDetector.onStartRequested = { [weak self] in
+                guard let self else { return }
+                guard let ctx = modelContextProvider() else { return }
+                self.startRecording(in: ctx, autoDetected: true)
+            }
+            meetingDetector.onStopRequested = { [weak self] in
+                guard let self else { return }
+                guard let ctx = modelContextProvider() else { return }
+                self.stopRecording(in: ctx, autoDetected: true)
+            }
+            autoDetectionConfigured = true
+        }
+        setAutoDetectionEnabled(enabled)
+    }
+
+    func setAutoDetectionEnabled(_ enabled: Bool) {
+        if enabled {
+            meetingDetector.enable()
+            // If recording is already in progress when enabled, tell the detector
+            // so it doesn't try to auto-start on top of the existing session.
+            if state != .idle {
+                meetingDetector.noteManualStart()
+            }
+        } else {
+            meetingDetector.disable()
+        }
+    }
+
+    func startRecording(in modelContext: ModelContext, autoDetected: Bool = false) {
         // Guard against rapid double-click / stale UI triggering two starts in
         // a row. If we're already recording or paused, ignore silently and log
         // — creating a second meeting on top of a live one corrupts segment
@@ -187,6 +224,12 @@ final class RecordingViewModel {
         guard state == .idle else {
             log.log("startRecording ignored: already in state \(state)", category: .audio, level: .warning)
             return
+        }
+
+        if autoDetected {
+            meetingDetector.noteAutoStart()
+        } else {
+            meetingDetector.noteManualStart()
         }
 
         let meeting = Meeting(title: "Meeting \(DateFormatter.shortDate.string(from: .now))")
@@ -286,7 +329,13 @@ final class RecordingViewModel {
         log.log("Recording resumed", category: .audio)
     }
 
-    func stopRecording(in modelContext: ModelContext) {
+    func stopRecording(in modelContext: ModelContext, autoDetected: Bool = false) {
+        if autoDetected {
+            meetingDetector.noteAutoStop()
+        } else {
+            meetingDetector.noteManualStop()
+        }
+
         state = .idle
         aiActivityState = .idle
         timer?.invalidate()

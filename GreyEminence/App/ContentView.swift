@@ -55,11 +55,12 @@ struct ContentView: View {
     @State private var selectedDestination: SidebarDestination? = .dashboard
     @State private var selectedMeeting: Meeting?
     @State private var topicMapViewModel = TopicMapViewModel()
-    @State private var showInspector = true
+    @AppStorage("showInspector") private var showInspector = true
     @State private var sidebarExpanded = false
     @State private var inspectorWidth: CGFloat?
     @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
     @AppStorage("myContactID") private var myContactIDString = ""
+    @AppStorage("autoStartRecording") private var autoStartRecording = false
     @State private var showProfileSetup = false
     @State private var interruptedMeeting: Meeting?
     @State private var showResumeAlert = false
@@ -124,6 +125,12 @@ struct ContentView: View {
                     showProfileSetup = true
                 }
             }
+            recordingViewModel.configureAutoDetection(enabled: autoStartRecording) { [modelContext] in
+                modelContext
+            }
+        }
+        .onChange(of: autoStartRecording) { _, enabled in
+            recordingViewModel.setAutoDetectionEnabled(enabled)
         }
         .sheet(isPresented: $showProfileSetup) {
             MyProfileSetupSheet()

@@ -82,6 +82,7 @@
 		8B007657E79B35D0EE9E89A3 /* AIClientFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D73DBC02E9A067276E806B8 /* AIClientFactory.swift */; };
 		8C25916DB63984A44D34D1E1 /* RubricSectionEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EBC71AC684DEC93517AF36 /* RubricSectionEditorView.swift */; };
 		8C6B05D3E05E3B1B03E2C29A /* RubricSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF52CED04CA1D2F4347E1DED /* RubricSection.swift */; };
+		8E63C6455B8763029164EC22 /* MeetingDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AED58F0227508BD33E302EF /* MeetingDetectionService.swift */; };
 		8EF9F7BDD81C860D0B0BE8EC /* MeetingHeaderBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F56A5B034BDA436C319D0C /* MeetingHeaderBar.swift */; };
 		93DA0C25320EE99EC20C1EA7 /* LiveInterviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85571895F31B17D9B41094BB /* LiveInterviewView.swift */; };
 		9612CE638E6815D0234D9A09 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FACAFB70049A918A9CC576F /* CalendarService.swift */; };
@@ -175,6 +176,7 @@
 		19C6927F280175D31CAADD91 /* RubricBonusSignal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RubricBonusSignal.swift; sourceTree = "<group>"; };
 		1A449FC8E55341990C8A3A7A /* MeetingPrepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingPrepView.swift; sourceTree = "<group>"; };
 		1ABED09F9C41DEF26FDD8CB3 /* GreyEminence.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GreyEminence.entitlements; sourceTree = "<group>"; };
+		1AED58F0227508BD33E302EF /* MeetingDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetectionService.swift; sourceTree = "<group>"; };
 		1B95809735E6E5534ED30962 /* InterviewSectionScore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewSectionScore.swift; sourceTree = "<group>"; };
 		1F2EE3D3FF1C35A523A8F56C /* InterviewNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewNote.swift; sourceTree = "<group>"; };
 		1FB7CEC0E14991A2743BEB83 /* PromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptStore.swift; sourceTree = "<group>"; };
@@ -391,6 +393,7 @@
 				B46CD3C11445ADB010BAFCF7 /* AudioFileWriter.swift */,
 				3064E03937611C03B74553CD /* AudioFormatConverter.swift */,
 				B99AB2AFF5771EB858517BA9 /* AudioSessionManager.swift */,
+				1AED58F0227508BD33E302EF /* MeetingDetectionService.swift */,
 				FCF870910A70FECDA4849F93 /* MicLevelMonitor.swift */,
 				ACFC782BC165D3DA75DFE688 /* MicrophoneCaptureService.swift */,
 				74A9A340B566AD4ABDBB929D /* SystemAudioCaptureService.swift */,
@@ -903,6 +906,7 @@
 				ECFE81215DB0777BFBCD5FA7 /* Meeting.swift in Sources */,
 				55A2068CDD71B2430C84E5DE /* MeetingAttendeesRow.swift in Sources */,
 				EACA65399C1BFB8738DC1428 /* MeetingDetailView.swift in Sources */,
+				8E63C6455B8763029164EC22 /* MeetingDetectionService.swift in Sources */,
 				8EF9F7BDD81C860D0B0BE8EC /* MeetingHeaderBar.swift in Sources */,
 				1511D8ED93545EDCA506CFE1 /* MeetingInsight.swift in Sources */,
 				BBB05812E8776A60C628AD0B /* MeetingIntelligenceView.swift in Sources */,
