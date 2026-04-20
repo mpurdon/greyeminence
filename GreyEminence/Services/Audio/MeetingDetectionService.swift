@@ -5,9 +5,10 @@ import Foundation
 /// FaceTime, etc.) and signals when a meeting likely started or ended. We only poll
 /// when enabled, so there is no cost when the user has auto-start disabled.
 ///
-/// The service is driven by explicit `note*` calls from `RecordingViewModel` so it
-/// understands whether the current recording is auto-started (and should auto-stop
-/// when the call ends) or manually started (user is in control — stay out of the way).
+/// The service is driven by explicit `noteStart`/`noteStop` calls from
+/// `RecordingViewModel` so it understands whether the current recording is
+/// auto-started (and should auto-stop when the call ends) or manually started
+/// (user is in control — stay out of the way).
 @Observable
 @MainActor
 final class MeetingDetectionService {
@@ -18,12 +19,17 @@ final class MeetingDetectionService {
         case passive
     }
 
+    enum Origin {
+        case manual
+        case auto
+    }
+
     private(set) var mode: Mode = .disabled
     private(set) var externalMicInUse: Bool = false
 
     private let startDebounce: TimeInterval = 10
     private let stopDebounce: TimeInterval = 60
-    private let pollInterval: TimeInterval = 2
+    private let pollInterval: TimeInterval = 5
 
     private var timer: Timer?
     private var inUseSince: Date?
@@ -33,12 +39,18 @@ final class MeetingDetectionService {
     /// meeting they just told us to stop recording.
     private var waitingForMicClear: Bool = false
 
+    private let discoverySession = AVCaptureDevice.DiscoverySession(
+        deviceTypes: [.microphone, .external],
+        mediaType: .audio,
+        position: .unspecified
+    )
+
     var onStartRequested: (() -> Void)?
     var onStopRequested: (() -> Void)?
 
-    func enable() {
+    func enable(currentlyRecording: Bool) {
         guard mode == .disabled else { return }
-        mode = .armedForStart
+        mode = currentlyRecording ? .passive : .armedForStart
         resetTimings()
         startTimer()
         LogManager.send("Meeting auto-detection enabled", category: .audio)
@@ -50,42 +62,30 @@ final class MeetingDetectionService {
         timer = nil
         resetTimings()
         waitingForMicClear = false
-        externalMicInUse = false
+        if externalMicInUse { externalMicInUse = false }
         LogManager.send("Meeting auto-detection disabled", category: .audio)
     }
 
-    func noteManualStart() {
+    func noteStart(_ origin: Origin) {
         guard mode != .disabled else { return }
-        mode = .passive
+        mode = (origin == .auto) ? .trackingAutoRun : .passive
         resetTimings()
     }
 
-    func noteAutoStart() {
-        guard mode != .disabled else { return }
-        mode = .trackingAutoRun
-        resetTimings()
-    }
-
-    func noteManualStop() {
+    func noteStop(_ origin: Origin) {
         guard mode != .disabled else { return }
         mode = .armedForStart
-        waitingForMicClear = queryMicInUse()
-        resetTimings()
-    }
-
-    func noteAutoStop() {
-        guard mode != .disabled else { return }
-        mode = .armedForStart
-        waitingForMicClear = false
+        waitingForMicClear = (origin == .manual) && queryMicInUse()
         resetTimings()
     }
 
     private func startTimer() {
         timer?.invalidate()
-        let t = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.tick() }
+        timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.tick()
+            }
         }
-        timer = t
     }
 
     private func resetTimings() {
@@ -96,7 +96,9 @@ final class MeetingDetectionService {
     private func tick() {
         guard mode != .disabled else { return }
         let inUse = queryMicInUse()
-        externalMicInUse = inUse
+        if externalMicInUse != inUse {
+            externalMicInUse = inUse
+        }
 
         switch mode {
         case .armedForStart:
@@ -110,9 +112,7 @@ final class MeetingDetectionService {
 
     private func handleArmed(inUse: Bool) {
         if waitingForMicClear {
-            if !inUse {
-                waitingForMicClear = false
-            }
+            if !inUse { waitingForMicClear = false }
             return
         }
         if inUse {
@@ -143,12 +143,7 @@ final class MeetingDetectionService {
     }
 
     private func queryMicInUse() -> Bool {
-        let session = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.microphone, .external],
-            mediaType: .audio,
-            position: .unspecified
-        )
-        for device in session.devices {
+        for device in discoverySession.devices {
             if device.isInUseByAnotherApplication { return true }
         }
         return false

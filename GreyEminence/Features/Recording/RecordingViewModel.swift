@@ -183,19 +183,15 @@ final class RecordingViewModel {
         startPeriodicPersistence()
     }
 
-    /// Wire the auto-detection service to this view model. Called once from the
-    /// view layer so the detector can reach back through `modelContextProvider`
-    /// to start/stop recordings when external mic activity rises and falls.
+    /// Wires detector callbacks once; safe to call repeatedly.
     func configureAutoDetection(enabled: Bool, modelContextProvider: @escaping @MainActor () -> ModelContext?) {
         if !autoDetectionConfigured {
             meetingDetector.onStartRequested = { [weak self] in
-                guard let self else { return }
-                guard let ctx = modelContextProvider() else { return }
+                guard let self, let ctx = modelContextProvider() else { return }
                 self.startRecording(in: ctx, autoDetected: true)
             }
             meetingDetector.onStopRequested = { [weak self] in
-                guard let self else { return }
-                guard let ctx = modelContextProvider() else { return }
+                guard let self, let ctx = modelContextProvider() else { return }
                 self.stopRecording(in: ctx, autoDetected: true)
             }
             autoDetectionConfigured = true
@@ -205,12 +201,7 @@ final class RecordingViewModel {
 
     func setAutoDetectionEnabled(_ enabled: Bool) {
         if enabled {
-            meetingDetector.enable()
-            // If recording is already in progress when enabled, tell the detector
-            // so it doesn't try to auto-start on top of the existing session.
-            if state != .idle {
-                meetingDetector.noteManualStart()
-            }
+            meetingDetector.enable(currentlyRecording: state != .idle)
         } else {
             meetingDetector.disable()
         }
@@ -226,11 +217,7 @@ final class RecordingViewModel {
             return
         }
 
-        if autoDetected {
-            meetingDetector.noteAutoStart()
-        } else {
-            meetingDetector.noteManualStart()
-        }
+        meetingDetector.noteStart(autoDetected ? .auto : .manual)
 
         let meeting = Meeting(title: "Meeting \(DateFormatter.shortDate.string(from: .now))")
 
@@ -330,11 +317,7 @@ final class RecordingViewModel {
     }
 
     func stopRecording(in modelContext: ModelContext, autoDetected: Bool = false) {
-        if autoDetected {
-            meetingDetector.noteAutoStop()
-        } else {
-            meetingDetector.noteManualStop()
-        }
+        meetingDetector.noteStop(autoDetected ? .auto : .manual)
 
         state = .idle
         aiActivityState = .idle
