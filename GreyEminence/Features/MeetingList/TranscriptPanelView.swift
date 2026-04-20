@@ -16,6 +16,7 @@ struct TranscriptPanelView: View {
     @State private var bulkSpeakerName: String = ""
     @State private var splitConfirmationSegment: TranscriptSegment?
     @State private var isSplittingMeeting = false
+    @State private var splitTask: Task<Void, Never>?
     @State private var sortedSegments: [TranscriptSegment] = []
     @State private var showDedupDebug = false
     @State private var editSaveError: String?
@@ -77,6 +78,10 @@ struct TranscriptPanelView: View {
                         Text("Splitting meeting and re-analyzing...")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                        Button("Cancel") {
+                            splitTask?.cancel()
+                        }
+                        .controlSize(.small)
                     }
                     .padding(24)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -142,7 +147,7 @@ struct TranscriptPanelView: View {
             Button("Split Into New Meeting") {
                 if let segment = splitConfirmationSegment {
                     splitConfirmationSegment = nil
-                    Task { await splitMeeting(from: segment) }
+                    splitTask = Task { await splitMeeting(from: segment) }
                 }
             }
             Button("Cancel", role: .cancel) {
@@ -457,7 +462,10 @@ struct TranscriptPanelView: View {
               splitIdx > 0 else { return }
 
         isSplittingMeeting = true
-        defer { isSplittingMeeting = false }
+        defer {
+            isSplittingMeeting = false
+            splitTask = nil
+        }
 
         let keepSegments = Array(sortedSegments[0..<splitIdx])
         let moveSegments = Array(sortedSegments[splitIdx...])
@@ -519,6 +527,12 @@ struct TranscriptPanelView: View {
         )
 
         await analyzeMeetingAfterSplit(meeting, snapshots: originalSnapshots, client: client)
+        if Task.isCancelled {
+            newMeeting.isAnalyzing = false
+            PersistenceGate.save(modelContext, site: "splitMeeting/cancelled", meetingID: meeting.id)
+            onSplitMeeting?(newMeeting)
+            return
+        }
         await analyzeMeetingAfterSplit(newMeeting, snapshots: newSnapshots, client: client)
 
         let finalOK = PersistenceGate.save(

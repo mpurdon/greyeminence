@@ -47,6 +47,12 @@ jobs:
               <true/>
               <key>com.apple.security.personal-information.calendars</key>
               <true/>
+              <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+              <array>
+                  <string>$(TeamIdentifierPrefix)org.sparkle-project.InstallerLauncher</string>
+                  <string>$(TeamIdentifierPrefix)org.sparkle-project.InstallerStatus</string>
+                  <string>$(TeamIdentifierPrefix)org.sparkle-project.Downloader</string>
+              </array>
           </dict>
           </plist>
           EOF
