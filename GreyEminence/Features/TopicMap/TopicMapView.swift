@@ -275,19 +275,22 @@ struct TopicMapView: View {
             }
         }
         .background(Color.clear)
-        .gesture(
+        .simultaneousGesture(
             MagnifyGesture()
                 .onChanged { value in
                     viewModel.updateZoom(value.magnification, anchor: value.startAnchor.applying(canvasSize))
                 }
+                .onEnded { _ in
+                    viewModel.endZoom()
+                }
         )
         .gesture(
-            DragGesture()
+            DragGesture(minimumDistance: 4)
                 .onChanged { value in
-                    if value.startLocation == value.location {
-                        viewModel.beginPan()
-                    }
                     viewModel.updatePan(translation: value.translation)
+                }
+                .onEnded { _ in
+                    viewModel.endPan()
                 }
         )
         .onTapGesture { location in

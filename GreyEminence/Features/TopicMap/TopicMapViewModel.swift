@@ -14,6 +14,8 @@ final class TopicMapViewModel {
     var scale: CGFloat = 1.0
     var offset: CGPoint = .zero
     private var dragStartOffset: CGPoint = .zero
+    private var isPanning: Bool = false
+    private var zoomStartScale: CGFloat?
 
     // Simulation
     private(set) var isSimulating = false
@@ -215,24 +217,37 @@ final class TopicMapViewModel {
         }
     }
 
-    func beginPan() {
-        dragStartOffset = offset
-    }
-
     func updatePan(translation: CGSize) {
+        if !isPanning {
+            isPanning = true
+            dragStartOffset = offset
+        }
         offset = CGPoint(
             x: dragStartOffset.x + translation.width,
             y: dragStartOffset.y + translation.height
         )
     }
 
+    func endPan() {
+        isPanning = false
+    }
+
+    /// `magnification` is the cumulative scale ratio since the gesture started
+    /// (matches `MagnifyGesture.Value.magnification`), so we apply it against
+    /// the scale captured at gesture start rather than multiplying into the
+    /// current scale each tick (which compounds exponentially).
     func updateZoom(_ magnification: CGFloat, anchor: CGPoint) {
-        let newScale = max(0.3, min(3.0, scale * magnification))
-        // Zoom toward anchor point
+        if zoomStartScale == nil { zoomStartScale = scale }
+        let startScale = zoomStartScale ?? scale
+        let newScale = max(0.3, min(3.0, startScale * magnification))
         let factor = newScale / scale
         offset.x = anchor.x - (anchor.x - offset.x) * factor
         offset.y = anchor.y - (anchor.y - offset.y) * factor
         scale = newScale
+    }
+
+    func endZoom() {
+        zoomStartScale = nil
     }
 
     func resetView(canvasSize: CGSize) {
