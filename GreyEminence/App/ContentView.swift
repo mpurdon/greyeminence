@@ -100,15 +100,12 @@ struct ContentView: View {
         .onChange(of: recordingViewModel.completedMeeting) { _, meeting in
             guard let meeting else { return }
             if meeting.isInterviewMeeting {
-                // Interview finished — navigate to interviews tab and auto-select completed interview
                 selectedInterview = interviewRecordingViewModel.completedInterview
                 interviewRecordingViewModel.reset()
                 selectedDestination = .interviews
-                showInspector = true
             } else {
                 selectedMeeting = meeting
                 selectedDestination = .meetings
-                showInspector = true
             }
             recordingViewModel.completedMeeting = nil
         }
@@ -350,7 +347,6 @@ struct ContentView: View {
             TopicMapView(viewModel: topicMapViewModel, onMeetingSelected: { meeting in
                 selectedMeeting = meeting
                 selectedDestination = .meetings
-                showInspector = true
             })
         case .activityLog:
             LogView()
