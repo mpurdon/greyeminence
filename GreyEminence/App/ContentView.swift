@@ -9,6 +9,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
     case interviews = "Interviews"
     case people = "People"
     case topicMap = "Topic Map"
+    case ask = "Ask"
     case activityLog = "Activity Log"
     case settings = "Settings"
 
@@ -21,6 +22,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .interviews: "person.badge.shield.checkmark"
         case .people: "person.2"
         case .topicMap: "bubble.left.and.bubble.right"
+        case .ask: "sparkles.square.filled.on.square"
         case .activityLog: "list.bullet.clipboard"
         case .settings: "gear"
         }
@@ -35,6 +37,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .interviews: .cyan
         case .people: .green
         case .topicMap: .purple
+        case .ask: .pink
         case .activityLog: .gray
         case .settings: .gray
         }
@@ -347,6 +350,14 @@ struct ContentView: View {
             TopicMapView(viewModel: topicMapViewModel, onMeetingSelected: { meeting in
                 selectedMeeting = meeting
                 selectedDestination = .meetings
+            })
+        case .ask:
+            AskView(onMeetingSelected: { meetingID in
+                let descriptor = FetchDescriptor<Meeting>()
+                if let meeting = (try? modelContext.fetch(descriptor))?.first(where: { $0.id == meetingID }) {
+                    selectedMeeting = meeting
+                    selectedDestination = .meetings
+                }
             })
         case .activityLog:
             LogView()

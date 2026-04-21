@@ -30,6 +30,7 @@ struct SidebarView: View {
                     sidebarItem(.interviews)
                     sidebarItem(.people)
                     sidebarItem(.topicMap)
+                    sidebarItem(.ask)
                     if developerToolsEnabled {
                         sidebarItem(.activityLog)
                     }

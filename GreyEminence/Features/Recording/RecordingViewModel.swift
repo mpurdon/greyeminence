@@ -483,6 +483,17 @@ final class RecordingViewModel {
                     self.errorMessage = "Failed to save AI insights — the transcript is still saved, try Reanalyze from the meeting detail view."
                 }
             }
+
+            // Index the meeting for semantic search — fire-and-forget, runs
+            // after insights/action items are persisted.
+            if let store = EmbeddingStore.shared {
+                let providerRaw = UserDefaults.standard.string(forKey: "embeddingProvider") ?? EmbeddingProvider.nlEmbedding.rawValue
+                let provider = EmbeddingProvider(rawValue: providerRaw) ?? .nlEmbedding
+                let indexer = EmbeddingIndexer(store: store, service: provider.makeService())
+                Task { @MainActor in
+                    await indexer.indexMeeting(meeting)
+                }
+            }
         }
     }
 

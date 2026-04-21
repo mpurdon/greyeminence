@@ -13,7 +13,13 @@ struct GeneralSettingsView: View {
     @AppStorage("stalledThresholdDays") private var stalledThresholdDays = 7
     @AppStorage("appFontSize") private var appFontSize = "medium"
     @AppStorage("myContactID") private var myContactIDString = ""
+    @AppStorage("embeddingProvider") private var embeddingProviderRaw = EmbeddingProvider.nlEmbedding.rawValue
     @Query(sort: \Contact.name) private var contacts: [Contact]
+
+    @State private var reindexTotal = 0
+    @State private var reindexDone = 0
+    @State private var isReindexing = false
+    @State private var embeddingCount = 0
 
     init(updater: SPUUpdater?) {
         self.updater = updater
@@ -116,6 +122,46 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Picker("Provider", selection: $embeddingProviderRaw) {
+                    ForEach(EmbeddingProvider.allCases) { provider in
+                        Text(provider.label)
+                            .tag(provider.rawValue)
+                    }
+                }
+                if let provider = EmbeddingProvider(rawValue: embeddingProviderRaw), !provider.isAvailable {
+                    Text("This provider isn't implemented yet — falling back to on-device for searches.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                LabeledContent("Indexed items") {
+                    Text("\(embeddingCount)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                HStack {
+                    Button(isReindexing ? "Reindexing…" : "Reindex all meetings") {
+                        Task { await reindexAll() }
+                    }
+                    .disabled(isReindexing)
+                    if isReindexing && reindexTotal > 0 {
+                        ProgressView(value: Double(reindexDone), total: Double(reindexTotal))
+                            .frame(width: 120)
+                        Text("\(reindexDone)/\(reindexTotal)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text("Semantic search lets the Ask page answer questions like \"what did I want to bring up with Erin in my next 1:1?\" based on your past meetings. Embeddings are stored in a separate database from your meetings.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Label("Semantic Search", systemImage: "sparkles.square.filled.on.square")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .textCase(nil)
+            }
+
+            Section {
                 LabeledContent("Version") {
                     HStack(spacing: 8) {
                         Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")
@@ -138,5 +184,25 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { embeddingCount = EmbeddingStore.shared?.count() ?? 0 }
+    }
+
+    @MainActor
+    private func reindexAll() async {
+        guard let store = EmbeddingStore.shared else { return }
+        let provider = EmbeddingProvider(rawValue: embeddingProviderRaw) ?? .nlEmbedding
+        let service = provider.makeService()
+        guard service.isAvailable else { return }
+
+        isReindexing = true
+        defer {
+            isReindexing = false
+            embeddingCount = store.count()
+        }
+        let indexer = EmbeddingIndexer(store: store, service: service)
+        await indexer.reindexAll(mainContext: modelContext) { done, total in
+            reindexDone = done
+            reindexTotal = total
+        }
     }
 }
