@@ -48,6 +48,7 @@
 		410FF2704E7C22D08D23D9D6 /* ForceSimulation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E750BB3E0037D9160A228F10 /* ForceSimulation.swift */; };
 		467F4540B4DA4A675F18441B /* EmbeddingIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E889F823B1576875F27A74 /* EmbeddingIndexer.swift */; };
 		468D89A5C59728BCF165C8B5 /* MicrophoneCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFC782BC165D3DA75DFE688 /* MicrophoneCaptureService.swift */; };
+		4705676DC92E562C35BD7323 /* AskViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3288C11A7C44738155FDB42 /* AskViewModel.swift */; };
 		487BD675B1D14E5FDE9AE4D7 /* StalledNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02E7B6743C5DE21C7E30951 /* StalledNotificationService.swift */; };
 		495F4E2FEEAC19E852271002 /* InterviewBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7878D6C9C0D5359FBE2ED513 /* InterviewBookmark.swift */; };
 		4A68EC33839FE5093B329490 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B83B40FCCFC9C150D3A4578 /* KeychainHelper.swift */; };
@@ -257,6 +258,7 @@
 		9E9BD9C1EDBF636CD6482196 /* TopicGraphTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopicGraphTypes.swift; sourceTree = "<group>"; };
 		9F43B13AE41AF8236D03AB34 /* InterviewImpressionTrait.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewImpressionTrait.swift; sourceTree = "<group>"; };
 		A0AF2329398C06BB75B022FF /* StorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageManager.swift; sourceTree = "<group>"; };
+		A3288C11A7C44738155FDB42 /* AskViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskViewModel.swift; sourceTree = "<group>"; };
 		A3D9941CB56A4C5A85C1223D /* TaggedAudioBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaggedAudioBuffer.swift; sourceTree = "<group>"; };
 		A47BC52049DFA6A2808B1FC6 /* RubricListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RubricListView.swift; sourceTree = "<group>"; };
 		A5F1219300D6C15092F27872 /* TopicMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopicMapView.swift; sourceTree = "<group>"; };
@@ -559,6 +561,7 @@
 			isa = PBXGroup;
 			children = (
 				6EAF64989E2FFD056A8A757A /* AskView.swift */,
+				A3288C11A7C44738155FDB42 /* AskViewModel.swift */,
 			);
 			path = Ask;
 			sourceTree = "<group>";
@@ -889,6 +892,7 @@
 				E2632D99502C0B96E12734AF /* AddContactSheet.swift in Sources */,
 				D59E4FDE79625794D5A8A32E /* AppEnvironment.swift in Sources */,
 				9476490CB0B9B185480C106A /* AskView.swift in Sources */,
+				4705676DC92E562C35BD7323 /* AskViewModel.swift in Sources */,
 				D3F792CF7E707B6031803B4E /* AudioChunkValidator.swift in Sources */,
 				010A701DA859882F23D02586 /* AudioFileWriter.swift in Sources */,
 				86D3B5E6153AE30228461601 /* AudioFormatConverter.swift in Sources */,
@@ -1116,7 +1120,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.22;
+				MARKETING_VERSION = 0.9.23;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1138,7 +1142,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.22;
+				MARKETING_VERSION = 0.9.23;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

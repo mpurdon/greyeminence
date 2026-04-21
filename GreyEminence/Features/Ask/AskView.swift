@@ -4,60 +4,172 @@ import SwiftData
 struct AskView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage("embeddingProvider") private var providerRaw: String = EmbeddingProvider.nlEmbedding.rawValue
+    @AppStorage("askSnippetCount") private var snippetCount: Int = 15
+    @AppStorage("askContextWindow") private var contextWindow: Int = 2
 
-    @State private var query: String = ""
-    @State private var results: [SearchResult] = []
-    @State private var synthesizedAnswer: String?
-    @State private var isSearching = false
-    @State private var isSynthesizing = false
-    @State private var indexStatus: String = ""
-
+    @Bindable var viewModel: AskViewModel
     var onMeetingSelected: ((UUID) -> Void)?
+
+    @State private var showHistory: Bool = true
 
     private var provider: EmbeddingProvider {
         EmbeddingProvider(rawValue: providerRaw) ?? .nlEmbedding
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             header
             Divider()
-            if results.isEmpty && synthesizedAnswer == nil && !isSearching {
-                ContentUnavailableView(
-                    "Ask a question",
-                    systemImage: "sparkles.square.filled.on.square",
-                    description: Text("Try: \"What did I want to bring up with Erin in my next 1:1?\" or \"Open questions about authentication\"")
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                resultsList
+            HStack(spacing: 0) {
+                if showHistory {
+                    historySidebar
+                        .frame(width: 200)
+                    Divider()
+                }
+                mainContent
             }
         }
-        .onAppear(perform: refreshStatus)
+    }
+
+    // MARK: - History sidebar
+
+    @ViewBuilder
+    private var historySidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("History")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !viewModel.history.isEmpty {
+                    Button {
+                        viewModel.clearHistory()
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Clear history")
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+
+            Divider()
+
+            if viewModel.history.isEmpty {
+                Text("Past searches will appear here.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(viewModel.history) { entry in
+                            historyRow(entry)
+                        }
+                    }
+                    .padding(6)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func historyRow(_ entry: AskHistoryEntry) -> some View {
+        let isCurrent = entry.query == viewModel.query && !viewModel.results.isEmpty
+        Button {
+            viewModel.restore(entry)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.query)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .foregroundStyle(.primary)
+                HStack(spacing: 4) {
+                    Text(entry.timestamp, format: .relative(presentation: .numeric))
+                    Text("·")
+                    Text("\(entry.results.count) results")
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                isCurrent ? Color.accentColor.opacity(0.15) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 4)
+            )
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
+                viewModel.deleteHistory(entry)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    // MARK: - Main content
+
+    @ViewBuilder
+    private var mainContent: some View {
+        if viewModel.results.isEmpty && viewModel.synthesizedAnswer == nil && !viewModel.isSearching {
+            ContentUnavailableView(
+                "Ask a question",
+                systemImage: "sparkles.square.filled.on.square",
+                description: Text("Try: \"What did I want to bring up with Erin in my next 1:1?\" or \"Open questions about authentication\"")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            resultsList
+        }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        showHistory.toggle()
+                    }
+                } label: {
+                    Image(systemName: "sidebar.left")
+                }
+                .buttonStyle(.bordered)
+                .help(showHistory ? "Hide history" : "Show history")
+
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Ask anything about your meetings…", text: $query)
+                TextField("Ask anything about your meetings…", text: $viewModel.query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
                     .onSubmit(runSearch)
-                if isSearching || isSynthesizing {
+
+                if viewModel.isSearching || viewModel.isSynthesizing {
                     ProgressView().controlSize(.small)
                 }
                 Button("Ask") { runSearch() }
                     .buttonStyle(.borderedProminent)
-                    .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSearching)
                     .keyboardShortcut(.return, modifiers: [])
             }
 
             HStack(spacing: 10) {
-                Text(indexStatus)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let err = viewModel.errorMessage {
+                    Text(err)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else {
+                    Text("Top \(snippetCount) snippets ±\(contextWindow) context")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Text("Provider: \(provider.shortLabel)")
                     .font(.caption)
@@ -66,13 +178,14 @@ struct AskView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .background(.background)
     }
 
     @ViewBuilder
     private var resultsList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                if let answer = synthesizedAnswer {
+                if let answer = viewModel.synthesizedAnswer {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("Answer", systemImage: "sparkles")
                             .font(.subheadline.weight(.semibold))
@@ -82,20 +195,30 @@ struct AskView: View {
                             .font(.body)
                     }
                     .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                 }
 
-                if !results.isEmpty {
-                    Text("Relevant snippets (\(results.count))")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                if !viewModel.results.isEmpty {
+                    HStack {
+                        Text("Ranked snippets")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text("(\(viewModel.results.count))")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Spacer()
+                        Text("most relevant first")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
 
-                ForEach(results) { result in
+                ForEach(Array(viewModel.results.enumerated()), id: \.element.id) { i, result in
                     Button {
                         onMeetingSelected?(result.meetingID)
                     } label: {
-                        resultRow(result)
+                        resultRow(result, index: i + 1, sentToLLM: i < snippetCount)
                     }
                     .buttonStyle(.plain)
                 }
@@ -105,9 +228,13 @@ struct AskView: View {
     }
 
     @ViewBuilder
-    private func resultRow(_ result: SearchResult) -> some View {
+    private func resultRow(_ result: SearchResult, index: Int, sentToLLM: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
+                Text("\(index)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                    .frame(minWidth: 18, alignment: .trailing)
                 Text(kindLabel(result.sourceKind))
                     .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 6)
@@ -121,9 +248,15 @@ struct AskView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(String(format: "%.2f", result.score))
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                if sentToLLM {
+                    Image(systemName: "sparkles")
+                        .font(.caption2)
+                        .foregroundStyle(Color.accentColor)
+                        .help("Included in the LLM context")
+                }
+                Text(percentage(result.score))
+                    .font(.caption.monospacedDigit().weight(.medium))
+                    .foregroundStyle(scoreColor(result.score))
             }
             Text(result.text)
                 .font(.callout)
@@ -153,65 +286,25 @@ struct AskView: View {
         }
     }
 
-    private func refreshStatus() {
-        guard let store = EmbeddingStore.shared else {
-            indexStatus = "Embedding store unavailable"
-            return
-        }
-        let count = store.count()
-        indexStatus = "\(count) items indexed"
+    private func percentage(_ score: Float) -> String {
+        let pct = Int((max(0, min(1, score)) * 100).rounded())
+        return "\(pct)%"
+    }
+
+    private func scoreColor(_ score: Float) -> Color {
+        if score >= 0.7 { return .green }
+        if score >= 0.5 { return .primary }
+        if score >= 0.3 { return .secondary }
+        return .secondary.opacity(0.6)
     }
 
     private func runSearch() {
-        guard let store = EmbeddingStore.shared else { return }
-        let service = provider.makeService()
-        guard service.isAvailable else {
-            synthesizedAnswer = "This provider isn't implemented yet. Switch to On-device in Settings."
-            results = []
-            return
-        }
-
         Task {
-            isSearching = true
-            defer { isSearching = false }
-            let search = SemanticSearchService(store: store, service: service)
-            let found = await search.search(query)
-            results = found
-            synthesizedAnswer = nil
-            await synthesize(using: found)
-        }
-    }
-
-    private func synthesize(using found: [SearchResult]) async {
-        guard !found.isEmpty else { return }
-        guard let client = try? await AIClientFactory.makeClient() else { return }
-        isSynthesizing = true
-        defer { isSynthesizing = false }
-
-        let context = found.prefix(15).enumerated().map { i, r in
-            "[\(i + 1)] (\(r.meetingTitle), \(DateFormatter.shortDate.string(from: r.meetingDate))) \(r.text)"
-        }.joined(separator: "\n\n")
-
-        let prompt = """
-        You are answering a question based only on snippets from the user's past meetings.
-
-        QUESTION:
-        \(query)
-
-        SNIPPETS:
-        \(context)
-
-        Give a concise, direct answer grounded in the snippets. Cite snippets by their bracket number [1], [2] inline. If the snippets don't contain enough to answer, say so briefly.
-        """
-
-        do {
-            let response = try await client.sendMessage(
-                system: "You help the user recall things from their past meetings.",
-                userContent: prompt
+            await viewModel.runSearch(
+                mainContext: modelContext,
+                snippetCount: snippetCount,
+                contextWindow: contextWindow
             )
-            synthesizedAnswer = response
-        } catch {
-            synthesizedAnswer = "Couldn't synthesize an answer: \(error.localizedDescription)"
         }
     }
 }

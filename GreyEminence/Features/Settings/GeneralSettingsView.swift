@@ -14,6 +14,8 @@ struct GeneralSettingsView: View {
     @AppStorage("appFontSize") private var appFontSize = "medium"
     @AppStorage("myContactID") private var myContactIDString = ""
     @AppStorage("embeddingProvider") private var embeddingProviderRaw = EmbeddingProvider.nlEmbedding.rawValue
+    @AppStorage("askSnippetCount") private var askSnippetCount: Int = 15
+    @AppStorage("askContextWindow") private var askContextWindow: Int = 2
     @Query(sort: \Contact.name) private var contacts: [Contact]
 
     @State private var reindexTotal = 0
@@ -138,6 +140,18 @@ struct GeneralSettingsView: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
+                Stepper(
+                    "Snippets sent to LLM: \(askSnippetCount)",
+                    value: $askSnippetCount,
+                    in: 3...50,
+                    step: 1
+                )
+                Stepper(
+                    "Transcript context (segments before/after): \(askContextWindow)",
+                    value: $askContextWindow,
+                    in: 0...10,
+                    step: 1
+                )
                 HStack {
                     Button(isReindexing ? "Reindexing…" : "Reindex all meetings") {
                         Task { await reindexAll() }

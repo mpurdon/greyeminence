@@ -58,6 +58,7 @@ struct ContentView: View {
     @State private var selectedDestination: SidebarDestination? = .dashboard
     @State private var selectedMeeting: Meeting?
     @State private var topicMapViewModel = TopicMapViewModel()
+    @State private var askViewModel = AskViewModel()
     @AppStorage("showInspector") private var showInspector = true
     @State private var sidebarExpanded = false
     @State private var inspectorWidth: CGFloat?
@@ -352,7 +353,7 @@ struct ContentView: View {
                 selectedDestination = .meetings
             })
         case .ask:
-            AskView(onMeetingSelected: { meetingID in
+            AskView(viewModel: askViewModel, onMeetingSelected: { meetingID in
                 let descriptor = FetchDescriptor<Meeting>()
                 if let meeting = (try? modelContext.fetch(descriptor))?.first(where: { $0.id == meetingID }) {
                     selectedMeeting = meeting
