@@ -4,6 +4,13 @@ import SwiftData
 struct TranscriptPanelView: View {
     @Bindable var meeting: Meeting
     var onSplitMeeting: ((Meeting) -> Void)?
+    @Binding var scrollToSegmentID: UUID?
+
+    init(meeting: Meeting, onSplitMeeting: ((Meeting) -> Void)? = nil, scrollToSegmentID: Binding<UUID?> = .constant(nil)) {
+        self._meeting = Bindable(wrappedValue: meeting)
+        self.onSplitMeeting = onSplitMeeting
+        self._scrollToSegmentID = scrollToSegmentID
+    }
 
     @Environment(\.modelContext) private var modelContext
     @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
@@ -17,6 +24,7 @@ struct TranscriptPanelView: View {
     @State private var splitConfirmationSegment: TranscriptSegment?
     @State private var isSplittingMeeting = false
     @State private var splitTask: Task<Void, Never>?
+    @State private var highlightedSegmentID: UUID?
     @State private var sortedSegments: [TranscriptSegment] = []
     @State private var showDedupDebug = false
     @State private var editSaveError: String?
@@ -263,41 +271,69 @@ struct TranscriptPanelView: View {
 
     private var transcriptList: some View {
         let systemSegments = showDedupDebug ? sortedSegments.filter { !$0.speaker.isMe } : []
-        return ScrollView {
-            LazyVStack(alignment: .leading, spacing: 4) {
-                ForEach(sortedSegments) { segment in
-                    if meeting.status == .completed {
-                        EditableTranscriptSegmentRow(
-                            segment: segment,
-                            hasNext: sortedSegments.last?.id != segment.id,
-                            isSelected: selectedSegmentIDs.contains(segment.id),
-                            onDelete: { deleteSegment(segment) },
-                            onMergeWithNext: { mergeSegmentWithNext(segment) },
-                            onSplit: { before, after in splitSegment(segment, before: before, after: after) },
-                            onSplitMeeting: {
-                                if canSplitMeeting(at: segment) {
-                                    splitConfirmationSegment = segment
-                                }
-                            },
-                            onChangeSpeakerForAll: { newSpeaker in
-                                changeSpeakerForAll(from: segment, to: newSpeaker)
-                            },
-                            onToggleSelection: isSelectionMode ? {
-                                toggleSelection(segment)
-                            } : nil
-                        )
-                    } else {
-                        TranscriptSegmentRow(segment: segment)
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(sortedSegments) { segment in
+                        transcriptRow(segment, systemSegments: systemSegments)
+                            .id(segment.id)
+                            .padding(.vertical, 2)
+                            .background(
+                                highlightedSegmentID == segment.id
+                                    ? Color.accentColor.opacity(0.18)
+                                    : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 6)
+                            )
                     }
-                    if showDedupDebug && segment.speaker.isMe {
-                        DedupDebugRow(
-                            mic: segment,
-                            systemSegments: systemSegments
-                        )
+                }
+                .padding()
+            }
+            .onChange(of: scrollToSegmentID) { _, newID in
+                guard let newID else { return }
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    proxy.scrollTo(newID, anchor: .center)
+                }
+                highlightedSegmentID = newID
+                scrollToSegmentID = nil
+                Task {
+                    try? await Task.sleep(for: .seconds(2.5))
+                    if highlightedSegmentID == newID {
+                        withAnimation { highlightedSegmentID = nil }
                     }
                 }
             }
-            .padding()
+        }
+    }
+
+    @ViewBuilder
+    private func transcriptRow(_ segment: TranscriptSegment, systemSegments: [TranscriptSegment]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if meeting.status == .completed {
+                EditableTranscriptSegmentRow(
+                    segment: segment,
+                    hasNext: sortedSegments.last?.id != segment.id,
+                    isSelected: selectedSegmentIDs.contains(segment.id),
+                    onDelete: { deleteSegment(segment) },
+                    onMergeWithNext: { mergeSegmentWithNext(segment) },
+                    onSplit: { before, after in splitSegment(segment, before: before, after: after) },
+                    onSplitMeeting: {
+                        if canSplitMeeting(at: segment) {
+                            splitConfirmationSegment = segment
+                        }
+                    },
+                    onChangeSpeakerForAll: { newSpeaker in
+                        changeSpeakerForAll(from: segment, to: newSpeaker)
+                    },
+                    onToggleSelection: isSelectionMode ? {
+                        toggleSelection(segment)
+                    } : nil
+                )
+            } else {
+                TranscriptSegmentRow(segment: segment)
+            }
+            if showDedupDebug && segment.speaker.isMe {
+                DedupDebugRow(mic: segment, systemSegments: systemSegments)
+            }
         }
     }
 

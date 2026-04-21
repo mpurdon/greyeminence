@@ -59,6 +59,7 @@ struct ContentView: View {
     @State private var selectedMeeting: Meeting?
     @State private var topicMapViewModel = TopicMapViewModel()
     @State private var askViewModel = AskViewModel()
+    @State private var pendingScrollSegmentID: UUID?
     @AppStorage("showInspector") private var showInspector = true
     @State private var sidebarExpanded = false
     @State private var inspectorWidth: CGFloat?
@@ -302,9 +303,13 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             if showInspector {
                                 inspectorDragHandle(containerWidth: geo.size.width)
-                                TranscriptPanelView(meeting: meeting, onSplitMeeting: { newMeeting in
-                                    selectedMeeting = newMeeting
-                                })
+                                TranscriptPanelView(
+                                    meeting: meeting,
+                                    onSplitMeeting: { newMeeting in
+                                        selectedMeeting = newMeeting
+                                    },
+                                    scrollToSegmentID: $pendingScrollSegmentID
+                                )
                                 .frame(width: clampedWidth)
                             }
                         }
@@ -353,11 +358,17 @@ struct ContentView: View {
                 selectedDestination = .meetings
             })
         case .ask:
-            AskView(viewModel: askViewModel, onMeetingSelected: { meetingID in
+            AskView(viewModel: askViewModel, onResultSelected: { result in
                 let descriptor = FetchDescriptor<Meeting>()
-                if let meeting = (try? modelContext.fetch(descriptor))?.first(where: { $0.id == meetingID }) {
+                if let meeting = (try? modelContext.fetch(descriptor))?.first(where: { $0.id == result.meetingID }) {
                     selectedMeeting = meeting
                     selectedDestination = .meetings
+                    if result.sourceKind == .transcriptSegment {
+                        // Delay so MeetingDetailView mounts before we try to scroll
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            pendingScrollSegmentID = result.sourceID
+                        }
+                    }
                 }
             })
         case .activityLog:

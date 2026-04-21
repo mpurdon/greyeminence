@@ -4,6 +4,17 @@ import SwiftData
 struct MeetingDetailView: View {
     @Bindable var meeting: Meeting
     var onSplitMeeting: ((Meeting) -> Void)?
+    @Binding var scrollToSegmentID: UUID?
+
+    init(
+        meeting: Meeting,
+        onSplitMeeting: ((Meeting) -> Void)? = nil,
+        scrollToSegmentID: Binding<UUID?> = .constant(nil)
+    ) {
+        self._meeting = Bindable(wrappedValue: meeting)
+        self.onSplitMeeting = onSplitMeeting
+        self._scrollToSegmentID = scrollToSegmentID
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,7 +27,11 @@ struct MeetingDetailView: View {
                 Divider()
             }
 
-            TranscriptPanelView(meeting: meeting, onSplitMeeting: onSplitMeeting)
+            TranscriptPanelView(
+                meeting: meeting,
+                onSplitMeeting: onSplitMeeting,
+                scrollToSegmentID: $scrollToSegmentID
+            )
         }
         .frame(maxHeight: .infinity, alignment: .top)
     }

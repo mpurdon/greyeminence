@@ -9,7 +9,7 @@ struct AskView: View {
     @AppStorage("askDateFilter") private var dateFilterRaw: String = AskDateFilter.anyTime.rawValue
 
     @Bindable var viewModel: AskViewModel
-    var onMeetingSelected: ((UUID) -> Void)?
+    var onResultSelected: ((SearchResult) -> Void)?
 
     @State private var showHistory: Bool = true
 
@@ -127,7 +127,15 @@ struct AskView: View {
 
     @ViewBuilder
     private var mainContent: some View {
-        if viewModel.results.isEmpty && viewModel.synthesizedAnswer == nil && !viewModel.isSearching {
+        if viewModel.isSearching && viewModel.results.isEmpty {
+            VStack(spacing: 12) {
+                ProgressView().controlSize(.large)
+                Text("Searching your meetings…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if viewModel.results.isEmpty && viewModel.synthesizedAnswer == nil && !viewModel.isSynthesizing {
             ContentUnavailableView(
                 "Ask a question",
                 systemImage: "sparkles.square.filled.on.square",
@@ -214,7 +222,19 @@ struct AskView: View {
     private var resultsList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                if let answer = viewModel.synthesizedAnswer {
+                if viewModel.isSynthesizing {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Synthesizing answer from \(viewModel.results.prefix(snippetCount).count) snippets…")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                } else if let answer = viewModel.synthesizedAnswer {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("Answer", systemImage: "sparkles")
                             .font(.subheadline.weight(.semibold))
@@ -245,7 +265,7 @@ struct AskView: View {
 
                 ForEach(Array(viewModel.results.enumerated()), id: \.element.id) { i, result in
                     Button {
-                        onMeetingSelected?(result.meetingID)
+                        onResultSelected?(result)
                     } label: {
                         resultRow(result, index: i + 1, sentToLLM: i < snippetCount)
                     }
