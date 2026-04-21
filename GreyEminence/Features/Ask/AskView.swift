@@ -6,6 +6,7 @@ struct AskView: View {
     @AppStorage("embeddingProvider") private var providerRaw: String = EmbeddingProvider.nlEmbedding.rawValue
     @AppStorage("askSnippetCount") private var snippetCount: Int = 15
     @AppStorage("askContextWindow") private var contextWindow: Int = 2
+    @AppStorage("askDateFilter") private var dateFilterRaw: String = AskDateFilter.anyTime.rawValue
 
     @Bindable var viewModel: AskViewModel
     var onMeetingSelected: ((UUID) -> Void)?
@@ -14,6 +15,10 @@ struct AskView: View {
 
     private var provider: EmbeddingProvider {
         EmbeddingProvider(rawValue: providerRaw) ?? .nlEmbedding
+    }
+
+    private var dateFilter: AskDateFilter {
+        AskDateFilter(rawValue: dateFilterRaw) ?? .anyTime
     }
 
     var body: some View {
@@ -82,6 +87,9 @@ struct AskView: View {
         let isCurrent = entry.query == viewModel.query && !viewModel.results.isEmpty
         Button {
             viewModel.restore(entry)
+            if let raw = entry.dateFilterRaw, AskDateFilter(rawValue: raw) != nil {
+                dateFilterRaw = raw
+            }
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.query)
@@ -151,6 +159,27 @@ struct AskView: View {
                     .font(.system(size: 15))
                     .onSubmit(runSearch)
 
+                Menu {
+                    ForEach(AskDateFilter.allCases) { option in
+                        Button {
+                            dateFilterRaw = option.rawValue
+                        } label: {
+                            if option == dateFilter {
+                                Label(option.label, systemImage: "checkmark")
+                            } else {
+                                Text(option.label)
+                            }
+                        }
+                    }
+                } label: {
+                    Label(dateFilter.label, systemImage: "calendar")
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Limit search to meetings within a date range")
+
                 if viewModel.isSearching || viewModel.isSynthesizing {
                     ProgressView().controlSize(.small)
                 }
@@ -166,7 +195,7 @@ struct AskView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 } else {
-                    Text("Top \(snippetCount) snippets ±\(contextWindow) context")
+                    Text("Top \(snippetCount) snippets ±\(contextWindow) context · \(dateFilter.label)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -303,7 +332,8 @@ struct AskView: View {
             await viewModel.runSearch(
                 mainContext: modelContext,
                 snippetCount: snippetCount,
-                contextWindow: contextWindow
+                contextWindow: contextWindow,
+                dateFilter: dateFilter
             )
         }
     }

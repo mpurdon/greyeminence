@@ -21,12 +21,15 @@ final class SemanticSearchService {
         self.service = service
     }
 
-    func search(_ query: String, topK: Int = 25) async -> [SearchResult] {
+    func search(_ query: String, topK: Int = 25, dateRange: ClosedRange<Date>? = nil) async -> [SearchResult] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         guard let queryVec = await service.embed(trimmed) else { return [] }
 
-        let records = store.allRecords(for: service.modelIdentifier)
+        let records = store.allRecords(for: service.modelIdentifier).filter { rec in
+            guard let range = dateRange else { return true }
+            return range.contains(rec.meetingDate)
+        }
 
         let scored: [SearchResult] = records.compactMap { rec in
             let recVec = rec.vectorArray

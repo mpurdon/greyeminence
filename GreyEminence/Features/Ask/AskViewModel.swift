@@ -7,6 +7,38 @@ struct AskHistoryEntry: Codable, Identifiable {
     var timestamp: Date
     var results: [CodableSearchResult]
     var synthesizedAnswer: String?
+    var dateFilterRaw: String?
+}
+
+enum AskDateFilter: String, CaseIterable, Identifiable {
+    case anyTime
+    case last7Days
+    case last30Days
+    case last3Months
+    case lastYear
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .anyTime: "Any time"
+        case .last7Days: "Last 7 days"
+        case .last30Days: "Last 30 days"
+        case .last3Months: "Last 3 months"
+        case .lastYear: "Last year"
+        }
+    }
+
+    func range(now: Date = .now) -> ClosedRange<Date>? {
+        let cal = Calendar.current
+        switch self {
+        case .anyTime: return nil
+        case .last7Days: return (cal.date(byAdding: .day, value: -7, to: now) ?? now)...now
+        case .last30Days: return (cal.date(byAdding: .day, value: -30, to: now) ?? now)...now
+        case .last3Months: return (cal.date(byAdding: .month, value: -3, to: now) ?? now)...now
+        case .lastYear: return (cal.date(byAdding: .year, value: -1, to: now) ?? now)...now
+        }
+    }
 }
 
 struct CodableSearchResult: Codable {
@@ -62,7 +94,7 @@ final class AskViewModel {
         loadHistory()
     }
 
-    func runSearch(mainContext: ModelContext, snippetCount: Int, contextWindow: Int) async {
+    func runSearch(mainContext: ModelContext, snippetCount: Int, contextWindow: Int, dateFilter: AskDateFilter) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard let store = EmbeddingStore.shared else {
@@ -84,17 +116,19 @@ final class AskViewModel {
         defer { isSearching = false }
 
         let search = SemanticSearchService(store: store, service: service)
-        let found = await search.search(trimmed, topK: 40)
+        let found = await search.search(trimmed, topK: 40, dateRange: dateFilter.range())
         results = found
 
         guard !found.isEmpty else {
-            errorMessage = "No matches. Try \"Reindex all meetings\" in Settings to backfill embeddings."
+            errorMessage = dateFilter == .anyTime
+                ? "No matches. Try \"Reindex all meetings\" in Settings to backfill embeddings."
+                : "No matches in \(dateFilter.label.lowercased()). Try widening the date range."
             return
         }
 
         await synthesize(found: found, mainContext: mainContext, snippetCount: snippetCount, contextWindow: contextWindow)
 
-        saveToHistory(query: trimmed, results: found, answer: synthesizedAnswer)
+        saveToHistory(query: trimmed, results: found, answer: synthesizedAnswer, dateFilter: dateFilter)
     }
 
     private func synthesize(found: [SearchResult], mainContext: ModelContext, snippetCount: Int, contextWindow: Int) async {
@@ -176,13 +210,14 @@ final class AskViewModel {
         persistHistory()
     }
 
-    private func saveToHistory(query: String, results: [SearchResult], answer: String?) {
+    private func saveToHistory(query: String, results: [SearchResult], answer: String?, dateFilter: AskDateFilter) {
         history.removeAll { $0.query.caseInsensitiveCompare(query) == .orderedSame }
         let entry = AskHistoryEntry(
             query: query,
             timestamp: .now,
             results: results.map { CodableSearchResult($0) },
-            synthesizedAnswer: answer
+            synthesizedAnswer: answer,
+            dateFilterRaw: dateFilter == .anyTime ? nil : dateFilter.rawValue
         )
         history.insert(entry, at: 0)
         if history.count > maxHistoryItems {
