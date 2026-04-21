@@ -32,5 +32,7 @@
 	<string>WcY3bO1Kn//JaSzIQ34jfsqE3wF1Z02qy4B5ar446NM=</string>
 	<key>SUFeedURL</key>
 	<string>https://github.com/mpurdon/greyeminence/releases/latest/download/appcast.xml</string>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 </dict>
 </plist>
