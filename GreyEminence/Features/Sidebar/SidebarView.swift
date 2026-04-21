@@ -20,6 +20,7 @@ struct SidebarView: View {
             ScrollView {
                 VStack(spacing: 2) {
                     sidebarItem(.dashboard)
+                    sidebarItem(.ask)
 
                     sectionHeader("Recording")
                     sidebarItem(.recording)
@@ -30,7 +31,6 @@ struct SidebarView: View {
                     sidebarItem(.interviews)
                     sidebarItem(.people)
                     sidebarItem(.topicMap)
-                    sidebarItem(.ask)
                     if developerToolsEnabled {
                         sidebarItem(.activityLog)
                     }

@@ -28,6 +28,7 @@
 		28C92B79DE182F4A9FFE4F80 /* InterviewSectionScore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B95809735E6E5534ED30962 /* InterviewSectionScore.swift */; };
 		2A3497DC017555A3BE9E29C3 /* TranscriptSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AE45FF59C2AC3113F02C4CC /* TranscriptSegment.swift */; };
 		2B9F3EFF0BFC3FFBF5D62A54 /* MeetingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8141402D9688729287F5C68F /* MeetingStore.swift */; };
+		2BB4EABCC993F6D6BD3EE091 /* AskSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C545A92420F35CB8B9F137A1 /* AskSettingsView.swift */; };
 		2BF009A9D76C95D73B91CCDD /* RecordingLockFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B253F64F1BB1E9EB1097F826 /* RecordingLockFile.swift */; };
 		2F5426980E4A67F002187DCA /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 355D52E442FFB5C7B6F89C4F /* MenuBarView.swift */; };
 		3052BD7FCCDE88CE3C036561 /* InterviewImpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F08738D7D9258962EA6B659 /* InterviewImpression.swift */; };
@@ -290,6 +291,7 @@
 		C0FFE615EDF257D5D3EC87E1 /* LiveTranscriptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTranscriptView.swift; sourceTree = "<group>"; };
 		C1042E6A22B62FFEFCB01BAA /* GreyEminenceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreyEminenceApp.swift; sourceTree = "<group>"; };
 		C28472798341F1E27B7D42F4 /* TopicDetailPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopicDetailPanel.swift; sourceTree = "<group>"; };
+		C545A92420F35CB8B9F137A1 /* AskSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskSettingsView.swift; sourceTree = "<group>"; };
 		C5E0850098FB7EB6B1D48C73 /* ScoreEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreEvidence.swift; sourceTree = "<group>"; };
 		C6774606B2258926F847E4C4 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		C6F5DC8974A4F45DDF6B19FC /* EditableTranscriptSegmentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditableTranscriptSegmentRow.swift; sourceTree = "<group>"; };
@@ -755,6 +757,7 @@
 			isa = PBXGroup;
 			children = (
 				10F8F5AD9A2BC34E742295DC /* APIKeySettingsView.swift */,
+				C545A92420F35CB8B9F137A1 /* AskSettingsView.swift */,
 				657275C542280701138F3D42 /* AudioSettingsView.swift */,
 				5765DCC2A9C69824B80708F8 /* CheckForUpdatesViewModel.swift */,
 				C0A58B8B68B5A249D975F355 /* DeveloperPromptEditorView.swift */,
@@ -891,6 +894,7 @@
 				4DC7178C6A8D0E2E5554E066 /* AddCandidateSheet.swift in Sources */,
 				E2632D99502C0B96E12734AF /* AddContactSheet.swift in Sources */,
 				D59E4FDE79625794D5A8A32E /* AppEnvironment.swift in Sources */,
+				2BB4EABCC993F6D6BD3EE091 /* AskSettingsView.swift in Sources */,
 				9476490CB0B9B185480C106A /* AskView.swift in Sources */,
 				4705676DC92E562C35BD7323 /* AskViewModel.swift in Sources */,
 				D3F792CF7E707B6031803B4E /* AudioChunkValidator.swift in Sources */,
@@ -1120,7 +1124,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.24;
+				MARKETING_VERSION = 0.9.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1142,7 +1146,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.24;
+				MARKETING_VERSION = 0.9.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
