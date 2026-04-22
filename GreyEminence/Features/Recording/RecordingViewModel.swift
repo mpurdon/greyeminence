@@ -484,8 +484,10 @@ final class RecordingViewModel {
                 }
             }
 
-            // Index the meeting for semantic search — fire-and-forget, runs
-            // after insights/action items are persisted.
+            // Index the meeting for semantic search using the live (fast)
+            // transcript. If re-transcription is enabled, the queued
+            // re-processing pass will replace these embeddings with ones
+            // derived from the high-accuracy transcript when it completes.
             if let store = EmbeddingStore.shared {
                 let providerRaw = UserDefaults.standard.string(forKey: "embeddingProvider") ?? EmbeddingProvider.nlEmbedding.rawValue
                 let provider = EmbeddingProvider(rawValue: providerRaw) ?? .nlEmbedding
@@ -493,6 +495,16 @@ final class RecordingViewModel {
                 Task { @MainActor in
                     await indexer.indexMeeting(meeting)
                 }
+            }
+
+            // Mark the live transcription quality and queue the meeting for
+            // high-accuracy re-processing (unless disabled in settings).
+            if meeting.transcriptionModel == nil {
+                meeting.transcriptionModel = "fluidaudio-parakeet-v2"
+            }
+            let autoReprocess = UserDefaults.standard.object(forKey: "autoReprocessMeetings") as? Bool ?? true
+            if autoReprocess {
+                ReProcessingQueue.shared.enqueue(meetingID: meeting.id)
             }
         }
     }

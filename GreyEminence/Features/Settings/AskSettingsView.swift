@@ -6,6 +6,7 @@ struct AskSettingsView: View {
     @AppStorage("embeddingProvider") private var embeddingProviderRaw = EmbeddingProvider.nlEmbedding.rawValue
     @AppStorage("askSnippetCount") private var askSnippetCount: Int = 15
     @AppStorage("askContextWindow") private var askContextWindow: Int = 2
+    @AppStorage("autoReprocessMeetings") private var autoReprocessMeetings: Bool = true
 
     @State private var reindexTotal = 0
     @State private var reindexDone = 0
@@ -48,6 +49,21 @@ struct AskSettingsView: View {
                     .foregroundStyle(.secondary)
             } header: {
                 Label("Index", systemImage: "rectangle.stack")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .textCase(nil)
+            }
+
+            Section {
+                Toggle("Re-transcribe meetings after recording", isOn: $autoReprocessMeetings)
+                Text("Live transcription uses a fast model (FluidAudio Parakeet). When a meeting ends, the audio is re-transcribed in the background with WhisperKit large-v3, and AI insights + embeddings are rebuilt on the upgraded transcript. Re-processing pauses automatically while another recording is in progress.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("First run downloads the large-v3 model (~1.5 GB).")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } header: {
+                Label("High-accuracy re-transcription", systemImage: "waveform.badge.checkmark")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .textCase(nil)

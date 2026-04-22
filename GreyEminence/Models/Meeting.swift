@@ -22,6 +22,16 @@ final class Meeting {
     var isInterviewMeeting: Bool = false
     var createdAt: Date
 
+    /// Identifier of the transcription backend used to produce the current
+    /// segments. `nil` on legacy meetings; "fluidaudio-parakeet-v2" for live
+    /// transcriptions; "whisperkit-large-v3" once re-transcribed offline.
+    var transcriptionModel: String?
+
+    /// In-flight re-processing state. `nil` when not queued. One of:
+    /// "queued" | "transcribing" | "analyzing" | "reindexing" | "failed"
+    var reProcessingState: String?
+    var reProcessingError: String?
+
     /// Normalized keys of action items the user has explicitly deleted.
     /// The AI is instructed not to re-suggest these during reanalysis, and
     /// any that slip through are filtered out post-parse.

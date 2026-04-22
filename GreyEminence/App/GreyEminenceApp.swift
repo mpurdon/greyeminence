@@ -79,6 +79,10 @@ struct GreyEminenceApp: App {
                         appEnvironment.configure(modelContext: container.mainContext)
                         seedInterviewDefaults(in: container.mainContext)
                         StoreBackupService.runIfNeeded(for: container)
+                        ReProcessingQueue.shared.configure(
+                            modelContainer: container,
+                            recordingViewModel: recordingViewModel
+                        )
                     }
                     .modelContainer(container)
             } else {
