@@ -16,12 +16,12 @@ struct ContactChip: View {
             Text(contact.displayNickname)
                 .font(.caption)
                 .lineLimit(1)
-                .help(contact.name)
         }
         .padding(.leading, 2)
         .padding(.trailing, 8)
         .padding(.vertical, 3)
         .background(.quaternary, in: Capsule())
+        .help(tooltipText)
         .contextMenu {
             if let onRemove {
                 Button("Remove", role: .destructive) {
@@ -29,6 +29,13 @@ struct ContactChip: View {
                 }
             }
         }
+    }
+
+    private var tooltipText: String {
+        if let email = contact.email, !email.isEmpty, email.lowercased() != contact.name.lowercased() {
+            return "\(contact.name) · \(email)"
+        }
+        return contact.name
     }
 }
 
@@ -42,7 +49,7 @@ struct CompactContactDot: View {
             .foregroundStyle(.white)
             .frame(width: 18, height: 18)
             .background(contact.avatarColor.gradient, in: Circle())
-            .help(contact.name)
+            .help(tooltipText)
             .contextMenu {
                 if let onRemove {
                     Button("Remove", role: .destructive) {
@@ -50,6 +57,13 @@ struct CompactContactDot: View {
                     }
                 }
             }
+    }
+
+    private var tooltipText: String {
+        if let email = contact.email, !email.isEmpty, email.lowercased() != contact.name.lowercased() {
+            return "\(contact.name) · \(email)"
+        }
+        return contact.name
     }
 }
 
