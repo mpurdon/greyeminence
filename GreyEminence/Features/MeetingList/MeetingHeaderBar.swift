@@ -40,18 +40,31 @@ struct MeetingHeaderBar: View {
 
                 HStack(spacing: 12) {
                     Label(meeting.date.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     Label(meeting.formattedDuration, systemImage: "clock")
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     Label("\(meeting.segments.count) segments", systemImage: "text.bubble")
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     if editedCount > 0 {
                         Label("\(editedCount) edited", systemImage: "pencil")
                             .foregroundStyle(.orange)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
                     if let raw = meeting.reProcessingState,
                        let state = ReProcessingState(rawValue: raw) {
                         StatusPill(label: pillLabel(state: state), tint: state.tint)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     } else if meeting.transcriptionModel?.hasPrefix("whisperkit-large-v3") == true {
                         StatusPill(label: "large-v3", tint: .green)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                     }
+                    Spacer(minLength: 0)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -63,37 +76,9 @@ struct MeetingHeaderBar: View {
 
             Spacer()
 
-            HStack(spacing: 8) {
-                Button {
-                    do {
-                        _ = try ObsidianExportService.export(meeting: meeting)
-                        PersistenceGate.save(modelContext, site: "MeetingDetailView.obsidianExport", meetingID: meeting.id)
-                        exportState = .success
-                    } catch {
-                        exportState = .error(error.localizedDescription)
-                    }
-                } label: {
-                    switch exportState {
-                    case .idle:
-                        Label("Sync to Obsidian", systemImage: "arrow.up.doc")
-                    case .success:
-                        Label("Synced to Obsidian", systemImage: "checkmark.circle.fill")
-                    case .error:
-                        Label("Sync Failed", systemImage: "exclamation.triangle.fill")
-                    }
-                }
-                .disabled(UserDefaults.standard.string(forKey: "obsidianVaultPath")?.isEmpty != false)
-                .keyboardShortcut("e", modifiers: .command)
-                .help(exportHelpText)
-
-                Button {
-                    showTranscriptSavePanel = true
-                } label: {
-                    Label("Save Transcript", systemImage: "doc.badge.arrow.up")
-                }
-                .help("Save transcript as a file for rubric testing")
-
-                statusBadge
+            ViewThatFits(in: .horizontal) {
+                actionButtons(iconOnly: false)
+                actionButtons(iconOnly: true)
             }
         }
         .padding()
@@ -111,6 +96,66 @@ struct MeetingHeaderBar: View {
         case .idle: "Sync to Obsidian vault"
         case .success: "Successfully synced to Obsidian"
         case .error(let msg): msg
+        }
+    }
+
+    @ViewBuilder
+    private func actionButtons(iconOnly: Bool) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                do {
+                    _ = try ObsidianExportService.export(meeting: meeting)
+                    PersistenceGate.save(modelContext, site: "MeetingDetailView.obsidianExport", meetingID: meeting.id)
+                    exportState = .success
+                } catch {
+                    exportState = .error(error.localizedDescription)
+                }
+            } label: {
+                actionLabel(
+                    title: exportTitle,
+                    systemImage: exportIcon,
+                    iconOnly: iconOnly
+                )
+            }
+            .disabled(UserDefaults.standard.string(forKey: "obsidianVaultPath")?.isEmpty != false)
+            .keyboardShortcut("e", modifiers: .command)
+            .help(exportHelpText)
+
+            Button {
+                showTranscriptSavePanel = true
+            } label: {
+                actionLabel(title: "Save Transcript", systemImage: "doc.badge.arrow.up", iconOnly: iconOnly)
+            }
+            .help("Save transcript as a file for rubric testing")
+
+            statusBadge
+        }
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private func actionLabel(title: String, systemImage: String, iconOnly: Bool) -> some View {
+        if iconOnly {
+            Image(systemName: systemImage)
+        } else {
+            Label(title, systemImage: systemImage)
+        }
+    }
+
+    private var exportTitle: String {
+        switch exportState {
+        case .idle: "Sync to Obsidian"
+        case .success: "Synced to Obsidian"
+        case .error: "Sync Failed"
+        }
+    }
+
+    private var exportIcon: String {
+        switch exportState {
+        case .idle: "arrow.up.doc"
+        case .success: "checkmark.circle.fill"
+        case .error: "exclamation.triangle.fill"
         }
     }
 

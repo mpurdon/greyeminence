@@ -293,9 +293,14 @@ struct ContentView: View {
             } detail: {
                 if let meeting = selectedMeeting {
                     GeometryReader { geo in
-                        let defaultWidth = geo.size.width * 0.5
+                        // Priority for collapsing: center > sidebar > transcript.
+                        // The center pane gets a healthy floor (60% min), and
+                        // the transcript inspector is clamped to at most 45%
+                        // of the available width so the header never squishes
+                        // into the character-wrapping disaster from earlier.
+                        let defaultWidth = geo.size.width * 0.4
                         let width = inspectorWidth ?? defaultWidth
-                        let clampedWidth = min(max(width, 280), geo.size.width * 0.7)
+                        let clampedWidth = min(max(width, 280), geo.size.width * 0.45)
 
                         HStack(spacing: 0) {
                             VStack(spacing: 0) {
@@ -304,6 +309,7 @@ struct ContentView: View {
                                 MeetingIntelligenceView(meeting: meeting)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .layoutPriority(2)
                             if showInspector {
                                 inspectorDragHandle(containerWidth: geo.size.width)
                                 TranscriptPanelView(
@@ -314,6 +320,7 @@ struct ContentView: View {
                                     scrollToSegmentID: $pendingScrollSegmentID
                                 )
                                 .frame(width: clampedWidth)
+                                .layoutPriority(0)
                             }
                         }
                     }
