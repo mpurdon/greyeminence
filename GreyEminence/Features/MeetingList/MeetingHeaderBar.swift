@@ -45,6 +45,12 @@ struct MeetingHeaderBar: View {
                         Label("\(editedCount) edited", systemImage: "pencil")
                             .foregroundStyle(.orange)
                     }
+                    if let raw = meeting.reProcessingState,
+                       let state = ReProcessingState(rawValue: raw) {
+                        StatusPill(label: state.label, tint: state.tint)
+                    } else if meeting.transcriptionModel == "whisperkit-large-v3" {
+                        StatusPill(label: "large-v3", tint: .green)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

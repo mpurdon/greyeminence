@@ -74,21 +74,24 @@ struct ContentView: View {
     var interviewRecordingViewModel: InterviewRecordingViewModel
 
     var body: some View {
-        HStack(spacing: 0) {
-            SidebarView(
-                selection: $selectedDestination,
-                isExpanded: $sidebarExpanded
-            )
-            Divider()
-            contentArea
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, 8)
-                .environment(\.topicMapViewModel, topicMapViewModel)
-                .onChange(of: topicMapViewModel.pendingFocusTopic) { _, topic in
-                    if topic != nil {
-                        selectedDestination = .topicMap
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                SidebarView(
+                    selection: $selectedDestination,
+                    isExpanded: $sidebarExpanded
+                )
+                Divider()
+                contentArea
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.top, 8)
+                    .environment(\.topicMapViewModel, topicMapViewModel)
+                    .onChange(of: topicMapViewModel.pendingFocusTopic) { _, topic in
+                        if topic != nil {
+                            selectedDestination = .topicMap
+                        }
                     }
-                }
+            }
+            ReProcessingStatusBar()
         }
         .toolbar {
             if selectedDestination == .meetings || selectedDestination == .recording || selectedDestination == .interviews {

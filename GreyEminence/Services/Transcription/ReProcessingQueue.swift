@@ -14,11 +14,25 @@ import SwiftData
 final class ReProcessingQueue {
     static let shared = ReProcessingQueue()
 
+    struct RunningJob: Equatable {
+        let id: UUID
+        var title: String
+        var phase: ReProcessingState
+    }
+
+    struct CompletionRecord: Equatable {
+        let title: String
+        let at: Date
+    }
+
     private(set) var pending: [UUID] = []
-    private(set) var currentJob: UUID?
-    private(set) var currentState: String = "idle"
+    private(set) var current: RunningJob?
+    private(set) var lastCompleted: CompletionRecord?
+
+    static let completionFlashDuration: TimeInterval = 3
 
     private var worker: Task<Void, Never>?
+    private var completionClearTask: Task<Void, Never>?
     private var modelContainer: ModelContainer?
     private weak var recordingViewModel: RecordingViewModel?
     private let transcriber = HighQualityTranscriber()
@@ -36,11 +50,12 @@ final class ReProcessingQueue {
 
     /// Add a meeting to the queue. Safe to call from any isolation.
     func enqueue(meetingID: UUID) {
-        guard !pending.contains(meetingID), currentJob != meetingID else { return }
+        guard !pending.contains(meetingID), current?.id != meetingID else { return }
         pending.append(meetingID)
         persistPending()
-        if let context = modelContainer?.mainContext {
-            markState(meetingID: meetingID, state: "queued", in: context)
+        if let context = modelContainer?.mainContext,
+           let meeting = fetchMeeting(meetingID: meetingID, in: context) {
+            markState(meeting: meeting, state: .queued, in: context)
         }
         LogManager.send("ReProcessingQueue: enqueued meeting \(meetingID)", category: .transcription)
     }
@@ -48,8 +63,7 @@ final class ReProcessingQueue {
     func cancelAll() {
         worker?.cancel()
         pending = []
-        currentJob = nil
-        currentState = "idle"
+        current = nil
         persistPending()
     }
 
@@ -67,18 +81,14 @@ final class ReProcessingQueue {
     }
 
     private func workerTick() async {
-        // Don't start new work while a live recording/analysis is in progress.
         if recordingViewModel?.state != .idle { return }
-        if currentJob != nil { return }
+        if current != nil { return }
         guard !pending.isEmpty else { return }
 
         let meetingID = pending.removeFirst()
         persistPending()
-        currentJob = meetingID
-        defer {
-            currentJob = nil
-            currentState = "idle"
-        }
+        current = RunningJob(id: meetingID, title: "", phase: .queued)
+        defer { current = nil }
 
         await processJob(meetingID: meetingID)
     }
@@ -93,60 +103,67 @@ final class ReProcessingQueue {
         }
 
         let title = meeting.title
+        current?.title = title
         LogManager.send("Re-transcribing \"\(title)\" with WhisperKit large-v3", category: .transcription)
 
-        // STEP 1: enumerate audio chunks
         let storage = StorageManager.shared
-        let micBase = storage.micAudioURL(for: meetingID)
-        let sysBase = storage.systemAudioURL(for: meetingID)
-        let micChunks = AudioFileWriter.existingChunkURLs(base: micBase)
-        let sysChunks = AudioFileWriter.existingChunkURLs(base: sysBase)
+        let micChunks = AudioFileWriter.existingChunkURLs(base: storage.micAudioURL(for: meetingID))
+        let sysChunks = AudioFileWriter.existingChunkURLs(base: storage.systemAudioURL(for: meetingID))
         guard !micChunks.isEmpty || !sysChunks.isEmpty else {
-            markState(meetingID: meetingID, state: "failed", error: "No audio files on disk for this meeting", in: context)
+            markState(meeting: meeting, state: .failed, error: "No audio files on disk for this meeting", in: context)
             return
         }
 
-        // STEP 2: transcribe (heavy work — off main actor via the actor hop)
-        markState(meetingID: meetingID, state: "transcribing", in: context)
-        currentState = "transcribing"
+        setPhase(.transcribing, for: meeting, in: context)
         let upgraded: [HighQualityTranscriber.Segment]
         do {
             upgraded = try await transcriber.transcribe(micChunks: micChunks, systemChunks: sysChunks)
         } catch {
             LogManager.send("Re-transcription failed for \(meetingID): \(error.localizedDescription)", category: .transcription, level: .error)
-            markState(meetingID: meetingID, state: "failed", error: error.localizedDescription, in: context)
+            markState(meeting: meeting, state: .failed, error: error.localizedDescription, in: context)
             return
         }
 
-        // Check for cancellation / live recording mid-job. If a call started during
-        // transcription, requeue this meeting and bail.
+        // Live recording started mid-transcription — requeue and let it run later.
         if recordingViewModel?.state != .idle {
             LogManager.send("Live recording started during reprocess of \(meetingID); requeueing", category: .transcription)
             pending.insert(meetingID, at: 0)
             persistPending()
-            markState(meetingID: meetingID, state: "queued", in: context)
+            markState(meeting: meeting, state: .queued, in: context)
             return
         }
 
-        // STEP 3: swap segments (main actor, same model context)
         let (segmentSnapshots, audioRanges) = swapSegments(meeting: meeting, upgraded: upgraded, in: context)
 
-        // STEP 4: re-run AI synthesis
-        markState(meetingID: meetingID, state: "analyzing", in: context)
-        currentState = "analyzing"
+        setPhase(.analyzing, for: meeting, in: context)
         await reRunAIAnalysis(meeting: meeting, segments: segmentSnapshots, context: context)
 
-        // STEP 5: re-index embeddings
-        markState(meetingID: meetingID, state: "reindexing", in: context)
-        currentState = "reindexing"
+        setPhase(.reindexing, for: meeting, in: context)
         await reIndexEmbeddings(meeting: meeting)
 
-        // STEP 6: mark done
         meeting.transcriptionModel = "whisperkit-large-v3"
         meeting.reProcessingState = nil
         meeting.reProcessingError = nil
         PersistenceGate.save(context, site: "reProcess/done", critical: true, meetingID: meetingID)
+        scheduleCompletionFlash(title: title)
         LogManager.send("Re-transcription complete for \"\(title)\" — \(upgraded.count) segments (covers \(Int(audioRanges))s of audio)", category: .transcription)
+    }
+
+    private func setPhase(_ phase: ReProcessingState, for meeting: Meeting, in context: ModelContext) {
+        if current?.phase != phase {
+            current?.phase = phase
+        }
+        markState(meeting: meeting, state: phase, in: context)
+    }
+
+    private func scheduleCompletionFlash(title: String) {
+        lastCompleted = CompletionRecord(title: title, at: .now)
+        completionClearTask?.cancel()
+        completionClearTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.completionFlashDuration + 0.1))
+            guard !Task.isCancelled, let self else { return }
+            lastCompleted = nil
+        }
     }
 
     // MARK: - Pipeline steps
@@ -235,11 +252,13 @@ final class ReProcessingQueue {
         return try? context.fetch(descriptor).first
     }
 
-    private func markState(meetingID: UUID, state: String, error: String? = nil, in context: ModelContext) {
-        guard let meeting = fetchMeeting(meetingID: meetingID, in: context) else { return }
-        meeting.reProcessingState = state
-        meeting.reProcessingError = error
-        PersistenceGate.save(context, site: "reProcess/markState(\(state))", meetingID: meetingID)
+    private func markState(meeting: Meeting, state: ReProcessingState, error: String? = nil, in context: ModelContext) {
+        let raw = state.rawValue
+        if meeting.reProcessingState != raw || meeting.reProcessingError != error {
+            meeting.reProcessingState = raw
+            meeting.reProcessingError = error
+            PersistenceGate.save(context, site: "reProcess/markState(\(raw))", meetingID: meeting.id)
+        }
     }
 
     private func loadPendingFromDisk() {
