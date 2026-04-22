@@ -112,6 +112,11 @@ final class ReProcessingQueue {
 
         let title = meeting.title
         current?.title = title
+        let jobStart = Date()
+        var phaseStart = jobStart
+        var transcribeDuration: TimeInterval = 0
+        var analyzeDuration: TimeInterval = 0
+        var reindexDuration: TimeInterval = 0
         LogManager.send("Re-transcribing \"\(title)\" with WhisperKit large-v3 turbo", category: .transcription)
 
         let storage = StorageManager.shared
@@ -129,6 +134,7 @@ final class ReProcessingQueue {
         }
 
         setPhase(.transcribing, for: meeting, in: context)
+        phaseStart = Date()
         let upgraded: [HighQualityTranscriber.Segment]
         do {
             upgraded = try await transcriber.transcribe(
@@ -140,6 +146,7 @@ final class ReProcessingQueue {
                     }
                 }
             )
+            transcribeDuration = Date().timeIntervalSince(phaseStart)
         } catch {
             LogManager.send("Re-transcription failed for \(meetingID): \(error.localizedDescription)", category: .transcription, level: .error)
             markState(meeting: meeting, state: .failed, error: error.localizedDescription, in: context)
@@ -167,17 +174,43 @@ final class ReProcessingQueue {
         let (segmentSnapshots, audioRanges) = swapSegments(meeting: meeting, upgraded: upgraded, in: context)
 
         setPhase(.analyzing, for: meeting, in: context)
+        phaseStart = Date()
         await reRunAIAnalysis(meeting: meeting, segments: segmentSnapshots, context: context)
+        analyzeDuration = Date().timeIntervalSince(phaseStart)
 
         setPhase(.reindexing, for: meeting, in: context)
+        phaseStart = Date()
         await reIndexEmbeddings(meeting: meeting)
+        reindexDuration = Date().timeIntervalSince(phaseStart)
 
         meeting.transcriptionModel = "whisperkit-large-v3-turbo"
         meeting.reProcessingState = nil
         meeting.reProcessingError = nil
         PersistenceGate.save(context, site: "reProcess/done", critical: true, meetingID: meetingID)
         scheduleCompletionFlash(title: title)
-        LogManager.send("Re-transcription complete for \"\(title)\" — \(upgraded.count) segments (covers \(Int(audioRanges))s of audio)", category: .transcription)
+
+        let totalDuration = Date().timeIntervalSince(jobStart)
+        let chunksProcessed = micChunks.count + sysChunks.count
+        let throughput = transcribeDuration > 0 ? audioRanges / transcribeDuration : 0
+        let wordCount = upgraded.reduce(0) { $0 + $1.text.split(separator: " ").count }
+        LogManager.send(
+            """
+            Re-processing report for "\(title)":
+              total:       \(Self.fmt(totalDuration))
+              transcribe:  \(Self.fmt(transcribeDuration)) (\(chunksProcessed) chunks, \(String(format: "%.1fx", throughput)) realtime)
+              analyze:     \(Self.fmt(analyzeDuration))
+              reindex:     \(Self.fmt(reindexDuration))
+              output:      \(upgraded.count) segments, \(wordCount) words, covers \(Self.fmt(audioRanges)) of audio
+            """,
+            category: .transcription
+        )
+    }
+
+    private static func fmt(_ seconds: TimeInterval) -> String {
+        if seconds < 60 { return String(format: "%.1fs", seconds) }
+        let m = Int(seconds) / 60
+        let s = Int(seconds) % 60
+        return "\(m)m \(s)s"
     }
 
     private func setPhase(_ phase: ReProcessingState, for meeting: Meeting, in context: ModelContext) {
