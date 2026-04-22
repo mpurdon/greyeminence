@@ -111,7 +111,7 @@ final class ReProcessingQueue {
 
         let title = meeting.title
         current?.title = title
-        LogManager.send("Re-transcribing \"\(title)\" with WhisperKit large-v3", category: .transcription)
+        LogManager.send("Re-transcribing \"\(title)\" with WhisperKit large-v3 turbo", category: .transcription)
 
         let storage = StorageManager.shared
         let micChunks = AudioFileWriter.existingChunkURLs(base: storage.micAudioURL(for: meetingID))
@@ -165,7 +165,7 @@ final class ReProcessingQueue {
         setPhase(.reindexing, for: meeting, in: context)
         await reIndexEmbeddings(meeting: meeting)
 
-        meeting.transcriptionModel = "whisperkit-large-v3"
+        meeting.transcriptionModel = "whisperkit-large-v3-turbo"
         meeting.reProcessingState = nil
         meeting.reProcessingError = nil
         PersistenceGate.save(context, site: "reProcess/done", critical: true, meetingID: meetingID)

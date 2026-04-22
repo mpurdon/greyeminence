@@ -30,14 +30,14 @@ actor HighQualityTranscriber {
 
     typealias ProgressCallback = @Sendable (Progress) -> Void
 
-    /// Apple's distilled large-v3 turbo variant: ~800 MB (half the size of
-    /// full large-v3), substantially faster on Apple Silicon ANE, with
-    /// transcription quality very close to full large-v3. The full model
-    /// occasionally fails with CoreML "Unable to compute the asynchronous
-    /// prediction" errors on lower-memory machines, and the turbo version
-    /// is what Anthropic, Apple, and the WhisperKit maintainers recommend
-    /// as the default for on-device Mac workflows.
-    private static let modelName = "openai_whisper-large-v3-turbo"
+    /// Apple's distilled large-v3 turbo variant (Sept 2024 release).
+    /// Substantially faster on Apple Silicon ANE than the non-turbo model,
+    /// with transcription quality very close to full large-v3. The full
+    /// non-turbo model occasionally fails with CoreML "Unable to compute
+    /// the asynchronous prediction" errors on lower-memory machines. Note
+    /// the name uses underscores around "turbo" — HuggingFace repo
+    /// `argmaxinc/whisperkit-coreml` uses that convention.
+    private static let modelName = "openai_whisper-large-v3-v20240930_turbo"
     private static let minChunkSamples = 1600 // 0.1s at 16 kHz
 
     private var whisper: WhisperKit?

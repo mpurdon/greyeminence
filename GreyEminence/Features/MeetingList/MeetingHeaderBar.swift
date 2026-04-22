@@ -49,7 +49,7 @@ struct MeetingHeaderBar: View {
                     if let raw = meeting.reProcessingState,
                        let state = ReProcessingState(rawValue: raw) {
                         StatusPill(label: pillLabel(state: state), tint: state.tint)
-                    } else if meeting.transcriptionModel == "whisperkit-large-v3" {
+                    } else if meeting.transcriptionModel?.hasPrefix("whisperkit-large-v3") == true {
                         StatusPill(label: "large-v3", tint: .green)
                     }
                 }
