@@ -1,4 +1,6 @@
+import AppKit
 import AVFoundation
+import CoreAudio
 import Foundation
 
 /// Watches for other apps using the microphone (Teams call, Zoom, Meet-in-browser,
@@ -39,11 +41,9 @@ final class MeetingDetectionService {
     /// meeting they just told us to stop recording.
     private var waitingForMicClear: Bool = false
 
-    private let discoverySession = AVCaptureDevice.DiscoverySession(
-        deviceTypes: [.microphone, .external],
-        mediaType: .audio,
-        position: .unspecified
-    )
+    /// Most recently identified other-process bundle ID that is holding the
+    /// input device. Logged on transitions to help diagnose false negatives.
+    private var lastDetectedBundleID: String?
 
     var onStartRequested: (() -> Void)?
     var onStopRequested: (() -> Void)?
@@ -142,10 +142,72 @@ final class MeetingDetectionService {
         }
     }
 
+    /// Returns true if any process *other than us* has an active input IOProc.
+    /// Uses Core Audio HAL's per-process APIs (macOS 14.4+), which see
+    /// HAL-direct clients like Microsoft Teams and Zoom that `AVCaptureDevice.
+    /// isInUseByAnotherApplication` misses entirely.
     private func queryMicInUse() -> Bool {
-        for device in discoverySession.devices {
-            if device.isInUseByAnotherApplication { return true }
+        let myPID = getpid()
+        var listAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyProcessObjectList,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        var dataSize: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(
+            AudioObjectID(kAudioObjectSystemObject), &listAddress, 0, nil, &dataSize
+        ) == noErr, dataSize > 0 else {
+            return false
+        }
+
+        let count = Int(dataSize) / MemoryLayout<AudioObjectID>.size
+        var processObjects = [AudioObjectID](repeating: 0, count: count)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &listAddress, 0, nil, &dataSize, &processObjects
+        ) == noErr else {
+            return false
+        }
+
+        var pidAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioProcessPropertyPID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var runningAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioProcessPropertyIsRunningInput,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        for processObject in processObjects {
+            var pid: pid_t = 0
+            var pidSize = UInt32(MemoryLayout<pid_t>.size)
+            guard AudioObjectGetPropertyData(
+                processObject, &pidAddress, 0, nil, &pidSize, &pid
+            ) == noErr, pid != myPID else { continue }
+
+            var running: UInt32 = 0
+            var runningSize = UInt32(MemoryLayout<UInt32>.size)
+            guard AudioObjectGetPropertyData(
+                processObject, &runningAddress, 0, nil, &runningSize, &running
+            ) == noErr, running == 1 else { continue }
+
+            let bundleID = bundleIdentifier(forPID: pid)
+            if bundleID != lastDetectedBundleID {
+                lastDetectedBundleID = bundleID
+                LogManager.send("Meeting detector sees input IO from \(bundleID ?? "pid \(pid)")", category: .audio)
+            }
+            return true
+        }
+
+        if lastDetectedBundleID != nil {
+            lastDetectedBundleID = nil
         }
         return false
+    }
+
+    private func bundleIdentifier(forPID pid: pid_t) -> String? {
+        NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
     }
 }
