@@ -18,6 +18,13 @@ final class ReProcessingQueue {
         let id: UUID
         var title: String
         var phase: ReProcessingState
+        var chunksDone: Int = 0
+        var chunksTotal: Int = 0
+
+        var progressFraction: Double? {
+            guard chunksTotal > 0 else { return nil }
+            return Double(chunksDone) / Double(chunksTotal)
+        }
     }
 
     struct CompletionRecord: Equatable {
@@ -117,7 +124,15 @@ final class ReProcessingQueue {
         setPhase(.transcribing, for: meeting, in: context)
         let upgraded: [HighQualityTranscriber.Segment]
         do {
-            upgraded = try await transcriber.transcribe(micChunks: micChunks, systemChunks: sysChunks)
+            upgraded = try await transcriber.transcribe(
+                micChunks: micChunks,
+                systemChunks: sysChunks,
+                onProgress: { [weak self] progress in
+                    Task { @MainActor [weak self] in
+                        self?.updateTranscriptionProgress(progress)
+                    }
+                }
+            )
         } catch {
             LogManager.send("Re-transcription failed for \(meetingID): \(error.localizedDescription)", category: .transcription, level: .error)
             markState(meeting: meeting, state: .failed, error: error.localizedDescription, in: context)
@@ -152,8 +167,20 @@ final class ReProcessingQueue {
     private func setPhase(_ phase: ReProcessingState, for meeting: Meeting, in context: ModelContext) {
         if current?.phase != phase {
             current?.phase = phase
+            // Reset progress on phase change — only transcribing reports chunks.
+            current?.chunksDone = 0
+            current?.chunksTotal = 0
         }
         markState(meeting: meeting, state: phase, in: context)
+    }
+
+    private func updateTranscriptionProgress(_ progress: HighQualityTranscriber.Progress) {
+        guard var job = current else { return }
+        if job.chunksDone != progress.chunksDone || job.chunksTotal != progress.chunksTotal {
+            job.chunksDone = progress.chunksDone
+            job.chunksTotal = progress.chunksTotal
+            current = job
+        }
     }
 
     private func scheduleCompletionFlash(title: String) {

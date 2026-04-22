@@ -20,6 +20,16 @@ actor HighQualityTranscriber {
         case system
     }
 
+    struct Progress: Sendable, Equatable {
+        var chunksDone: Int
+        var chunksTotal: Int
+        var fraction: Double {
+            chunksTotal > 0 ? Double(chunksDone) / Double(chunksTotal) : 0
+        }
+    }
+
+    typealias ProgressCallback = @Sendable (Progress) -> Void
+
     /// Same model used both times we transcribe — cached after first download.
     private static let modelName = "openai_whisper-large-v3"
 
@@ -38,12 +48,19 @@ actor HighQualityTranscriber {
     /// Transcribe all chunks for a meeting. Returns merged mic + system segments
     /// sorted by startTime. Caller is responsible for swapping these into the
     /// meeting's `segments` relationship on the main actor.
-    func transcribe(micChunks: [URL], systemChunks: [URL]) async throws -> [Segment] {
+    func transcribe(
+        micChunks: [URL],
+        systemChunks: [URL],
+        onProgress: ProgressCallback? = nil
+    ) async throws -> [Segment] {
         let kit = try await loadWhisperKit()
+        let totalChunks = micChunks.count + systemChunks.count
+        var chunksDone = 0
+        onProgress?(Progress(chunksDone: 0, chunksTotal: totalChunks))
 
         var segments: [Segment] = []
-        try await runChunks(micChunks, source: .mic, kit: kit, into: &segments)
-        try await runChunks(systemChunks, source: .system, kit: kit, into: &segments)
+        try await runChunks(micChunks, source: .mic, kit: kit, into: &segments, chunksDone: &chunksDone, totalChunks: totalChunks, onProgress: onProgress)
+        try await runChunks(systemChunks, source: .system, kit: kit, into: &segments, chunksDone: &chunksDone, totalChunks: totalChunks, onProgress: onProgress)
 
         segments.sort { $0.startTime < $1.startTime }
         return segments
@@ -53,7 +70,10 @@ actor HighQualityTranscriber {
         _ chunks: [URL],
         source: Source,
         kit: WhisperKit,
-        into segments: inout [Segment]
+        into segments: inout [Segment],
+        chunksDone: inout Int,
+        totalChunks: Int,
+        onProgress: ProgressCallback?
     ) async throws {
         var accumulatedOffset: TimeInterval = 0
         for chunk in chunks {
@@ -74,6 +94,8 @@ actor HighQualityTranscriber {
                 }
             }
             accumulatedOffset += chunkDuration
+            chunksDone += 1
+            onProgress?(Progress(chunksDone: chunksDone, chunksTotal: totalChunks))
             if Task.isCancelled { throw CancellationError() }
         }
     }

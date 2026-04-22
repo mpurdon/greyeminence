@@ -58,7 +58,11 @@ struct ReProcessingStatusBar: View {
 
     @ViewBuilder
     private var statusIcon: some View {
-        if isActive {
+        if let fraction = queue.current?.progressFraction {
+            ProgressView(value: fraction)
+                .progressViewStyle(.circular)
+                .controlSize(.small)
+        } else if isActive {
             ProgressView().controlSize(.small)
         } else if recentlyCompleted {
             Image(systemName: "checkmark.circle.fill")
@@ -75,10 +79,11 @@ struct ReProcessingStatusBar: View {
                     .font(.caption.weight(.medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text(job.phase.stepDescription)
+                Text(detailText(for: job))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .monospacedDigit()
             }
         } else if !queue.pending.isEmpty {
             Text("Waiting for live recording to finish")
@@ -95,5 +100,13 @@ struct ReProcessingStatusBar: View {
                     .truncationMode(.middle)
             }
         }
+    }
+
+    private func detailText(for job: ReProcessingQueue.RunningJob) -> String {
+        if job.phase == .transcribing, job.chunksTotal > 0 {
+            let pct = Int((job.progressFraction ?? 0) * 100)
+            return "\(job.phase.stepDescription) — \(job.chunksDone)/\(job.chunksTotal) chunks (\(pct)%)"
+        }
+        return job.phase.stepDescription
     }
 }

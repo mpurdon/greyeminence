@@ -4,6 +4,7 @@ import SwiftData
 struct MeetingHeaderBar: View {
     @Bindable var meeting: Meeting
     @Environment(\.modelContext) private var modelContext
+    @Bindable private var reProcessingQueue: ReProcessingQueue = .shared
     @State private var isEditingTitle = false
     @State private var editedTitle: String = ""
     @State private var exportState: ExportState = .idle
@@ -47,7 +48,7 @@ struct MeetingHeaderBar: View {
                     }
                     if let raw = meeting.reProcessingState,
                        let state = ReProcessingState(rawValue: raw) {
-                        StatusPill(label: state.label, tint: state.tint)
+                        StatusPill(label: pillLabel(state: state), tint: state.tint)
                     } else if meeting.transcriptionModel == "whisperkit-large-v3" {
                         StatusPill(label: "large-v3", tint: .green)
                     }
@@ -111,6 +112,16 @@ struct MeetingHeaderBar: View {
         case .success: "Successfully synced to Obsidian"
         case .error(let msg): msg
         }
+    }
+
+    private func pillLabel(state: ReProcessingState) -> String {
+        if state == .transcribing,
+           let job = reProcessingQueue.current,
+           job.id == meeting.id,
+           job.chunksTotal > 0 {
+            return "\(state.label) \(job.chunksDone)/\(job.chunksTotal)"
+        }
+        return state.label
     }
 
     @ViewBuilder
