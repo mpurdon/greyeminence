@@ -139,6 +139,15 @@ final class ReProcessingQueue {
             return
         }
 
+        // Safety net: if every chunk failed individually and we ended up with
+        // zero segments, DON'T replace the existing transcript — we'd wipe
+        // the user's live transcription data in exchange for nothing.
+        guard !upgraded.isEmpty else {
+            LogManager.send("Re-transcription produced 0 segments for \(meetingID) — keeping original transcript", category: .transcription, level: .warning)
+            markState(meeting: meeting, state: .failed, error: "Transcription produced no segments (all chunks failed inference)", in: context)
+            return
+        }
+
         // Live recording started mid-transcription — requeue and let it run later.
         if recordingViewModel?.state != .idle {
             LogManager.send("Live recording started during reprocess of \(meetingID); requeueing", category: .transcription)

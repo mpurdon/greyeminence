@@ -30,8 +30,15 @@ actor HighQualityTranscriber {
 
     typealias ProgressCallback = @Sendable (Progress) -> Void
 
-    /// Same model used both times we transcribe — cached after first download.
-    private static let modelName = "openai_whisper-large-v3"
+    /// Apple's distilled large-v3 turbo variant: ~800 MB (half the size of
+    /// full large-v3), substantially faster on Apple Silicon ANE, with
+    /// transcription quality very close to full large-v3. The full model
+    /// occasionally fails with CoreML "Unable to compute the asynchronous
+    /// prediction" errors on lower-memory machines, and the turbo version
+    /// is what Anthropic, Apple, and the WhisperKit maintainers recommend
+    /// as the default for on-device Mac workflows.
+    private static let modelName = "openai_whisper-large-v3-turbo"
+    private static let minChunkSamples = 1600 // 0.1s at 16 kHz
 
     private var whisper: WhisperKit?
 
@@ -76,23 +83,48 @@ actor HighQualityTranscriber {
         onProgress: ProgressCallback?
     ) async throws {
         var accumulatedOffset: TimeInterval = 0
-        for chunk in chunks {
-            let samples = try Self.decodeTo16kFloatMono(url: chunk)
-            guard !samples.isEmpty else { continue }
-            let results = try await kit.transcribe(audioArray: samples)
-            let chunkDuration = TimeInterval(samples.count) / 16000.0
-            for r in results {
-                for seg in r.segments {
-                    let text = seg.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { continue }
-                    segments.append(Segment(
-                        source: source,
-                        text: text,
-                        startTime: accumulatedOffset + TimeInterval(seg.start),
-                        endTime: accumulatedOffset + TimeInterval(seg.end)
-                    ))
-                }
+        for (chunkIdx, chunk) in chunks.enumerated() {
+            let samples: [Float]
+            do {
+                samples = try Self.decodeTo16kFloatMono(url: chunk)
+            } catch {
+                LogManager.send("Skipping chunk \(chunkIdx) (\(source)) — decode failed: \(error.localizedDescription)", category: .transcription, level: .warning)
+                chunksDone += 1
+                onProgress?(Progress(chunksDone: chunksDone, chunksTotal: totalChunks))
+                continue
             }
+
+            let chunkDuration = TimeInterval(samples.count) / 16000.0
+            if samples.count < Self.minChunkSamples {
+                LogManager.send("Skipping chunk \(chunkIdx) (\(source), \(samples.count) samples, \(String(format: "%.2f", chunkDuration))s) — below minimum length", category: .transcription, level: .info)
+                accumulatedOffset += chunkDuration
+                chunksDone += 1
+                onProgress?(Progress(chunksDone: chunksDone, chunksTotal: totalChunks))
+                continue
+            }
+
+            do {
+                let results = try await kit.transcribe(audioArray: samples)
+                for r in results {
+                    for seg in r.segments {
+                        let text = seg.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !text.isEmpty else { continue }
+                        segments.append(Segment(
+                            source: source,
+                            text: text,
+                            startTime: accumulatedOffset + TimeInterval(seg.start),
+                            endTime: accumulatedOffset + TimeInterval(seg.end)
+                        ))
+                    }
+                }
+            } catch {
+                LogManager.send(
+                    "Chunk \(chunkIdx) (\(source), \(samples.count) samples, \(String(format: "%.2f", chunkDuration))s) failed inference — continuing: \(error.localizedDescription)",
+                    category: .transcription,
+                    level: .warning
+                )
+            }
+
             accumulatedOffset += chunkDuration
             chunksDone += 1
             onProgress?(Progress(chunksDone: chunksDone, chunksTotal: totalChunks))
