@@ -44,15 +44,23 @@ struct MeetingIntelligenceView: View {
                                 .help("Cancel the in-progress analysis and reset the meeting state")
                             }
                         } else {
-                            Button {
-                                reanalyzeTask = Task { await reanalyze() }
+                            Menu {
+                                Button {
+                                    ReProcessingQueue.shared.enqueue(meetingID: meeting.id)
+                                } label: {
+                                    Label("Re-transcribe with large-v3 (then reanalyze)", systemImage: "waveform.badge.checkmark")
+                                }
+                                .help("Read the saved audio and produce a high-accuracy transcript, then rerun AI synthesis and embeddings on the upgraded result. Queued — runs when no recording is active.")
                             } label: {
                                 Label("Reanalyze", systemImage: "arrow.clockwise")
                                     .font(.caption)
+                            } primaryAction: {
+                                reanalyzeTask = Task { await reanalyze() }
                             }
-                            .buttonStyle(.bordered)
+                            .menuStyle(.borderlessButton)
                             .controlSize(.small)
-                            .help("Re-run AI analysis on this transcript")
+                            .fixedSize()
+                            .help("Re-run AI analysis on the current transcript. Use the arrow for a full re-transcription.")
                         }
                     }
                 }
