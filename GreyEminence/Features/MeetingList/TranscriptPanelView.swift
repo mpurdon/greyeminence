@@ -518,6 +518,19 @@ struct TranscriptPanelView: View {
 
         newMeeting.attendees = meeting.attendees
 
+        // Audio files aren't physically split — we record offsets into the
+        // source meeting's audio timeline. If the meeting being split is
+        // itself a child, preserve the original root and compound the
+        // offsets so re-transcription walks the right chunks.
+        let rootSource = meeting.audioSourceMeetingID ?? meeting.id
+        let rootOffset = meeting.audioStartOffset
+        newMeeting.audioSourceMeetingID = rootSource
+        newMeeting.audioStartOffset = rootOffset + splitTime
+        newMeeting.audioEndOffset = meeting.audioEndOffset
+        // The meeting we're splitting now ends at the split point in the
+        // source timeline.
+        meeting.audioEndOffset = rootOffset + splitTime
+
         for segment in moveSegments {
             segment.startTime -= splitTime
             segment.endTime -= splitTime

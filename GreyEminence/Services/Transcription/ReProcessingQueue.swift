@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import SwiftData
 
@@ -114,10 +115,16 @@ final class ReProcessingQueue {
         LogManager.send("Re-transcribing \"\(title)\" with WhisperKit large-v3 turbo", category: .transcription)
 
         let storage = StorageManager.shared
-        let micChunks = AudioFileWriter.existingChunkURLs(base: storage.micAudioURL(for: meetingID))
-        let sysChunks = AudioFileWriter.existingChunkURLs(base: storage.systemAudioURL(for: meetingID))
+        let audioSourceID = meeting.audioSourceMeetingID ?? meetingID
+        let windowStart = meeting.audioStartOffset
+        let windowEnd = meeting.audioEndOffset
+        let allMic = AudioFileWriter.existingChunkURLs(base: storage.micAudioURL(for: audioSourceID))
+        let allSys = AudioFileWriter.existingChunkURLs(base: storage.systemAudioURL(for: audioSourceID))
+        let micChunks = Self.chunks(allMic, in: windowStart...(windowEnd ?? .greatestFiniteMagnitude))
+        let sysChunks = Self.chunks(allSys, in: windowStart...(windowEnd ?? .greatestFiniteMagnitude))
         guard !micChunks.isEmpty || !sysChunks.isEmpty else {
-            markState(meeting: meeting, state: .failed, error: "No audio files on disk for this meeting", in: context)
+            let where_ = audioSourceID == meetingID ? "this meeting" : "source meeting \(audioSourceID)"
+            markState(meeting: meeting, state: .failed, error: "No audio files on disk for \(where_) in window \(Int(windowStart))…\(windowEnd.map { "\(Int($0))" } ?? "end")", in: context)
             return
         }
 
@@ -286,6 +293,26 @@ final class ReProcessingQueue {
     private func fetchMeeting(meetingID: UUID, in context: ModelContext) -> Meeting? {
         let descriptor = FetchDescriptor<Meeting>(predicate: #Predicate { $0.id == meetingID })
         return try? context.fetch(descriptor).first
+    }
+
+    /// Filter chunks to those overlapping the requested audio-timeline window.
+    /// Accepts ~10s slop at boundaries (chunks are atomic and not re-encoded).
+    static func chunks(_ urls: [URL], in window: ClosedRange<TimeInterval>) -> [URL] {
+        var result: [URL] = []
+        var cumulative: TimeInterval = 0
+        for url in urls {
+            let duration = (try? AVAudioFile(forReading: url)).map { file -> TimeInterval in
+                guard file.processingFormat.sampleRate > 0 else { return 10 }
+                return Double(file.length) / file.processingFormat.sampleRate
+            } ?? 10
+            let chunkRange = cumulative...(cumulative + duration)
+            if chunkRange.upperBound > window.lowerBound && chunkRange.lowerBound < window.upperBound {
+                result.append(url)
+            }
+            cumulative += duration
+            if cumulative >= window.upperBound { break }
+        }
+        return result
     }
 
     private func markState(meeting: Meeting, state: ReProcessingState, error: String? = nil, in context: ModelContext) {

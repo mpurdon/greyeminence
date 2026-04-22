@@ -32,6 +32,16 @@ final class Meeting {
     var reProcessingState: String?
     var reProcessingError: String?
 
+    /// When a meeting is split, the new half doesn't copy the audio files —
+    /// instead it points back at the original meeting and records which slice
+    /// of that audio timeline belongs to it. Re-transcription uses these to
+    /// read the right chunks from the right meeting's folder.
+    /// `nil` means this meeting owns its own audio (the normal case).
+    var audioSourceMeetingID: UUID?
+    var audioStartOffset: TimeInterval = 0
+    /// `nil` = "runs to the end of the source audio".
+    var audioEndOffset: TimeInterval?
+
     /// Normalized keys of action items the user has explicitly deleted.
     /// The AI is instructed not to re-suggest these during reanalysis, and
     /// any that slip through are filtered out post-parse.
