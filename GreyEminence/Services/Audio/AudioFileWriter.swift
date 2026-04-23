@@ -58,17 +58,29 @@ actor AudioFileWriter {
     }
 
     /// Close the current chunk (finalizing AAC metadata so it's playable) and
-    /// open the next chunk. Called periodically from the main recording loop to
-    /// bound audio loss on crash.
+    /// open the next chunk. Called periodically from the main recording loop
+    /// to bound audio loss on crash. If opening the new chunk fails, the
+    /// current chunk is kept open so writes continue — better to have one
+    /// big chunk than to lose audio entirely until the next successful
+    /// checkpoint attempt.
     func checkpoint() throws {
         guard let startedFormat else {
             // Nothing has been written yet — nothing to checkpoint.
             return
         }
-        // Close current chunk: nil'ing the reference finalizes the AAC container.
-        audioFile = nil
-        chunkIndex += 1
-        try openChunk(inputFormat: startedFormat)
+        let nextIndex = chunkIndex + 1
+        let nextURL = Self.chunkURL(base: baseURL, index: nextIndex)
+        let newFile = try AVAudioFile(
+            forWriting: nextURL,
+            settings: Self.encoderSettings(for: startedFormat),
+            commonFormat: startedFormat.commonFormat,
+            interleaved: startedFormat.isInterleaved
+        )
+        // Swap only after successful open — the previous file finalizes on
+        // dealloc once its last reference drops.
+        audioFile = newFile
+        chunkIndex = nextIndex
+        chunkURLsInternal.append(nextURL)
     }
 
     func stop() {
@@ -88,27 +100,31 @@ actor AudioFileWriter {
 
     private func openChunk(inputFormat: AVAudioFormat) throws {
         let url = Self.chunkURL(base: baseURL, index: chunkIndex)
-        // Speech-tier AAC at the input's native rate/channels. Writing at a
-        // different rate (e.g. 16 kHz) from the PCM input (48 kHz) causes
-        // AVAudioFile to produce unreadable chunks for some input formats —
-        // decode fails at re-transcription time. Matching the input keeps
-        // the encode stable; the bitrate drop (128 → 32 kbps) alone gives
-        // ~4x disk savings for speech content without risking write corruption.
-        let settings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: inputFormat.sampleRate,
-            AVNumberOfChannelsKey: inputFormat.channelCount,
-            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
-            AVEncoderBitRateKey: 32000,
-        ]
-
         audioFile = try AVAudioFile(
             forWriting: url,
-            settings: settings,
+            settings: Self.encoderSettings(for: inputFormat),
             commonFormat: inputFormat.commonFormat,
             interleaved: inputFormat.isInterleaved
         )
         chunkURLsInternal.append(url)
+    }
+
+    /// Speech-tier AAC at the input's native rate/channels. Bitrate scales
+    /// with channel count because AAC-LC has a per-channel minimum —
+    /// 32 kbps stereo at 48 kHz gets rejected by the encoder (16 kbps/ch is
+    /// below the floor). 32 kbps/ch keeps the encode stable for both the
+    /// 1-channel mic tap and the 2-channel system tap, and still gives
+    /// ~2–4x savings over the original 128 kbps.
+    private static func encoderSettings(for inputFormat: AVAudioFormat) -> [String: Any] {
+        let channels = max(Int(inputFormat.channelCount), 1)
+        let bitrate = 32000 * channels
+        return [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: inputFormat.sampleRate,
+            AVNumberOfChannelsKey: inputFormat.channelCount,
+            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
+            AVEncoderBitRateKey: bitrate,
+        ]
     }
 
     /// Derive the URL for a given chunk index from the base URL.
