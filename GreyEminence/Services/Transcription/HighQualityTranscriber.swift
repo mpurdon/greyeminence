@@ -40,6 +40,37 @@ actor HighQualityTranscriber {
     private static let modelName = "openai_whisper-large-v3-v20240930_turbo"
     private static let minChunkSamples = 1600 // 0.1s at 16 kHz
 
+    /// RMS below this level is treated as silence and the chunk is skipped
+    /// entirely. Whisper hallucinates stock phrases ("Thank you.", "you",
+    /// "Thanks for watching.") when fed silence — skipping the chunk is
+    /// both faster and more accurate than letting the model confabulate.
+    /// -50 dBFS catches room tone and quiet ventilation; real speech is
+    /// typically -30 to -15 dBFS.
+    private static let silenceRMSThreshold: Float = 0.003 // ≈ -50 dBFS
+
+    /// Known Whisper silence-hallucination phrases (normalized). If a chunk's
+    /// only output matches one of these, we drop it. Belt-and-suspenders for
+    /// the silence-RMS gate — catches cases where there's just enough noise
+    /// to pass the gate but still no real speech.
+    private static let silenceHallucinations: Set<String> = [
+        "thank you",
+        "thank you.",
+        "thanks for watching",
+        "thanks for watching.",
+        "thanks for watching!",
+        "you",
+        "you.",
+        "bye",
+        "bye.",
+        "bye!",
+        "[music]",
+        "♪",
+        "♪♪",
+        ".",
+        "..",
+        "...",
+    ]
+
     private var whisper: WhisperKit?
 
     private func loadWhisperKit() async throws -> WhisperKit {
@@ -103,12 +134,24 @@ actor HighQualityTranscriber {
                 continue
             }
 
+            let rms = Self.rms(samples)
+            if rms < Self.silenceRMSThreshold {
+                LogManager.send("Skipping chunk \(chunkIdx) (\(source)) — silence (RMS \(String(format: "%.5f", rms)))", category: .transcription, level: .info)
+                accumulatedOffset += chunkDuration
+                chunksDone += 1
+                onProgress?(Progress(chunksDone: chunksDone, chunksTotal: totalChunks))
+                continue
+            }
+
             do {
                 let results = try await kit.transcribe(audioArray: samples)
                 for r in results {
                     for seg in r.segments {
                         let text = Self.cleanWhisperText(seg.text)
                         guard !text.isEmpty else { continue }
+                        if Self.silenceHallucinations.contains(text.lowercased()) {
+                            continue
+                        }
                         segments.append(Segment(
                             source: source,
                             text: text,
@@ -143,6 +186,13 @@ actor HighQualityTranscriber {
         let range = NSRange(raw.startIndex..., in: raw)
         let stripped = specialTokenRegex.stringByReplacingMatches(in: raw, range: range, withTemplate: "")
         return stripped.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated private static func rms(_ samples: [Float]) -> Float {
+        guard !samples.isEmpty else { return 0 }
+        var sumSquares: Float = 0
+        for s in samples { sumSquares += s * s }
+        return (sumSquares / Float(samples.count)).squareRoot()
     }
 
     /// Decode an AAC/m4a chunk to 16 kHz mono Float32 samples, which is what
