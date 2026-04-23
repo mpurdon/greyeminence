@@ -112,7 +112,8 @@ struct MeetingAttendeesRow: View {
             .popover(isPresented: $showPicker) {
                 ContactPicker(excludedContacts: excludedIDs) { contact in
                     meeting.attendees.append(contact)
-                    showPicker = false
+                    // Stay open so the user can add several attendees in one
+                    // pass; click outside (or hit Escape) to dismiss.
                 }
             }
         }

@@ -32,6 +32,7 @@ struct ContactPicker: View {
                     .onSubmit {
                         if let first = filteredContacts.first {
                             onSelect(first)
+                            searchText = ""
                         }
                     }
             }
@@ -73,6 +74,7 @@ struct ContactPicker: View {
         let isHovered = hoveredID == contact.persistentModelID
         Button {
             onSelect(contact)
+            searchText = ""
         } label: {
             HStack(spacing: 10) {
                 Text(contact.initials)
