@@ -197,9 +197,8 @@ actor HighQualityTranscriber {
 
     /// Decode an AAC/m4a chunk to 16 kHz mono Float32 samples, which is what
     /// WhisperKit expects for `transcribe(audioArray:)`. Tries AVAudioFile
-    /// first; falls back to AVAssetReader (more forgiving on slightly
-    /// malformed containers, e.g. chunks written by v0.9.45–0.9.47 with
-    /// mismatched encoder/processing formats) when AVAudioFile throws.
+    /// first; falls back to AVAssetReader for slightly malformed containers
+    /// that AVAudioFile refuses to open.
     nonisolated private static func decodeTo16kFloatMono(url: URL) throws -> [Float] {
         do {
             return try decodeViaAVAudioFile(url: url)
@@ -269,9 +268,8 @@ actor HighQualityTranscriber {
     }
 
     /// Fallback decoder using AVAssetReader. Handles malformed AAC containers
-    /// that AVAudioFile refuses to open (seen on chunks written by v0.9.45
-    /// through v0.9.47 when the AAC encoder settings didn't match the input
-    /// PCM format). Always returns 16 kHz mono Float32 regardless of source.
+    /// that AVAudioFile refuses to open. Always returns 16 kHz mono Float32
+    /// regardless of source format.
     nonisolated private static func decodeViaAssetReader(url: URL) throws -> [Float] {
         let asset = AVURLAsset(url: url)
         let reader = try AVAssetReader(asset: asset)

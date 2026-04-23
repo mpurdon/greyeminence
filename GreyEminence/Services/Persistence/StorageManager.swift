@@ -35,15 +35,16 @@ final class StorageManager: Sendable {
     }
 
     /// Remove the entire recording directory for a meeting (mic + system
-    /// chunks, plus any sidecar files). Silent on failure — missing-file is
-    /// not an error here.
+    /// chunks, plus any sidecar files). Returns true if something was
+    /// actually removed. Missing-file is not an error.
     @discardableResult
     func deleteRecording(for meetingID: UUID) -> Bool {
         let dir = recordingsURL.appendingPathComponent(meetingID.uuidString, isDirectory: true)
-        guard FileManager.default.fileExists(atPath: dir.path) else { return false }
         do {
             try FileManager.default.removeItem(at: dir)
             return true
+        } catch CocoaError.fileNoSuchFile {
+            return false
         } catch {
             return false
         }

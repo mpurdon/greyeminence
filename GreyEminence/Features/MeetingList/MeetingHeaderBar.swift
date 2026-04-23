@@ -10,7 +10,6 @@ struct MeetingHeaderBar: View {
     @State private var editedTitle: String = ""
     @State private var exportState: ExportState = .idle
     @State private var showTranscriptSavePanel = false
-    @State private var didCopyID = false
 
     private enum ExportState: Equatable {
         case idle, success, error(String)
@@ -46,21 +45,7 @@ struct MeetingHeaderBar: View {
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundStyle(.tertiary)
                             .textSelection(.enabled)
-                        Button {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(meeting.id.uuidString, forType: .string)
-                            didCopyID = true
-                            Task {
-                                try? await Task.sleep(for: .seconds(1.2))
-                                didCopyID = false
-                            }
-                        } label: {
-                            Image(systemName: didCopyID ? "checkmark" : "doc.on.doc")
-                                .font(.caption2)
-                                .foregroundStyle(didCopyID ? Color.green : Color.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Copy meeting ID")
+                        CopyButton(content: meeting.id.uuidString, help: "Copy meeting ID", font: .caption2)
                     }
                 }
 

@@ -177,37 +177,3 @@ private struct PointRow: View {
     }
 }
 
-// MARK: - Copy button
-
-private struct CopyButton: View {
-    let label: String?
-    let content: () -> String
-    @State private var copied = false
-
-    var body: some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(content(), forType: .string)
-            withAnimation { copied = true }
-            Task {
-                try? await Task.sleep(for: .seconds(1.5))
-                await MainActor.run { withAnimation { copied = false } }
-            }
-        } label: {
-            if copied {
-                Label("Copied", systemImage: "checkmark")
-                    .foregroundStyle(.green)
-                    .font(.caption)
-            } else if let label {
-                Label(label, systemImage: "doc.on.doc")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Image(systemName: "doc.on.doc")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}

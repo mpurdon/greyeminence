@@ -230,23 +230,33 @@ final class TranscriptionCoordinator {
         return result.isEmpty ? nil : result
     }
 
+    /// Handle a final empty-text update by either promoting the outstanding
+    /// draft to final (if its peak confidence is trustworthy) or discarding
+    /// it. Parakeet hallucinates on silence with conf 0.1–0.45 and the
+    /// trailing period at conf=1.0 would otherwise promote the junk.
+    private func finalizeOrDiscardDraft(draftID: inout UUID?, label: String) {
+        guard let id = draftID,
+              let idx = segments.firstIndex(where: { $0.id == id }) else {
+            draftID = nil
+            return
+        }
+        let conf = segmentConfidence[id] ?? 0
+        if conf >= minDraftConfidenceForFinal {
+            segments[idx].isFinal = true
+            LogManager.shared.log("\(label) draft promoted to final: \(segments[idx].text.prefix(80))", category: .transcription)
+        } else {
+            let discardedText = segments[idx].text.prefix(60)
+            segments.remove(at: idx)
+            segmentConfidence.removeValue(forKey: id)
+            LogManager.shared.log("\(label) draft discarded (conf \(String(format: "%.2f", conf))): \(discardedText)", category: .transcription, level: .info)
+        }
+        draftID = nil
+    }
+
     private func handleMicUpdate(_ update: FluidAsrService.TranscriptUpdate) {
         guard let text = cleanedText(update.text) else {
-            // Empty after cleaning — promote existing draft if its peak
-            // confidence was high enough to trust; otherwise drop it.
-            if update.isFinal, let draftID = currentMicDraftID,
-               let idx = segments.firstIndex(where: { $0.id == draftID }) {
-                let conf = segmentConfidence[draftID] ?? 0
-                if conf >= minDraftConfidenceForFinal {
-                    segments[idx].isFinal = true
-                    LogManager.shared.log("Mic draft promoted to final: \(segments[idx].text.prefix(80))", category: .transcription)
-                } else {
-                    let discardedText = segments[idx].text.prefix(60)
-                    segments.remove(at: idx)
-                    segmentConfidence.removeValue(forKey: draftID)
-                    LogManager.shared.log("Mic draft discarded (conf \(String(format: "%.2f", conf))): \(discardedText)", category: .transcription, level: .info)
-                }
-                currentMicDraftID = nil
+            if update.isFinal {
+                finalizeOrDiscardDraft(draftID: &currentMicDraftID, label: "Mic")
             }
             return
         }
@@ -297,23 +307,8 @@ final class TranscriptionCoordinator {
 
     private func handleSystemUpdate(_ update: FluidAsrService.TranscriptUpdate) {
         guard let text = cleanedText(update.text) else {
-            // Empty after cleaning — promote existing draft if its peak
-            // confidence was high enough to trust; otherwise drop it.
-            // Parakeet hallucinates on silence with conf 0.1–0.45 and the
-            // trailing period at conf=1.0 would otherwise promote the junk.
-            if update.isFinal, let draftID = currentSystemDraftID,
-               let idx = segments.firstIndex(where: { $0.id == draftID }) {
-                let conf = segmentConfidence[draftID] ?? 0
-                if conf >= minDraftConfidenceForFinal {
-                    segments[idx].isFinal = true
-                    LogManager.shared.log("System draft promoted to final: \(segments[idx].text.prefix(80))", category: .transcription)
-                } else {
-                    let discardedText = segments[idx].text.prefix(60)
-                    segments.remove(at: idx)
-                    segmentConfidence.removeValue(forKey: draftID)
-                    LogManager.shared.log("System draft discarded (conf \(String(format: "%.2f", conf))): \(discardedText)", category: .transcription, level: .info)
-                }
-                currentSystemDraftID = nil
+            if update.isFinal {
+                finalizeOrDiscardDraft(draftID: &currentSystemDraftID, label: "System")
             }
             return
         }

@@ -195,18 +195,15 @@ struct ContentView: View {
     private func recoverOrphanedMeetings() {
         let statusRecording = MeetingStatus.recording
         let statusPaused = MeetingStatus.paused
-        let descriptor = FetchDescriptor<Meeting>(
-            predicate: #Predicate { $0.status == statusRecording || $0.status == statusPaused }
-        )
-        let orphansFetched = (try? modelContext.fetch(descriptor)) ?? []
+        let allMeetings = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
+        let orphansFetched = allMeetings.filter {
+            $0.status == statusRecording || $0.status == statusPaused
+        }
 
-        // One-time sweep for audio directories left behind by pre-0.9.44
-        // deletes (which removed the SwiftData row but not the files). Any
-        // folder in Recordings/ whose UUID isn't referenced by a meeting or
-        // its audioSourceMeetingID gets removed.
-        let allForPurge = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
-        var referenced = Set(allForPurge.map(\.id))
-        for m in allForPurge {
+        // Sweep Recordings/ for folders whose UUID is no longer referenced by
+        // any meeting (or its audioSourceMeetingID, for split meetings).
+        var referenced = Set(allMeetings.map(\.id))
+        for m in allMeetings {
             if let src = m.audioSourceMeetingID { referenced.insert(src) }
         }
         let purged = StorageManager.shared.purgeOrphanedRecordings(referencedIDs: referenced)
@@ -218,13 +215,12 @@ struct ContentView: View {
             )
         }
 
-        // Scan disk lock files. Any lock file whose meeting ID isn't in the
-        // orphan set OR in the main meetings list represents audio on disk
-        // that has no SwiftData row — a persistence failure during an earlier
-        // session. Log it loudly so the user can investigate.
+        // Any lock file whose meeting ID isn't in the fetched meetings list
+        // represents audio on disk that has no SwiftData row — a persistence
+        // failure during an earlier session. Log it loudly so the user can
+        // investigate.
         let lockFiles = RecordingLockFile.scanAll()
         if !lockFiles.isEmpty {
-            let allMeetings = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
             let knownIDs = Set(allMeetings.map(\.id))
             let ghosts = lockFiles.filter { !knownIDs.contains($0.meetingID) }
             for ghost in ghosts {

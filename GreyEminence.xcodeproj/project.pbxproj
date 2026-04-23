@@ -66,6 +66,7 @@
 		645FB051CDDEF1925D77944A /* BedrockAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59A4997345983696DC9017FF /* BedrockAPIClient.swift */; };
 		6632545DC3BCE1347E7D2AAF /* VocabularyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A49043AC4DC48EF88C729BE /* VocabularyManager.swift */; };
 		6B3B7042DBD6D529106704B5 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F441D2EB2BBE4A6F48F3B85C /* DashboardView.swift */; };
+		6D2EF28FFD7F6D01EB1A27B9 /* CopyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26C0C8639599BB7A2E459430 /* CopyButton.swift */; };
 		6E45CEDA458C896848FE2178 /* AIRetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3946643E25AD52CD5C5B4307 /* AIRetryTests.swift */; };
 		6FAA39AF5B2ECCCC58143107 /* Speaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABA6148B7B2D3CF9E6FCA594 /* Speaker.swift */; };
 		706A3BA40184EBEF4F80EF5D /* CandidateDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C160A2AE8063D161B554AAA /* CandidateDetailView.swift */; };
@@ -201,6 +202,7 @@
 		23C382DEF7EA4E7691E8679D /* EmbeddingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddingService.swift; sourceTree = "<group>"; };
 		23D9772408B00E7D046004B1 /* AudioChunkValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioChunkValidator.swift; sourceTree = "<group>"; };
 		24F3845FE267CF4C12988BFE /* GreyEminenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GreyEminenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		26C0C8639599BB7A2E459430 /* CopyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopyButton.swift; sourceTree = "<group>"; };
 		2B5081D914CE6F311AA9EB21 /* NoteInputBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteInputBar.swift; sourceTree = "<group>"; };
 		2B931FA0292EE0DF9C7F8A19 /* KnowledgeLinksSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeLinksSection.swift; sourceTree = "<group>"; };
 		300EAE12152D87923A870EA9 /* ReProcessingStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReProcessingStatusBar.swift; sourceTree = "<group>"; };
@@ -510,6 +512,7 @@
 				6561D28B5DAEB16664556829 /* Recording */,
 				BCD7DF53D59626AABCF940B7 /* ReProcessing */,
 				F4E8191C2484BE6ADF85CE46 /* Settings */,
+				BB31BFD7B0C15A59848EC71A /* Shared */,
 				88E7AA2402B212B1256D7F6A /* Sidebar */,
 				327AAE184D33564DAA89A038 /* Tasks */,
 				6BC5FBFB9B02E759BDD6294A /* TopicMap */,
@@ -691,6 +694,14 @@
 				5225DE7E98248F22B00C08CB /* TranscriptPanelView.swift */,
 			);
 			path = MeetingList;
+			sourceTree = "<group>";
+		};
+		BB31BFD7B0C15A59848EC71A /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				26C0C8639599BB7A2E459430 /* CopyButton.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		BCD7DF53D59626AABCF940B7 /* ReProcessing */ = {
@@ -938,6 +949,7 @@
 				CA397207ABB9967B21A63E08 /* ContactPicker.swift in Sources */,
 				2752C857ED799575298D2EE7 /* ContactRowView.swift in Sources */,
 				9CAA57863B9D3DF1ADAAA09D /* ContentView.swift in Sources */,
+				6D2EF28FFD7F6D01EB1A27B9 /* CopyButton.swift in Sources */,
 				002B9FD55A3EA8C2DAD95187 /* CriterionEvaluation.swift in Sources */,
 				6B3B7042DBD6D529106704B5 /* DashboardView.swift in Sources */,
 				A02605F83C29F34FD45E8B79 /* DedupDebugRow.swift in Sources */,
@@ -1146,13 +1158,13 @@
 				CODE_SIGN_ENTITLEMENTS = GreyEminence/GreyEminence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260423120000;
+				CURRENT_PROJECT_VERSION = 20260423130000;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.52;
+				MARKETING_VERSION = 0.9.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1168,13 +1180,13 @@
 				CODE_SIGN_ENTITLEMENTS = GreyEminence/GreyEminence.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260423120000;
+				CURRENT_PROJECT_VERSION = 20260423130000;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.52;
+				MARKETING_VERSION = 0.9.53;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

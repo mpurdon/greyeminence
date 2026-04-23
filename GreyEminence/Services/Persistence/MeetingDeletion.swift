@@ -1,19 +1,20 @@
 import Foundation
 import SwiftData
 
-/// Deletes a meeting and its audio files, taking split relationships into
-/// account. A split meeting references its parent's audio via
-/// `audioSourceMeetingID`, so the parent's recording directory must not be
-/// removed while any other meeting still points at it.
 enum MeetingDeletion {
-    static func delete(_ meeting: Meeting, in context: ModelContext, allMeetings: [Meeting]) {
+    /// A split meeting references its parent's audio via `audioSourceMeetingID`,
+    /// so the parent's recording directory must not be removed while any other
+    /// meeting still points at it. Pass `allMeetings` if you already have the
+    /// list; otherwise it'll be fetched from `context`.
+    static func delete(_ meeting: Meeting, in context: ModelContext, allMeetings: [Meeting]? = nil) {
         let meetingID = meeting.id
         let audioSourceID = meeting.audioSourceMeetingID ?? meetingID
+        let others = allMeetings ?? ((try? context.fetch(FetchDescriptor<Meeting>())) ?? [])
 
         context.delete(meeting)
         PersistenceGate.save(context, site: "MeetingDeletion.delete", meetingID: meetingID)
 
-        let stillReferenced = allMeetings.contains { other in
+        let stillReferenced = others.contains { other in
             guard other.id != meetingID else { return false }
             let otherSource = other.audioSourceMeetingID ?? other.id
             return otherSource == audioSourceID
@@ -24,8 +25,7 @@ enum MeetingDeletion {
             return
         }
 
-        let removed = StorageManager.shared.deleteRecording(for: audioSourceID)
-        if removed {
+        if StorageManager.shared.deleteRecording(for: audioSourceID) {
             LogManager.send("Deleted meeting \(meetingID) and audio files", category: .general)
         }
     }

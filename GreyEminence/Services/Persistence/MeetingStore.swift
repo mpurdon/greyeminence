@@ -18,8 +18,7 @@ final class MeetingStore {
     }
 
     func deleteMeeting(_ meeting: Meeting) {
-        let all = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
-        MeetingDeletion.delete(meeting, in: modelContext, allMeetings: all)
+        MeetingDeletion.delete(meeting, in: modelContext)
     }
 
     func save() {
