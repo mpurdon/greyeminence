@@ -36,7 +36,7 @@ struct MeetingListView: View {
         if selectedMeeting == meeting {
             selectedMeeting = nil
         }
-        modelContext.delete(meeting)
+        MeetingDeletion.delete(meeting, in: modelContext, allMeetings: meetings)
     }
 
     var body: some View {

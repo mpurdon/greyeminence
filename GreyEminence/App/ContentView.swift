@@ -200,6 +200,24 @@ struct ContentView: View {
         )
         let orphansFetched = (try? modelContext.fetch(descriptor)) ?? []
 
+        // One-time sweep for audio directories left behind by pre-0.9.44
+        // deletes (which removed the SwiftData row but not the files). Any
+        // folder in Recordings/ whose UUID isn't referenced by a meeting or
+        // its audioSourceMeetingID gets removed.
+        let allForPurge = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
+        var referenced = Set(allForPurge.map(\.id))
+        for m in allForPurge {
+            if let src = m.audioSourceMeetingID { referenced.insert(src) }
+        }
+        let purged = StorageManager.shared.purgeOrphanedRecordings(referencedIDs: referenced)
+        if purged.count > 0 {
+            let mb = Double(purged.bytes) / 1_048_576
+            LogManager.send(
+                "Purged \(purged.count) orphaned recording folder(s), freed \(String(format: "%.1f", mb)) MB",
+                category: .general
+            )
+        }
+
         // Scan disk lock files. Any lock file whose meeting ID isn't in the
         // orphan set OR in the main meetings list represents audio on disk
         // that has no SwiftData row — a persistence failure during an earlier
@@ -231,8 +249,8 @@ struct ContentView: View {
         var deleted = 0
         for meeting in orphans {
             if meeting.segments.isEmpty && meeting.duration < 1 {
-                // No useful data — just delete it
-                modelContext.delete(meeting)
+                // No useful data — just delete it (plus any stray audio on disk)
+                MeetingDeletion.delete(meeting, in: modelContext, allMeetings: orphans)
                 deleted += 1
             } else {
                 meeting.status = .completed

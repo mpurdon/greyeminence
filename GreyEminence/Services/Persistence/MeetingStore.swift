@@ -18,8 +18,8 @@ final class MeetingStore {
     }
 
     func deleteMeeting(_ meeting: Meeting) {
-        modelContext.delete(meeting)
-        PersistenceGate.save(modelContext, site: "MeetingStore.deleteMeeting")
+        let all = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
+        MeetingDeletion.delete(meeting, in: modelContext, allMeetings: all)
     }
 
     func save() {
