@@ -30,15 +30,28 @@ struct ReProcessingStatusBar: View {
                 }
 
                 if isActive && isHovering {
-                    Button {
-                        queue.cancelAll()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
+                    if queue.current != nil {
+                        Button {
+                            queue.cancelCurrent()
+                        } label: {
+                            Image(systemName: "forward.end.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Skip this meeting (keep queue)")
                     }
-                    .buttonStyle(.plain)
-                    .help("Cancel all queued re-transcriptions")
+                    if !queue.pending.isEmpty || queue.current != nil {
+                        Button {
+                            queue.cancelAll()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Cancel everything")
+                    }
                 }
             }
             .padding(.horizontal, 12)
