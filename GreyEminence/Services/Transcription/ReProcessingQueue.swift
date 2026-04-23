@@ -40,6 +40,7 @@ final class ReProcessingQueue {
     static let completionFlashDuration: TimeInterval = 3
 
     private var worker: Task<Void, Never>?
+    private var jobTask: Task<Void, Never>?
     private var completionClearTask: Task<Void, Never>?
     private var modelContainer: ModelContainer?
     private weak var recordingViewModel: RecordingViewModel?
@@ -53,7 +54,24 @@ final class ReProcessingQueue {
         self.modelContainer = modelContainer
         self.recordingViewModel = recordingViewModel
         loadPendingFromDisk()
+        clearOrphanedStates()
         startWorker()
+    }
+
+    /// On launch, any meeting still showing a re-processing state from a prior
+    /// session is orphaned (the in-memory job died with the app). Clear it so
+    /// the UI doesn't show a phantom "Re-transcribing" pill forever.
+    private func clearOrphanedStates() {
+        guard let context = modelContainer?.mainContext else { return }
+        let descriptor = FetchDescriptor<Meeting>(predicate: #Predicate { $0.reProcessingState != nil })
+        guard let stuck = try? context.fetch(descriptor), !stuck.isEmpty else { return }
+        let pendingSet = Set(pending)
+        for meeting in stuck where !pendingSet.contains(meeting.id) {
+            meeting.reProcessingState = nil
+            meeting.reProcessingError = nil
+        }
+        PersistenceGate.save(context, site: "reProcess/clearOrphaned")
+        LogManager.send("Cleared orphaned re-processing state on \(stuck.count) meeting(s)", category: .transcription)
     }
 
     /// Add a meeting to the queue. Safe to call from any isolation.
@@ -69,10 +87,20 @@ final class ReProcessingQueue {
     }
 
     func cancelAll() {
-        worker?.cancel()
         pending = []
-        current = nil
         persistPending()
+        jobTask?.cancel()
+    }
+
+    /// Cancel whatever meeting is currently running, leaving the rest of the
+    /// queue alone. The running chunk still has to finish (WhisperKit inference
+    /// isn't cancellable mid-call), but no further chunks will be started and
+    /// the meeting's re-processing state is cleared immediately.
+    func cancelCurrent(meetingID: UUID? = nil) {
+        guard let current else { return }
+        if let meetingID, current.id != meetingID { return }
+        jobTask?.cancel()
+        LogManager.send("Cancel requested for \"\(current.title)\"", category: .transcription)
     }
 
     // MARK: - Worker
@@ -96,9 +124,15 @@ final class ReProcessingQueue {
         let meetingID = pending.removeFirst()
         persistPending()
         current = RunningJob(id: meetingID, title: "", phase: .queued)
-        defer { current = nil }
 
-        await processJob(meetingID: meetingID)
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.processJob(meetingID: meetingID)
+        }
+        jobTask = task
+        await task.value
+        jobTask = nil
+        current = nil
     }
 
     private func processJob(meetingID: UUID) async {
@@ -147,9 +181,19 @@ final class ReProcessingQueue {
                 }
             )
             transcribeDuration = Date().timeIntervalSince(phaseStart)
+        } catch is CancellationError {
+            LogManager.send("Re-transcription cancelled for \"\(title)\"", category: .transcription)
+            markState(meeting: meeting, state: nil, in: context)
+            return
         } catch {
             LogManager.send("Re-transcription failed for \(meetingID): \(error.localizedDescription)", category: .transcription, level: .error)
             markState(meeting: meeting, state: .failed, error: error.localizedDescription, in: context)
+            return
+        }
+
+        if Task.isCancelled {
+            LogManager.send("Re-transcription cancelled for \"\(title)\"", category: .transcription)
+            markState(meeting: meeting, state: nil, in: context)
             return
         }
 
@@ -348,12 +392,12 @@ final class ReProcessingQueue {
         return result
     }
 
-    private func markState(meeting: Meeting, state: ReProcessingState, error: String? = nil, in context: ModelContext) {
-        let raw = state.rawValue
+    private func markState(meeting: Meeting, state: ReProcessingState?, error: String? = nil, in context: ModelContext) {
+        let raw = state?.rawValue
         if meeting.reProcessingState != raw || meeting.reProcessingError != error {
             meeting.reProcessingState = raw
             meeting.reProcessingError = error
-            PersistenceGate.save(context, site: "reProcess/markState(\(raw))", meetingID: meeting.id)
+            PersistenceGate.save(context, site: "reProcess/markState(\(raw ?? "nil"))", meetingID: meeting.id)
         }
     }
 

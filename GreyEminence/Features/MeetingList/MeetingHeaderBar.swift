@@ -56,9 +56,20 @@ struct MeetingHeaderBar: View {
                     }
                     if let raw = meeting.reProcessingState,
                        let state = ReProcessingState(rawValue: raw) {
-                        StatusPill(label: pillLabel(state: state), tint: state.tint)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
+                        HStack(spacing: 4) {
+                            StatusPill(label: pillLabel(state: state), tint: state.tint)
+                            Button {
+                                reProcessingQueue.cancelCurrent(meetingID: meeting.id)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Cancel re-transcription")
+                        }
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                     } else if meeting.transcriptionModel?.hasPrefix("whisperkit-large-v3") == true {
                         StatusPill(label: "large-v3", tint: .green)
                             .lineLimit(1)
