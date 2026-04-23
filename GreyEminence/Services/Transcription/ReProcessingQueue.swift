@@ -296,23 +296,34 @@ final class ReProcessingQueue {
         for old in meeting.segments { context.delete(old) }
         meeting.segments.removeAll()
 
-        var totalDuration: TimeInterval = 0
-        var snapshots: [SegmentSnapshot] = []
-        for seg in upgraded {
+        // Build detached TranscriptSegments from the upgraded output and run
+        // mic/system dedup before persisting — otherwise echoed speech (the
+        // same phrase captured by both the mic and the system audio tap)
+        // shows up twice in the final transcript.
+        let raw: [TranscriptSegment] = upgraded.map { seg in
             let speaker: Speaker = seg.source == .mic ? .me : .other("Speaker")
-            let ts = TranscriptSegment(
+            return TranscriptSegment(
                 speaker: speaker,
                 text: seg.text,
                 startTime: seg.startTime,
                 endTime: seg.endTime,
                 isFinal: true
             )
+        }
+        let dedup = TranscriptDeduplicator.deduplicate(raw)
+        if dedup.removedCount > 0 {
+            LogManager.send("Re-processing dedup removed \(dedup.removedCount) echo segment(s)", category: .transcription)
+        }
+
+        var totalDuration: TimeInterval = 0
+        var snapshots: [SegmentSnapshot] = []
+        for ts in dedup.segments {
             ts.meeting = meeting
             meeting.segments.append(ts)
-            totalDuration = max(totalDuration, seg.endTime)
+            totalDuration = max(totalDuration, ts.endTime)
             snapshots.append(SegmentSnapshot(
-                speaker: speaker,
-                text: seg.text,
+                speaker: ts.speaker,
+                text: ts.text,
                 formattedTimestamp: "",
                 isFinal: true
             ))
