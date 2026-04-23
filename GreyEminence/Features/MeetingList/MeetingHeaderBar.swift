@@ -5,10 +5,12 @@ struct MeetingHeaderBar: View {
     @Bindable var meeting: Meeting
     @Environment(\.modelContext) private var modelContext
     @Bindable private var reProcessingQueue: ReProcessingQueue = .shared
+    @AppStorage("developerToolsEnabled") private var developerToolsEnabled = false
     @State private var isEditingTitle = false
     @State private var editedTitle: String = ""
     @State private var exportState: ExportState = .idle
     @State private var showTranscriptSavePanel = false
+    @State private var didCopyID = false
 
     private enum ExportState: Equatable {
         case idle, success, error(String)
@@ -36,6 +38,30 @@ struct MeetingHeaderBar: View {
                             editedTitle = meeting.title
                             isEditingTitle = true
                         }
+                }
+
+                if developerToolsEnabled {
+                    HStack(spacing: 4) {
+                        Text(meeting.id.uuidString)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .textSelection(.enabled)
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(meeting.id.uuidString, forType: .string)
+                            didCopyID = true
+                            Task {
+                                try? await Task.sleep(for: .seconds(1.2))
+                                didCopyID = false
+                            }
+                        } label: {
+                            Image(systemName: didCopyID ? "checkmark" : "doc.on.doc")
+                                .font(.caption2)
+                                .foregroundStyle(didCopyID ? Color.green : Color.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Copy meeting ID")
+                    }
                 }
 
                 HStack(spacing: 12) {
