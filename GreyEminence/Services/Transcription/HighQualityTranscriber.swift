@@ -196,8 +196,23 @@ actor HighQualityTranscriber {
     }
 
     /// Decode an AAC/m4a chunk to 16 kHz mono Float32 samples, which is what
-    /// WhisperKit expects for `transcribe(audioArray:)`.
+    /// WhisperKit expects for `transcribe(audioArray:)`. Tries AVAudioFile
+    /// first; falls back to AVAssetReader (more forgiving on slightly
+    /// malformed containers, e.g. chunks written by v0.9.45–0.9.47 with
+    /// mismatched encoder/processing formats) when AVAudioFile throws.
     nonisolated private static func decodeTo16kFloatMono(url: URL) throws -> [Float] {
+        do {
+            return try decodeViaAVAudioFile(url: url)
+        } catch {
+            if let recovered = try? decodeViaAssetReader(url: url), !recovered.isEmpty {
+                LogManager.send("Recovered chunk via AVAssetReader after AVAudioFile failure: \(url.lastPathComponent)", category: .transcription, level: .info)
+                return recovered
+            }
+            throw error
+        }
+    }
+
+    nonisolated private static func decodeViaAVAudioFile(url: URL) throws -> [Float] {
         let file = try AVAudioFile(forReading: url)
         guard let target = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -250,6 +265,62 @@ actor HighQualityTranscriber {
             if srcBuffer.frameLength < srcCapacity { eof = true }
         }
 
+        return output
+    }
+
+    /// Fallback decoder using AVAssetReader. Handles malformed AAC containers
+    /// that AVAudioFile refuses to open (seen on chunks written by v0.9.45
+    /// through v0.9.47 when the AAC encoder settings didn't match the input
+    /// PCM format). Always returns 16 kHz mono Float32 regardless of source.
+    nonisolated private static func decodeViaAssetReader(url: URL) throws -> [Float] {
+        let asset = AVURLAsset(url: url)
+        let reader = try AVAssetReader(asset: asset)
+
+        let tracks = asset.tracks(withMediaType: .audio)
+        guard let track = tracks.first else { return [] }
+
+        let outputSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: 16000,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
+        ]
+        let trackOutput = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+        reader.add(trackOutput)
+        guard reader.startReading() else {
+            if let err = reader.error { throw err }
+            return []
+        }
+
+        var output: [Float] = []
+        while reader.status == .reading {
+            guard let sampleBuffer = trackOutput.copyNextSampleBuffer() else { break }
+            guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+                CMSampleBufferInvalidate(sampleBuffer)
+                continue
+            }
+            var length = 0
+            var dataPointer: UnsafeMutablePointer<Int8>?
+            let status = CMBlockBufferGetDataPointer(
+                blockBuffer,
+                atOffset: 0,
+                lengthAtOffsetOut: nil,
+                totalLengthOut: &length,
+                dataPointerOut: &dataPointer
+            )
+            if status == kCMBlockBufferNoErr, let dataPointer {
+                let count = length / MemoryLayout<Float>.size
+                dataPointer.withMemoryRebound(to: Float.self, capacity: count) { floatPtr in
+                    let buf = UnsafeBufferPointer(start: floatPtr, count: count)
+                    output.append(contentsOf: buf)
+                }
+            }
+            CMSampleBufferInvalidate(sampleBuffer)
+        }
+        if reader.status == .failed, let err = reader.error { throw err }
         return output
     }
 }
