@@ -59,14 +59,14 @@ final class ReProcessingQueue {
     }
 
     /// On launch, any meeting still showing a re-processing state from a prior
-    /// session is orphaned (the in-memory job died with the app). Clear it so
-    /// the UI doesn't show a phantom "Re-transcribing" pill forever.
+    /// session is orphaned (the in-memory job died with the app). Clear every
+    /// one — the persisted queue is also discarded on launch, so nothing is in
+    /// flight yet.
     private func clearOrphanedStates() {
         guard let context = modelContainer?.mainContext else { return }
         let descriptor = FetchDescriptor<Meeting>(predicate: #Predicate { $0.reProcessingState != nil })
         guard let stuck = try? context.fetch(descriptor), !stuck.isEmpty else { return }
-        let pendingSet = Set(pending)
-        for meeting in stuck where !pendingSet.contains(meeting.id) {
+        for meeting in stuck {
             meeting.reProcessingState = nil
             meeting.reProcessingError = nil
         }
@@ -401,12 +401,17 @@ final class ReProcessingQueue {
         }
     }
 
+    /// Deliberately does NOT restore the persisted queue. A job that was queued
+    /// before app quit is indistinguishable from one whose processing crashed
+    /// mid-flight, and surprising the user by silently re-running yesterday's
+    /// work (especially when they click Re-transcribe on something else and it
+    /// picks up the old job first) is worse than making them re-click.
     private func loadPendingFromDisk() {
-        guard let strings = UserDefaults.standard.stringArray(forKey: persistenceKey) else { return }
-        pending = strings.compactMap { UUID(uuidString: $0) }
-        if !pending.isEmpty {
-            LogManager.send("ReProcessingQueue: resumed \(pending.count) pending jobs from prior session", category: .transcription)
+        if let strings = UserDefaults.standard.stringArray(forKey: persistenceKey), !strings.isEmpty {
+            LogManager.send("ReProcessingQueue: discarded \(strings.count) stale pending job(s) from prior session", category: .transcription)
         }
+        pending = []
+        persistPending()
     }
 
     private func persistPending() {
