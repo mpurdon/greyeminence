@@ -107,7 +107,7 @@ actor HighQualityTranscriber {
                 let results = try await kit.transcribe(audioArray: samples)
                 for r in results {
                     for seg in r.segments {
-                        let text = seg.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let text = Self.cleanWhisperText(seg.text)
                         guard !text.isEmpty else { continue }
                         segments.append(Segment(
                             source: source,
@@ -130,6 +130,19 @@ actor HighQualityTranscriber {
             onProgress?(Progress(chunksDone: chunksDone, chunksTotal: totalChunks))
             if Task.isCancelled { throw CancellationError() }
         }
+    }
+
+    /// Strip Whisper's special tokens (`<|startoftranscript|>`, `<|en|>`,
+    /// `<|transcribe|>`, `<|endoftext|>`, and inline timestamps like `<|7.06|>`)
+    /// that can leak into segment text verbatim.
+    nonisolated private static let specialTokenRegex: NSRegularExpression = {
+        try! NSRegularExpression(pattern: #"<\|[^|]*\|>"#)
+    }()
+
+    nonisolated private static func cleanWhisperText(_ raw: String) -> String {
+        let range = NSRange(raw.startIndex..., in: raw)
+        let stripped = specialTokenRegex.stringByReplacingMatches(in: raw, range: range, withTemplate: "")
+        return stripped.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Decode an AAC/m4a chunk to 16 kHz mono Float32 samples, which is what
