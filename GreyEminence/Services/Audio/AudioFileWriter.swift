@@ -88,15 +88,16 @@ actor AudioFileWriter {
 
     private func openChunk(inputFormat: AVAudioFormat) throws {
         let url = Self.chunkURL(base: baseURL, index: chunkIndex)
-        // Speech-tier AAC: 16 kHz mono at 32 kbps. Whisper downsamples to
-        // 16 kHz mono anyway; storing above that is wasted disk for no
-        // transcription gain. Roughly 4x smaller than the previous
-        // 128 kbps / source-rate settings — ~14 MB/hour vs ~57 MB/hour.
-        // AVAudioFile handles the resample/downmix from the input format.
+        // Speech-tier AAC at the input's native rate/channels. Writing at a
+        // different rate (e.g. 16 kHz) from the PCM input (48 kHz) causes
+        // AVAudioFile to produce unreadable chunks for some input formats —
+        // decode fails at re-transcription time. Matching the input keeps
+        // the encode stable; the bitrate drop (128 → 32 kbps) alone gives
+        // ~4x disk savings for speech content without risking write corruption.
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: 16000,
-            AVNumberOfChannelsKey: 1,
+            AVSampleRateKey: inputFormat.sampleRate,
+            AVNumberOfChannelsKey: inputFormat.channelCount,
             AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
             AVEncoderBitRateKey: 32000,
         ]
