@@ -40,6 +40,13 @@ final class TranscriptionCoordinator {
     /// same speaker before they are merged into a single segment.
     private let segmentMergeWindow: TimeInterval = 5.0
 
+    /// Drafts whose confidence never rose above this threshold are discarded
+    /// instead of promoted to final. Parakeet hallucinates on silence and
+    /// near-silence with confidences in the 0.1–0.45 range, then gets promoted
+    /// when a period arrives at conf=1.0. Real speech consistently peaks above
+    /// 0.55 during normal draft refinement.
+    private let minDraftConfidenceForFinal: Float = 0.55
+
     /// Cached ASR models — survives across recordings so only the first load is slow.
     private static var cachedModels: AsrModels?
 
@@ -225,12 +232,21 @@ final class TranscriptionCoordinator {
 
     private func handleMicUpdate(_ update: FluidAsrService.TranscriptUpdate) {
         guard let text = cleanedText(update.text) else {
-            // Empty after cleaning — finalize existing draft instead of discarding it
+            // Empty after cleaning — promote existing draft if its peak
+            // confidence was high enough to trust; otherwise drop it.
             if update.isFinal, let draftID = currentMicDraftID,
                let idx = segments.firstIndex(where: { $0.id == draftID }) {
-                segments[idx].isFinal = true
+                let conf = segmentConfidence[draftID] ?? 0
+                if conf >= minDraftConfidenceForFinal {
+                    segments[idx].isFinal = true
+                    LogManager.shared.log("Mic draft promoted to final: \(segments[idx].text.prefix(80))", category: .transcription)
+                } else {
+                    let discardedText = segments[idx].text.prefix(60)
+                    segments.remove(at: idx)
+                    segmentConfidence.removeValue(forKey: draftID)
+                    LogManager.shared.log("Mic draft discarded (conf \(String(format: "%.2f", conf))): \(discardedText)", category: .transcription, level: .info)
+                }
                 currentMicDraftID = nil
-                LogManager.shared.log("Mic draft promoted to final: \(segments[idx].text.prefix(80))", category: .transcription)
             }
             return
         }
@@ -281,12 +297,23 @@ final class TranscriptionCoordinator {
 
     private func handleSystemUpdate(_ update: FluidAsrService.TranscriptUpdate) {
         guard let text = cleanedText(update.text) else {
-            // Empty after cleaning — finalize existing draft instead of discarding it
+            // Empty after cleaning — promote existing draft if its peak
+            // confidence was high enough to trust; otherwise drop it.
+            // Parakeet hallucinates on silence with conf 0.1–0.45 and the
+            // trailing period at conf=1.0 would otherwise promote the junk.
             if update.isFinal, let draftID = currentSystemDraftID,
                let idx = segments.firstIndex(where: { $0.id == draftID }) {
-                segments[idx].isFinal = true
+                let conf = segmentConfidence[draftID] ?? 0
+                if conf >= minDraftConfidenceForFinal {
+                    segments[idx].isFinal = true
+                    LogManager.shared.log("System draft promoted to final: \(segments[idx].text.prefix(80))", category: .transcription)
+                } else {
+                    let discardedText = segments[idx].text.prefix(60)
+                    segments.remove(at: idx)
+                    segmentConfidence.removeValue(forKey: draftID)
+                    LogManager.shared.log("System draft discarded (conf \(String(format: "%.2f", conf))): \(discardedText)", category: .transcription, level: .info)
+                }
                 currentSystemDraftID = nil
-                LogManager.shared.log("System draft promoted to final: \(segments[idx].text.prefix(80))", category: .transcription)
             }
             return
         }
