@@ -110,16 +110,36 @@ final class ReProcessingQueue {
         worker = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                await self.workerTick()
+                // Isolate each tick — an unexpected throw inside processJob
+                // (e.g. an NSException or trap downstream) mustn't kill the
+                // worker. If it does throw, log and continue; the queue
+                // stays alive for the next job.
+                do {
+                    try await self.workerTickThrowing()
+                } catch {
+                    LogManager.send("ReProcessingQueue worker tick threw: \(error.localizedDescription) — continuing", category: .transcription, level: .error)
+                    await self.clearCurrentAfterFault()
+                }
                 try? await Task.sleep(for: .seconds(2))
             }
         }
     }
 
-    private func workerTick() async {
+    private func clearCurrentAfterFault() {
+        jobTask = nil
+        current = nil
+    }
+
+    private func workerTickThrowing() async throws {
+        if recordingViewModel == nil { return }
         if recordingViewModel?.state != .idle { return }
         if current != nil { return }
         guard !pending.isEmpty else { return }
+
+        guard Self.hasEnoughDiskSpaceForReProcess() else {
+            LogManager.send("ReProcessingQueue: skipping tick — insufficient disk space (<1 GB free)", category: .transcription, level: .warning)
+            return
+        }
 
         let meetingID = pending.removeFirst()
         persistPending()
@@ -133,6 +153,18 @@ final class ReProcessingQueue {
         await task.value
         jobTask = nil
         current = nil
+    }
+
+    /// Re-processing holds a ~1.5 GB WhisperKit model in memory and writes
+    /// new AAC chunks and embeddings. Skip the tick rather than start a job
+    /// that'll fail halfway through with a cryptic disk error.
+    nonisolated static func hasEnoughDiskSpaceForReProcess() -> Bool {
+        let url = StorageManager.shared.recordingsURL
+        guard let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
+              let available = values.volumeAvailableCapacityForImportantUsage else {
+            return true // can't tell — don't block
+        }
+        return available >= 1_000_000_000 // 1 GB
     }
 
     private func processJob(meetingID: UUID) async {

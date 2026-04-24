@@ -537,6 +537,12 @@ final class RecordingViewModel {
     private func startRealCapture(meetingID: UUID) {
         let storageManager = StorageManager.shared
 
+        if let free = Self.freeDiskBytesForRecordings(), free < 500_000_000 {
+            let mb = Double(free) / 1_048_576
+            errorMessage = "Low disk space (\(String(format: "%.0f", mb)) MB free). A long recording may fail to save. Consider freeing space before continuing."
+            log.log("Low disk space at recording start: \(Int(mb)) MB free", category: .audio, level: .warning)
+        }
+
         // Wire vocabulary manager into coordinator
         coordinator.vocabularyManager = vocabularyManager
 
@@ -970,6 +976,12 @@ final class RecordingViewModel {
             return true
         }
         return false
+    }
+
+    nonisolated static func freeDiskBytesForRecordings() -> Int64? {
+        let url = StorageManager.shared.recordingsURL
+        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage
     }
 
     private nonisolated func calculateRMS(_ buffer: AVAudioPCMBuffer) -> Float {
