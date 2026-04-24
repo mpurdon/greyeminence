@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreAudio
+import os
 
 /// Captures system audio using Core Audio Taps (macOS 14.2+).
 ///
@@ -19,6 +20,15 @@ actor SystemAudioCaptureService {
     private var deviceProcID: AudioDeviceIOProcID?
     private var isCapturing = false
     private var continuation: AsyncStream<TaggedAudioBuffer>.Continuation?
+
+    /// Last buffer delivery timestamp, updated from the Core Audio IOProc.
+    /// The watchdog reads this synchronously to detect a stuck tap (default
+    /// output device changed, aggregate device torn down, etc.).
+    private let lastBufferAt = OSAllocatedUnfairLock<Date?>(initialState: nil)
+
+    nonisolated var lastBufferTimestamp: Date? {
+        lastBufferAt.withLock { $0 }
+    }
 
     /// Start capturing all system audio output.
     func startCapture() throws -> AsyncStream<TaggedAudioBuffer> {
@@ -89,6 +99,7 @@ actor SystemAudioCaptureService {
         let startTime = ProcessInfo.processInfo.systemUptime
         let cont = self.continuation
         let format = tapFormat
+        let lastBuffer = self.lastBufferAt
 
         // Step 7: Create IOProc callback on the aggregate device
         var procID: AudioDeviceIOProcID?
@@ -121,6 +132,7 @@ actor SystemAudioCaptureService {
 
             let elapsed = ProcessInfo.processInfo.systemUptime - startTime
             let tagged = TaggedAudioBuffer(buffer: copiedBuffer, source: .system, timestamp: elapsed)
+            lastBuffer.withLock { $0 = Date() }
             cont?.yield(tagged)
         }
 

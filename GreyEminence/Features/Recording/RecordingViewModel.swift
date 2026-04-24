@@ -695,6 +695,56 @@ final class RecordingViewModel {
             }
         }
         processingTasks.append(sysTask)
+
+        startAudioFlowWatchdog()
+    }
+
+    /// Poll capture services every 2 s for "no buffer received in too long".
+    /// Catches the class of failures where the IOProc stops firing silently —
+    /// route change, sleep/wake, tap tear-down — which otherwise leave the
+    /// user staring at a running timer and an empty transcript.
+    private func startAudioFlowWatchdog() {
+        let micSvc = micCapture
+        let sysSvc = systemCapture
+        let task = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))  // grace for startup
+            var micWarned = false
+            var sysWarned = false
+            while !Task.isCancelled {
+                guard let self else { return }
+                if await self.state != .recording {
+                    try? await Task.sleep(for: .seconds(2))
+                    continue
+                }
+
+                let now = Date()
+                if let last = micSvc.lastBufferTimestamp {
+                    let stale = now.timeIntervalSince(last)
+                    if stale > 10 && !micWarned {
+                        await MainActor.run {
+                            self.log.log("Audio watchdog: no mic buffer for \(Int(stale))s", category: .audio, level: .warning)
+                        }
+                        micWarned = true
+                    } else if stale <= 3 {
+                        micWarned = false
+                    }
+                }
+                if let last = sysSvc.lastBufferTimestamp {
+                    let stale = now.timeIntervalSince(last)
+                    if stale > 15 && !sysWarned {
+                        await MainActor.run {
+                            self.log.log("Audio watchdog: no system buffer for \(Int(stale))s", category: .audio, level: .warning)
+                            self.errorMessage = "System audio has stopped flowing (\(Int(stale))s). This usually means the default output device changed — stopping and restarting the recording may help."
+                        }
+                        sysWarned = true
+                    } else if stale <= 3 {
+                        sysWarned = false
+                    }
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+        processingTasks.append(task)
     }
 
     // MARK: - AI Intelligence

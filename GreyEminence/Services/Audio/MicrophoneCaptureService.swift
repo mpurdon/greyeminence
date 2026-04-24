@@ -1,11 +1,29 @@
 import AVFoundation
+import os
 
 actor MicrophoneCaptureService {
     private var audioEngine: AVAudioEngine?
     private var isCapturing = false
     private var continuation: AsyncStream<TaggedAudioBuffer>.Continuation?
 
+    /// Last buffer delivery timestamp, updated from the audio tap on a
+    /// non-actor thread. The watchdog reads this synchronously to detect a
+    /// stuck capture (IOProc stopped firing — route change, sleep/wake,
+    /// tap revoked) without hopping actors per buffer.
+    private let lastBufferAt = OSAllocatedUnfairLock<Date?>(initialState: nil)
+
+    /// Last input format observed from the engine's input node. Set on
+    /// startCapture so callers (and the watchdog) can react to format
+    /// changes.
+    nonisolated(unsafe) private var lastStartedFormat: AVAudioFormat?
+
     let bufferSize: AVAudioFrameCount = 4096
+
+    /// Timestamp of the most recent buffer delivered from the audio tap.
+    /// `nil` until the first buffer arrives. Safe to call from any isolation.
+    nonisolated var lastBufferTimestamp: Date? {
+        lastBufferAt.withLock { $0 }
+    }
 
     /// Start capturing microphone audio, returning an AsyncStream of tagged buffers.
     func startCapture(deviceUID: String? = nil) throws -> AsyncStream<TaggedAudioBuffer> {
@@ -37,6 +55,8 @@ actor MicrophoneCaptureService {
 
         let startTime = ProcessInfo.processInfo.systemUptime
         let cont = self.continuation
+        let lastBuffer = self.lastBufferAt
+        self.lastStartedFormat = inputFormat
 
         inputNode.installTap(
             onBus: 0,
@@ -49,6 +69,7 @@ actor MicrophoneCaptureService {
                 source: .microphone,
                 timestamp: elapsed
             )
+            lastBuffer.withLock { $0 = Date() }
             cont?.yield(tagged)
         }
 
