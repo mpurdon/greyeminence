@@ -25,6 +25,12 @@ actor AudioFileWriter {
     /// Cached format used to start the first chunk. Needed so `checkpoint` can
     /// open the next chunk without the caller re-specifying the format.
     private var startedFormat: AVAudioFormat?
+    /// Rolling count of write failures. Callers use this to detect a persistent
+    /// problem (e.g. full disk, encoder-format mismatch) and stop recording
+    /// before filling the log with silent-failure noise.
+    private(set) var consecutiveWriteFailures: Int = 0
+    private(set) var totalWriteFailures: Int = 0
+    private(set) var lastWriteError: String?
 
     init(outputURL: URL, format: AVAudioFormat? = nil) {
         self.baseURL = outputURL
@@ -54,7 +60,15 @@ actor AudioFileWriter {
         guard let audioFile else {
             throw AudioFileWriterError.notStarted
         }
-        try audioFile.write(from: buffer)
+        do {
+            try audioFile.write(from: buffer)
+            consecutiveWriteFailures = 0
+        } catch {
+            consecutiveWriteFailures += 1
+            totalWriteFailures += 1
+            lastWriteError = error.localizedDescription
+            throw error
+        }
     }
 
     /// Close the current chunk (finalizing AAC metadata so it's playable) and

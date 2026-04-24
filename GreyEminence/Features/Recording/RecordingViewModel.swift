@@ -35,6 +35,12 @@ final class RecordingViewModel {
     var errorMessage: String?
     var micLevel: Float = 0
     var systemLevel: Float = 0
+    /// Total write failures for the current recording (mic + system). Exposed
+    /// so the recording surface can flag "this recording had write errors"
+    /// instead of the previous silent `try?` swallow.
+    var audioWriteFailures: Int = 0
+    /// The most recent write-error message, for surfacing in the banner/log.
+    var lastAudioWriteError: String?
     var completedMeeting: Meeting?
     var segmentConfidence: [UUID: Float] = [:]
     var prepContext: MeetingPrepContext?
@@ -158,6 +164,8 @@ final class RecordingViewModel {
         streamingSummary = ""
         errorMessage = nil
         completedMeeting = nil
+        audioWriteFailures = 0
+        lastAudioWriteError = nil
 
         // Re-populate speaker mapper from attendees
         speakerContactMapper.prepopulate(from: meeting.attendees)
@@ -275,6 +283,8 @@ final class RecordingViewModel {
         streamingSummary = ""
         errorMessage = nil
         completedMeeting = nil
+        audioWriteFailures = 0
+        lastAudioWriteError = nil
 
         // Persist active recording ID so we can detect interrupted recordings on restart.
         // Two-layer breadcrumb: UserDefaults for fast lookup, lock file on disk as a
@@ -593,11 +603,19 @@ final class RecordingViewModel {
                 for await taggedBuffer in micStream {
                     guard !Task.isCancelled else { break }
 
-                    // Write to file
                     if !(await micWriter.isWriting) {
-                        try? await micWriter.start(inputFormat: taggedBuffer.buffer.format)
+                        do {
+                            try await micWriter.start(inputFormat: taggedBuffer.buffer.format)
+                        } catch {
+                            await self.recordWriteFailure(source: "mic", writer: micWriter, error: error)
+                        }
                     }
-                    try? await micWriter.write(taggedBuffer.buffer)
+                    do {
+                        try await micWriter.write(taggedBuffer.buffer)
+                    } catch {
+                        let stop = await self.recordWriteFailure(source: "mic", writer: micWriter, error: error)
+                        if stop { break }
+                    }
 
                     // Calculate mic level for UI
                     let level = self.calculateRMS(taggedBuffer.buffer)
@@ -625,11 +643,19 @@ final class RecordingViewModel {
                 for await taggedBuffer in sysStream {
                     guard !Task.isCancelled else { break }
 
-                    // Write to file
                     if !(await sysWriter.isWriting) {
-                        try? await sysWriter.start(inputFormat: taggedBuffer.buffer.format)
+                        do {
+                            try await sysWriter.start(inputFormat: taggedBuffer.buffer.format)
+                        } catch {
+                            await self.recordWriteFailure(source: "system", writer: sysWriter, error: error)
+                        }
                     }
-                    try? await sysWriter.write(taggedBuffer.buffer)
+                    do {
+                        try await sysWriter.write(taggedBuffer.buffer)
+                    } catch {
+                        let stop = await self.recordWriteFailure(source: "system", writer: sysWriter, error: error)
+                        if stop { break }
+                    }
 
                     // Calculate system level for UI
                     let level = self.calculateRMS(taggedBuffer.buffer)
@@ -848,6 +874,34 @@ final class RecordingViewModel {
                 self.elapsedTime = Date().timeIntervalSince(start) - self.accumulatedPauseDuration
             }
         }
+    }
+
+    /// Record a write failure and decide whether the capture loop should stop.
+    /// 1st failure logs at warning, 3rd surfaces a user-visible error, 10th
+    /// returns true so the caller breaks out of the capture loop — at that
+    /// point we're dropping every buffer anyway and want to stop the
+    /// recording cleanly so the user isn't staring at a frozen timer.
+    @discardableResult
+    private func recordWriteFailure(source: String, writer: AudioFileWriter, error: Error) async -> Bool {
+        let consecutive = await writer.consecutiveWriteFailures
+        let total = await writer.totalWriteFailures
+        audioWriteFailures = (await micFileWriter?.totalWriteFailures ?? 0)
+            + (await systemFileWriter?.totalWriteFailures ?? 0)
+        lastAudioWriteError = error.localizedDescription
+
+        if consecutive == 1 {
+            log.log("\(source) write failed: \(error.localizedDescription)", category: .audio, level: .warning)
+        }
+        if consecutive == 3 {
+            errorMessage = "\(source.capitalized) audio write is failing (\(error.localizedDescription)). The recording may be incomplete."
+            log.log("\(source) write has failed 3 times consecutively: \(error.localizedDescription)", category: .audio, level: .error)
+        }
+        if consecutive >= 10 {
+            log.log("\(source) write failed 10+ times consecutively — stopping capture loop (total failures: \(total))", category: .audio, level: .error)
+            errorMessage = "\(source.capitalized) audio capture stopped after repeated write failures. Saving what we have."
+            return true
+        }
+        return false
     }
 
     private nonisolated func calculateRMS(_ buffer: AVAudioPCMBuffer) -> Float {
