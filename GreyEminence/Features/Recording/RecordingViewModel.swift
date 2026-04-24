@@ -606,6 +606,15 @@ final class RecordingViewModel {
                     if !(await micWriter.isWriting) {
                         do {
                             try await micWriter.start(inputFormat: taggedBuffer.buffer.format)
+                        } catch let err as AudioFileWriterError {
+                            if case .encoderPreflightFailed = err {
+                                await MainActor.run {
+                                    self.errorMessage = "Mic audio encoder rejected the input format (\(err.localizedDescription)). Audio will not be saved for this recording."
+                                }
+                                self.log.log("Mic preflight failed: \(err.localizedDescription)", category: .audio, level: .error)
+                                break
+                            }
+                            await self.recordWriteFailure(source: "mic", writer: micWriter, error: err)
                         } catch {
                             await self.recordWriteFailure(source: "mic", writer: micWriter, error: error)
                         }
@@ -646,6 +655,15 @@ final class RecordingViewModel {
                     if !(await sysWriter.isWriting) {
                         do {
                             try await sysWriter.start(inputFormat: taggedBuffer.buffer.format)
+                        } catch let err as AudioFileWriterError {
+                            if case .encoderPreflightFailed = err {
+                                await MainActor.run {
+                                    self.errorMessage = "System audio encoder rejected the input format (\(err.localizedDescription)). Audio will not be saved for this recording."
+                                }
+                                self.log.log("System preflight failed: \(err.localizedDescription)", category: .audio, level: .error)
+                                break
+                            }
+                            await self.recordWriteFailure(source: "system", writer: sysWriter, error: err)
                         } catch {
                             await self.recordWriteFailure(source: "system", writer: sysWriter, error: error)
                         }

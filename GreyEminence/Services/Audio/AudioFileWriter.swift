@@ -44,6 +44,7 @@ actor AudioFileWriter {
     }
 
     func start(inputFormat: AVAudioFormat) throws {
+        try Self.preflightEncoder(for: inputFormat)
         startedFormat = inputFormat
         // If we're resuming an interrupted recording, the base URL and/or
         // its part siblings may already exist on disk from the prior session.
@@ -54,6 +55,41 @@ actor AudioFileWriter {
         // Previously-existing chunks are preserved but not tracked as ours;
         // callers can enumerate them with `Self.existingChunkURLs(base:)`.
         try openChunk(inputFormat: inputFormat)
+    }
+
+    /// Verify the encoder accepts `inputFormat` by writing a throwaway silent
+    /// buffer to a temp file, closing it, then re-opening it for read. Throws
+    /// `AudioFileWriterError.encoderPreflightFailed` on any step so recording
+    /// startup can surface the real encoder error before the user commits an
+    /// hour of audio to settings that silently reject every buffer.
+    nonisolated static func preflightEncoder(for inputFormat: AVAudioFormat) throws {
+        let tmpURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ge-preflight-\(UUID().uuidString).m4a")
+        defer { try? FileManager.default.removeItem(at: tmpURL) }
+
+        do {
+            let file = try AVAudioFile(
+                forWriting: tmpURL,
+                settings: encoderSettings(for: inputFormat),
+                commonFormat: inputFormat.commonFormat,
+                interleaved: inputFormat.isInterleaved
+            )
+            guard let probe = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: 1024) else {
+                throw AudioFileWriterError.encoderPreflightFailed("buffer alloc failed")
+            }
+            probe.frameLength = 1024
+            try file.write(from: probe)
+        } catch let err as AudioFileWriterError {
+            throw err
+        } catch {
+            throw AudioFileWriterError.encoderPreflightFailed(error.localizedDescription)
+        }
+
+        do {
+            _ = try AVAudioFile(forReading: tmpURL)
+        } catch {
+            throw AudioFileWriterError.encoderPreflightFailed("probe file unreadable: \(error.localizedDescription)")
+        }
     }
 
     func write(_ buffer: AVAudioPCMBuffer) throws {
@@ -123,18 +159,22 @@ actor AudioFileWriter {
         chunkURLsInternal.append(url)
     }
 
-    /// Speech-tier AAC at the input's native rate/channels. Bitrate scales
-    /// with channel count because AAC-LC has a per-channel minimum —
-    /// 32 kbps stereo at 48 kHz gets rejected by the encoder (16 kbps/ch is
-    /// below the floor). 32 kbps/ch keeps the encode stable for both the
-    /// 1-channel mic tap and the 2-channel system tap, and still gives
-    /// ~2–4x savings over the original 128 kbps.
-    private static func encoderSettings(for inputFormat: AVAudioFormat) -> [String: Any] {
+    /// Speech-tier AAC. AAC-LC has floors both per-channel and per-sample-
+    /// rate — the encoder silently rejects settings below them. For sample
+    /// rates AAC encodes natively (≤48 kHz), we keep the input rate. For
+    /// rates above that (some Bluetooth/pro audio kit runs at 96 kHz), we
+    /// clamp to 48 kHz because AVAudioFile's AAC path rejects 88/96 kHz in
+    /// practice — a resample is far better than refusing to record.
+    /// Bitrate scales with channels × rate factor so we stay above the
+    /// encoder floor for 1–2 channels at 16–48 kHz.
+    nonisolated static func encoderSettings(for inputFormat: AVAudioFormat) -> [String: Any] {
         let channels = max(Int(inputFormat.channelCount), 1)
-        let bitrate = 32000 * channels
+        let outputRate = min(inputFormat.sampleRate, 48000)
+        let rateMultiplier = max(2, Int(ceil(outputRate / 24000.0)))
+        let bitrate = 16000 * channels * rateMultiplier
         return [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: inputFormat.sampleRate,
+            AVSampleRateKey: outputRate,
             AVNumberOfChannelsKey: inputFormat.channelCount,
             AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
             AVEncoderBitRateKey: bitrate,
@@ -186,8 +226,14 @@ actor AudioFileWriter {
 
 enum AudioFileWriterError: Error, LocalizedError {
     case notStarted
+    case encoderPreflightFailed(String)
 
     var errorDescription: String? {
-        "Audio file writer not started. Call start() first."
+        switch self {
+        case .notStarted:
+            return "Audio file writer not started. Call start() first."
+        case .encoderPreflightFailed(let reason):
+            return "Audio encoder preflight failed: \(reason)"
+        }
     }
 }
