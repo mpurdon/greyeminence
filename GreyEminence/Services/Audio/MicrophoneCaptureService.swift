@@ -53,6 +53,17 @@ actor MicrophoneCaptureService {
             throw MicCaptureError.noInputDevice
         }
 
+        // Log the actual input device name + mute/volume so silent recordings
+        // are diagnosable. Yeti's hardware mute, input volume at 0, or "Mute"
+        // pressed in System Settings → Sound all produce zero-amplitude
+        // buffers without any obvious failure mode.
+        let probe = Self.probeInputDevice(engine: engine)
+        LogManager.send(
+            "Mic device: \(probe.name ?? "unknown") · volume \(probe.volumeDescription) · \(probe.muteDescription)",
+            category: .audio,
+            level: probe.isLikelySilent ? .warning : .info
+        )
+
         let stream = AsyncStream<TaggedAudioBuffer> { continuation in
             self.continuation = continuation
 
@@ -121,6 +132,87 @@ actor MicrophoneCaptureService {
 
     private func emitBuffer(_ buffer: TaggedAudioBuffer) {
         continuation?.yield(buffer)
+    }
+
+    struct DeviceProbe {
+        var name: String?
+        var inputVolume: Float?  // 0.0–1.0 if the device exposes the property
+        var isMuted: Bool?
+
+        var volumeDescription: String {
+            guard let v = inputVolume else { return "vol n/a" }
+            return "vol \(String(format: "%.2f", v))"
+        }
+        var muteDescription: String {
+            switch isMuted {
+            case .some(true): return "MUTED"
+            case .some(false): return "unmuted"
+            case .none: return "mute n/a"
+            }
+        }
+        var isLikelySilent: Bool {
+            (isMuted == true) || (inputVolume == 0)
+        }
+    }
+
+    nonisolated private static func probeInputDevice(engine: AVAudioEngine) -> DeviceProbe {
+        var probe = DeviceProbe()
+        guard let unit = engine.inputNode.audioUnit else { return probe }
+
+        var deviceID: AudioDeviceID = 0
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let getStatus = AudioUnitGetProperty(
+            unit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &deviceID,
+            &size
+        )
+        guard getStatus == noErr, deviceID != 0 else { return probe }
+
+        // Name
+        var nameAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceNameCFString,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var name: Unmanaged<CFString>?
+        var nameSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        if AudioObjectGetPropertyData(deviceID, &nameAddr, 0, nil, &nameSize, &name) == noErr,
+           let cfName = name?.takeRetainedValue() {
+            probe.name = cfName as String
+        }
+
+        // Mute (input scope, master element)
+        var muteAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var muteVal: UInt32 = 0
+        var muteSize = UInt32(MemoryLayout<UInt32>.size)
+        if AudioObjectGetPropertyData(deviceID, &muteAddr, 0, nil, &muteSize, &muteVal) == noErr {
+            probe.isMuted = muteVal != 0
+        }
+
+        // Volume — try master element first, then channel 1.
+        var volAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyVolumeScalar,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var vol: Float32 = 0
+        var volSize = UInt32(MemoryLayout<Float32>.size)
+        if AudioObjectGetPropertyData(deviceID, &volAddr, 0, nil, &volSize, &vol) == noErr {
+            probe.inputVolume = vol
+        } else {
+            volAddr.mElement = 1
+            if AudioObjectGetPropertyData(deviceID, &volAddr, 0, nil, &volSize, &vol) == noErr {
+                probe.inputVolume = vol
+            }
+        }
+        return probe
     }
 
     @discardableResult

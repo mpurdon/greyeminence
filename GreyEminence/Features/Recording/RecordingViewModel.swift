@@ -625,6 +625,8 @@ final class RecordingViewModel {
                 var bufferCount: Int = 0
                 var summedAmplitude: Float = 0
                 var lastDiagLog = Date()
+                var silenceWarningSurfaced = false
+                let captureStart = Date()
 
                 for await taggedBuffer in micStream {
                     guard !Task.isCancelled else { break }
@@ -648,6 +650,20 @@ final class RecordingViewModel {
                         bufferCount = 0
                         summedAmplitude = 0
                         lastDiagLog = Date()
+                    }
+
+                    // After 60 s of all-silent buffers, surface a clear
+                    // errorMessage. Common causes: device hardware-mute
+                    // pressed, system input volume at 0, or another app
+                    // (Teams) holding the device with exclusive access.
+                    if !silenceWarningSurfaced,
+                       Date().timeIntervalSince(captureStart) > 60,
+                       summedAmplitude / Float(max(bufferCount, 1)) < 0.0005 {
+                        silenceWarningSurfaced = true
+                        await MainActor.run {
+                            self.errorMessage = "Mic is silent — check System Settings → Sound → Input that the device isn't muted and the input level is up. Yeti users: tap the mute button on the mic. If you're in a Teams call, leaving and rejoining sometimes helps."
+                            self.log.log("Mic silent for 60s after capture start (avg RMS < 0.0005). Surfacing user-facing warning.", category: .audio, level: .error)
+                        }
                     }
 
                     if !(await micWriter.isWriting) {
