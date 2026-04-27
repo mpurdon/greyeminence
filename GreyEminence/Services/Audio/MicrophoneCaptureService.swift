@@ -34,6 +34,13 @@ actor MicrophoneCaptureService {
             throw MicCaptureError.alreadyCapturing
         }
 
+        // Tell any other AVAudioEngine in the process (e.g. the Settings
+        // mic-level monitor) to release the input device. Two engines tapping
+        // the same input deliver silence to whichever started second on macOS.
+        NotificationCenter.default.post(name: .geMicCaptureWillStart, object: nil)
+        // Brief yield so observers process the notification before we claim the device.
+        Thread.sleep(forTimeInterval: 0.05)
+
         let engine = AVAudioEngine()
 
         let resolvedUID = deviceUID ?? UserDefaults.standard.string(forKey: "audio.preferredInputDeviceUID")
@@ -47,6 +54,13 @@ actor MicrophoneCaptureService {
         }
 
         let inputNode = engine.inputNode
+        // Defensive: explicitly enable IO on the input bus. AVAudioEngine is
+        // supposed to do this when you install a tap, but in some macOS
+        // states (e.g. after the app's TCC record was just changed, or after
+        // another engine in the same process disabled it) the bus is left
+        // disabled and every buffer comes through as silence.
+        Self.forceEnableInputIO(on: engine)
+
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
         guard inputFormat.sampleRate > 0 && inputFormat.channelCount > 0 else {
@@ -123,7 +137,21 @@ actor MicrophoneCaptureService {
         continuation?.finish()
         continuation = nil
         isCapturing = false
+        NotificationCenter.default.post(name: .geMicCaptureDidEnd, object: nil)
         LogManager.send("Microphone capture stopped", category: .audio)
+    }
+
+    nonisolated private static func forceEnableInputIO(on engine: AVAudioEngine) {
+        guard let unit = engine.inputNode.audioUnit else { return }
+        var enable: UInt32 = 1
+        AudioUnitSetProperty(
+            unit,
+            kAudioOutputUnitProperty_EnableIO,
+            kAudioUnitScope_Input,
+            1,  // input bus
+            &enable,
+            UInt32(MemoryLayout<UInt32>.size)
+        )
     }
 
     var capturing: Bool {

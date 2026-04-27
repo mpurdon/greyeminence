@@ -1,5 +1,14 @@
 import AVFoundation
 
+extension Notification.Name {
+    /// Posted when a recording starts capturing the microphone. The level
+    /// monitor observes this and pauses so two AVAudioEngines in the same
+    /// process don't fight for the same input device (which results in
+    /// silent buffers for the second one).
+    static let geMicCaptureWillStart = Notification.Name("ge.mic.capture.willStart")
+    static let geMicCaptureDidEnd = Notification.Name("ge.mic.capture.didEnd")
+}
+
 @Observable
 @MainActor
 final class MicLevelMonitor {
@@ -8,6 +17,37 @@ final class MicLevelMonitor {
 
     private var audioEngine: AVAudioEngine?
     private var isMonitoring = false
+    private var pausedDeviceUID: String?
+    private var observers: [NSObjectProtocol] = []
+
+    init() {
+        let nc = NotificationCenter.default
+        observers.append(nc.addObserver(forName: .geMicCaptureWillStart, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.pauseForRecording() }
+        })
+        observers.append(nc.addObserver(forName: .geMicCaptureDidEnd, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.resumeAfterRecording() }
+        })
+    }
+
+    deinit {
+        // observers is a stored property; notifications carry weak self so
+        // expired refs no-op. Explicit removal isn't required pre-Swift 6
+        // strict-actor isolation rules; left intentionally empty.
+    }
+
+    private func pauseForRecording() {
+        guard isMonitoring else { return }
+        pausedDeviceUID = audioEngine?.inputNode.audioUnit.flatMap(Self.currentDeviceUID(for:)) ?? ""
+        stopMonitoring()
+    }
+
+    private func resumeAfterRecording() {
+        guard pausedDeviceUID != nil else { return }
+        let uid = pausedDeviceUID
+        pausedDeviceUID = nil
+        startMonitoring(deviceUID: uid?.isEmpty == false ? uid : nil)
+    }
 
     func startMonitoring(deviceUID: String? = nil) {
         stopMonitoring()
@@ -74,6 +114,23 @@ final class MicLevelMonitor {
         }
         let rms = sqrt(sum / Float(frameCount))
         return min(rms * 5, 1.0)
+    }
+
+    nonisolated private static func currentDeviceUID(for unit: AudioUnit) -> String? {
+        var deviceID: AudioDeviceID = 0
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioUnitGetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &deviceID, &size) == noErr,
+              deviceID != 0 else { return nil }
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var uid: Unmanaged<CFString>?
+        var uidSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &uidSize, &uid) == noErr,
+              let cf = uid?.takeRetainedValue() else { return nil }
+        return cf as String
     }
 
     private nonisolated static func setInputDevice(uid: String, on engine: AVAudioEngine) {
