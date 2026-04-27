@@ -7,26 +7,36 @@ struct FollowUpQuestionsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "questionmark.bubble")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 22, height: 22)
-                        .background(Color.teal.gradient, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-                    Text("Follow-up Questions")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Image(systemName: "chevron.down")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+            HStack(spacing: 8) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "questionmark.bubble")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 22, height: 22)
+                            .background(Color.teal.gradient, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        Text("Follow-up Questions")
+                            .font(.subheadline.weight(.semibold))
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+
+                if !questions.isEmpty {
+                    CopyButton(label: "Copy", help: "Copy all follow-up questions") {
+                        questions.enumerated()
+                            .map { "\($0.offset + 1). \($0.element)" }
+                            .joined(separator: "\n")
+                    }
+                }
             }
-            .buttonStyle(.plain)
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 8) {

@@ -64,6 +64,12 @@ final class RecordingViewModel {
     /// audio loss on crash. `nil` outside an active recording.
     private var micFileWriter: AudioFileWriter?
     private var systemFileWriter: AudioFileWriter?
+    /// True when the most recent recording was started via the auto-detector
+    /// rather than a user click. Used for diagnostic logging — a silent mic
+    /// in this path is more likely than in a manual start because the user
+    /// hasn't necessarily had a chance to grant permission or check device
+    /// selection.
+    private var autoDetectedRecordingStart: Bool = false
 
     // Transcription
     private let coordinator = TranscriptionCoordinator()
@@ -226,6 +232,7 @@ final class RecordingViewModel {
         }
 
         meetingDetector.noteStart(autoDetected ? .auto : .manual)
+        autoDetectedRecordingStart = autoDetected
 
         let meeting = Meeting(title: "Meeting \(DateFormatter.shortDate.string(from: .now))")
 
@@ -537,6 +544,13 @@ final class RecordingViewModel {
     private func startRealCapture(meetingID: UUID) {
         let storageManager = StorageManager.shared
 
+        let micAuthStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        log.log("Mic permission at capture start: \(micAuthStatus.rawValue) (\(Self.describe(authorization: micAuthStatus)))\(autoDetectedRecordingStart ? " [auto-detected]" : "")", category: .audio)
+        if micAuthStatus != .authorized {
+            errorMessage = "Microphone permission is not granted (\(Self.describe(authorization: micAuthStatus))). Mic audio will not be captured. Grant permission in System Settings → Privacy & Security → Microphone."
+            log.log("Mic permission not granted — recording will have no mic audio", category: .audio, level: .warning)
+        }
+
         if let free = Self.freeDiskBytesForRecordings(), free < 500_000_000 {
             let mb = Double(free) / 1_048_576
             errorMessage = "Low disk space (\(String(format: "%.0f", mb)) MB free). A long recording may fail to save. Consider freeing space before continuing."
@@ -602,12 +616,39 @@ final class RecordingViewModel {
         self.systemFileWriter = sysWriter
 
         // Start microphone capture
+        let autoDetectedStart = self.autoDetectedRecordingStart
         let micTask = Task {
             do {
                 let micStream = try await micCapture.startCapture()
 
+                var firstBufferLogged = false
+                var bufferCount: Int = 0
+                var summedAmplitude: Float = 0
+                var lastDiagLog = Date()
+
                 for await taggedBuffer in micStream {
                     guard !Task.isCancelled else { break }
+
+                    let level = self.calculateRMS(taggedBuffer.buffer)
+                    bufferCount += 1
+                    summedAmplitude += level
+                    if !firstBufferLogged {
+                        firstBufferLogged = true
+                        await MainActor.run {
+                            self.log.log("First mic buffer arrived (RMS \(String(format: "%.4f", level)), \(taggedBuffer.buffer.frameLength) frames @ \(Int(taggedBuffer.buffer.format.sampleRate))Hz, autoDetected=\(autoDetectedStart))", category: .audio)
+                        }
+                    }
+                    // Periodic amplitude summary so silent-mic recordings are
+                    // visible in the log without spamming. Once every ~30 s.
+                    if Date().timeIntervalSince(lastDiagLog) > 30 {
+                        let avg = summedAmplitude / Float(max(bufferCount, 1))
+                        await MainActor.run {
+                            self.log.log("Mic activity: \(bufferCount) buffers, avg RMS \(String(format: "%.4f", avg)) over last 30s", category: .audio, level: avg < 0.001 ? .warning : .info)
+                        }
+                        bufferCount = 0
+                        summedAmplitude = 0
+                        lastDiagLog = Date()
+                    }
 
                     if !(await micWriter.isWriting) {
                         do {
@@ -632,8 +673,6 @@ final class RecordingViewModel {
                         if stop { break }
                     }
 
-                    // Calculate mic level for UI
-                    let level = self.calculateRMS(taggedBuffer.buffer)
                     await MainActor.run {
                         self.micLevel = level
                     }
@@ -976,6 +1015,16 @@ final class RecordingViewModel {
             return true
         }
         return false
+    }
+
+    nonisolated static func describe(authorization: AVAuthorizationStatus) -> String {
+        switch authorization {
+        case .authorized: return "authorized"
+        case .denied: return "denied"
+        case .restricted: return "restricted"
+        case .notDetermined: return "not determined"
+        @unknown default: return "unknown"
+        }
     }
 
     nonisolated static func freeDiskBytesForRecordings() -> Int64? {
