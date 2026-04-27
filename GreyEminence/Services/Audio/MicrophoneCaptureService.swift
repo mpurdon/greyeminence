@@ -25,7 +25,10 @@ actor MicrophoneCaptureService {
         lastBufferAt.withLock { $0 }
     }
 
-    /// Start capturing microphone audio, returning an AsyncStream of tagged buffers.
+    /// Start capturing microphone audio, returning an AsyncStream of tagged
+    /// buffers. If `deviceUID` is nil, falls back to the persisted user
+    /// preference (`audio.preferredInputDeviceUID`) so the same Yeti / built-
+    /// in choice survives launches and unplugs.
     func startCapture(deviceUID: String? = nil) throws -> AsyncStream<TaggedAudioBuffer> {
         guard !isCapturing else {
             throw MicCaptureError.alreadyCapturing
@@ -33,9 +36,14 @@ actor MicrophoneCaptureService {
 
         let engine = AVAudioEngine()
 
-        // Set specific input device if requested
-        if let deviceUID {
-            setInputDevice(uid: deviceUID, on: engine)
+        let resolvedUID = deviceUID ?? UserDefaults.standard.string(forKey: "audio.preferredInputDeviceUID")
+        if let resolvedUID, !resolvedUID.isEmpty {
+            let applied = setInputDevice(uid: resolvedUID, on: engine)
+            if applied {
+                LogManager.send("Mic capture using preferred device UID \(resolvedUID)", category: .audio)
+            } else {
+                LogManager.send("Preferred mic device \(resolvedUID) not available — falling back to system default", category: .audio, level: .warning)
+            }
         }
 
         let inputNode = engine.inputNode
@@ -115,7 +123,8 @@ actor MicrophoneCaptureService {
         continuation?.yield(buffer)
     }
 
-    private nonisolated func setInputDevice(uid: String, on engine: AVAudioEngine) {
+    @discardableResult
+    private nonisolated func setInputDevice(uid: String, on engine: AVAudioEngine) -> Bool {
         var deviceID: AudioDeviceID = 0
         var propertyAddress = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyTranslateUIDToDevice,
@@ -135,11 +144,10 @@ actor MicrophoneCaptureService {
             &deviceID
         )
 
-        guard status == noErr else { return }
+        guard status == noErr, deviceID != 0, deviceID != kAudioObjectUnknown else { return false }
 
-        // Set the input device on the audio unit
         var inputDeviceID = deviceID
-        AudioUnitSetProperty(
+        let setStatus = AudioUnitSetProperty(
             engine.inputNode.audioUnit!,
             kAudioOutputUnitProperty_CurrentDevice,
             kAudioUnitScope_Global,
@@ -147,6 +155,7 @@ actor MicrophoneCaptureService {
             &inputDeviceID,
             UInt32(MemoryLayout<AudioDeviceID>.size)
         )
+        return setStatus == noErr
     }
 }
 

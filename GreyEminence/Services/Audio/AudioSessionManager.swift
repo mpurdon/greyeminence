@@ -13,7 +13,15 @@ final class AudioSessionManager {
     var micPermission: PermissionStatus = .unknown
     var screenRecordingPermission: PermissionStatus = .unknown
     var availableInputDevices: [AudioDevice] = []
-    var selectedInputDevice: AudioDevice?
+    var selectedInputDevice: AudioDevice? {
+        didSet {
+            guard oldValue != selectedInputDevice else { return }
+            persistSelectedDevice()
+        }
+    }
+
+    nonisolated static let preferredUIDKey = "audio.preferredInputDeviceUID"
+    nonisolated static let preferredNameKey = "audio.preferredInputDeviceName"
 
     struct AudioDevice: Identifiable, Hashable, Sendable {
         let id: AudioDeviceID
@@ -91,10 +99,40 @@ final class AudioSessionManager {
             return AudioDevice(id: deviceID, name: name, uid: uid)
         }
 
-        if selectedInputDevice == nil {
-            // Prefer the built-in mic, fall back to first available
-            selectedInputDevice = availableInputDevices.first { isBuiltIn($0.id) }
-                ?? availableInputDevices.first
+        selectedInputDevice = Self.pickPreferredDevice(from: availableInputDevices, builtInCheck: isBuiltIn)
+    }
+
+    /// Resolve which device to use given the persisted preference, falling
+    /// through name match → built-in → first available. Public so the
+    /// recording path can call it without holding an `AudioSessionManager`.
+    nonisolated static func pickPreferredDevice(
+        from devices: [AudioDevice],
+        builtInCheck: (AudioDeviceID) -> Bool
+    ) -> AudioDevice? {
+        guard !devices.isEmpty else { return nil }
+        let defaults = UserDefaults.standard
+        if let uid = defaults.string(forKey: preferredUIDKey),
+           let match = devices.first(where: { $0.uid == uid }) {
+            return match
+        }
+        if let name = defaults.string(forKey: preferredNameKey),
+           let match = devices.first(where: { $0.name == name }) {
+            return match
+        }
+        if let builtIn = devices.first(where: { builtInCheck($0.id) }) {
+            return builtIn
+        }
+        return devices.first
+    }
+
+    private func persistSelectedDevice() {
+        let defaults = UserDefaults.standard
+        if let device = selectedInputDevice {
+            defaults.set(device.uid, forKey: Self.preferredUIDKey)
+            defaults.set(device.name, forKey: Self.preferredNameKey)
+        } else {
+            defaults.removeObject(forKey: Self.preferredUIDKey)
+            defaults.removeObject(forKey: Self.preferredNameKey)
         }
     }
 
