@@ -45,11 +45,22 @@ actor MicrophoneCaptureService {
 
         let resolvedUID = deviceUID ?? UserDefaults.standard.string(forKey: "audio.preferredInputDeviceUID")
         if let resolvedUID, !resolvedUID.isEmpty {
-            let applied = setInputDevice(uid: resolvedUID, on: engine)
-            if applied {
-                LogManager.send("Mic capture using preferred device UID \(resolvedUID)", category: .audio)
+            // Skip the AudioUnitSetProperty call when the preferred UID is
+            // already the system default input. Setting CurrentDevice on the
+            // input AU triggers an AU re-init that disrupts any other tap
+            // (e.g. Settings level monitor) on the same device, leading to
+            // silent buffers — the very bug v0.9.59 introduced. If our
+            // preference matches what AVAudioEngine would pick anyway, leave
+            // the AU alone.
+            if let defaultUID = Self.currentDefaultInputDeviceUID(), defaultUID == resolvedUID {
+                LogManager.send("Mic capture: preferred device matches system default (\(resolvedUID)) — using engine default path", category: .audio)
             } else {
-                LogManager.send("Preferred mic device \(resolvedUID) not available — falling back to system default", category: .audio, level: .warning)
+                let applied = setInputDevice(uid: resolvedUID, on: engine)
+                if applied {
+                    LogManager.send("Mic capture using preferred device UID \(resolvedUID)", category: .audio)
+                } else {
+                    LogManager.send("Preferred mic device \(resolvedUID) not available — falling back to system default", category: .audio, level: .warning)
+                }
             }
         }
 
@@ -139,6 +150,31 @@ actor MicrophoneCaptureService {
         isCapturing = false
         NotificationCenter.default.post(name: .geMicCaptureDidEnd, object: nil)
         LogManager.send("Microphone capture stopped", category: .audio)
+    }
+
+    nonisolated private static func currentDefaultInputDeviceUID() -> String? {
+        var deviceID: AudioDeviceID = 0
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &addr, 0, nil, &size, &deviceID
+        ) == noErr, deviceID != 0 else { return nil }
+
+        var uidAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var uid: Unmanaged<CFString>?
+        var uidSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(deviceID, &uidAddr, 0, nil, &uidSize, &uid) == noErr,
+              let cf = uid?.takeRetainedValue() else { return nil }
+        return cf as String
     }
 
     nonisolated private static func forceEnableInputIO(on engine: AVAudioEngine) {
