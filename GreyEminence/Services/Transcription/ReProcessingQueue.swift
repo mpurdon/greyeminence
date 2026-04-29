@@ -93,12 +93,20 @@ final class ReProcessingQueue {
     }
 
     /// Cancel whatever meeting is currently running, leaving the rest of the
-    /// queue alone. The running chunk still has to finish (WhisperKit inference
-    /// isn't cancellable mid-call), but no further chunks will be started and
-    /// the meeting's re-processing state is cleared immediately.
+    /// queue alone. The running sub-chunk still has to finish (WhisperKit
+    /// inference isn't cancellable mid-call), bounded to ~15 s, but the UI
+    /// flips to "Cancelling…" immediately so cancel feels responsive in
+    /// every window showing the meeting.
     func cancelCurrent(meetingID: UUID? = nil) {
         guard let current else { return }
         if let meetingID, current.id != meetingID { return }
+        if self.current?.phase != .cancelling {
+            self.current?.phase = .cancelling
+        }
+        if let context = modelContainer?.mainContext,
+           let meeting = fetchMeeting(meetingID: current.id, in: context) {
+            markState(meeting: meeting, state: .cancelling, in: context)
+        }
         jobTask?.cancel()
         LogManager.send("Cancel requested for \"\(current.title)\"", category: .transcription)
     }

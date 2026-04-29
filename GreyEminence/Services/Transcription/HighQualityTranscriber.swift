@@ -39,6 +39,12 @@ actor HighQualityTranscriber {
     /// `argmaxinc/whisperkit-coreml` uses that convention.
     private static let modelName = "openai_whisper-large-v3-v20240930_turbo"
     private static let minChunkSamples = 1600 // 0.1s at 16 kHz
+    /// Maximum samples fed to a single `kit.transcribe` call. WhisperKit's
+    /// transcribe call isn't cancellable mid-flight, so worst-case cancel
+    /// latency equals the duration of one sub-chunk. 15 s × 16 kHz keeps
+    /// model context decent (large-v3 internally windows at 30 s) while
+    /// bounding cancel response time.
+    private static let maxSamplesPerInference = 15 * 16000
 
     /// RMS below this level is treated as silence and the chunk is skipped
     /// entirely. Whisper hallucinates stock phrases ("Thank you.", "you",
@@ -143,29 +149,41 @@ actor HighQualityTranscriber {
                 continue
             }
 
-            do {
-                let results = try await kit.transcribe(audioArray: samples)
-                for r in results {
-                    for seg in r.segments {
-                        let text = Self.cleanWhisperText(seg.text)
-                        guard !text.isEmpty else { continue }
-                        if Self.silenceHallucinations.contains(text.lowercased()) {
-                            continue
+            // Slice into sub-chunks so cancel can break out within ~15 s
+            // instead of waiting for the whole 30+ s chunk to finish.
+            let subChunks = stride(from: 0, to: samples.count, by: Self.maxSamplesPerInference)
+            for subStart in subChunks {
+                if Task.isCancelled { throw CancellationError() }
+                let subEnd = min(subStart + Self.maxSamplesPerInference, samples.count)
+                let subSamples = Array(samples[subStart..<subEnd])
+                guard subSamples.count >= Self.minChunkSamples else { continue }
+                let subOffset = TimeInterval(subStart) / 16000.0
+                do {
+                    let results = try await kit.transcribe(audioArray: subSamples)
+                    for r in results {
+                        for seg in r.segments {
+                            let text = Self.cleanWhisperText(seg.text)
+                            guard !text.isEmpty else { continue }
+                            if Self.silenceHallucinations.contains(text.lowercased()) {
+                                continue
+                            }
+                            segments.append(Segment(
+                                source: source,
+                                text: text,
+                                startTime: accumulatedOffset + subOffset + TimeInterval(seg.start),
+                                endTime: accumulatedOffset + subOffset + TimeInterval(seg.end)
+                            ))
                         }
-                        segments.append(Segment(
-                            source: source,
-                            text: text,
-                            startTime: accumulatedOffset + TimeInterval(seg.start),
-                            endTime: accumulatedOffset + TimeInterval(seg.end)
-                        ))
                     }
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    LogManager.send(
+                        "Sub-chunk inference failed (chunk \(chunkIdx) \(source) @ \(Int(subOffset))s, \(subSamples.count) samples) — continuing: \(error.localizedDescription)",
+                        category: .transcription,
+                        level: .warning
+                    )
                 }
-            } catch {
-                LogManager.send(
-                    "Chunk \(chunkIdx) (\(source), \(samples.count) samples, \(String(format: "%.2f", chunkDuration))s) failed inference — continuing: \(error.localizedDescription)",
-                    category: .transcription,
-                    level: .warning
-                )
             }
 
             accumulatedOffset += chunkDuration

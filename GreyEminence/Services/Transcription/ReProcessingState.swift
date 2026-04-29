@@ -6,6 +6,7 @@ enum ReProcessingState: String, Codable, CaseIterable, Sendable {
     case transcribing
     case analyzing
     case reindexing
+    case cancelling
     case failed
 
     var label: String {
@@ -14,6 +15,7 @@ enum ReProcessingState: String, Codable, CaseIterable, Sendable {
         case .transcribing: "Re-transcribing"
         case .analyzing: "Analyzing"
         case .reindexing: "Indexing"
+        case .cancelling: "Cancelling…"
         case .failed: "Failed"
         }
     }
@@ -24,6 +26,7 @@ enum ReProcessingState: String, Codable, CaseIterable, Sendable {
         case .transcribing: "Re-transcribing audio (WhisperKit large-v3)"
         case .analyzing: "Rebuilding AI summary and tasks"
         case .reindexing: "Updating semantic search index"
+        case .cancelling: "Cancelling — finishing current sub-chunk"
         case .failed: "Failed"
         }
     }
@@ -34,6 +37,7 @@ enum ReProcessingState: String, Codable, CaseIterable, Sendable {
         case .transcribing: .blue
         case .analyzing: .purple
         case .reindexing: .teal
+        case .cancelling: .secondary
         case .failed: .orange
         }
     }
