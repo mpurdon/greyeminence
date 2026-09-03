@@ -73,13 +73,52 @@ final class DiarizationSmokeTests: XCTestCase {
             .joined(separator: "\n"))
         cluster similarity (duration-weighted signatures):
         \(similarityMatrix(segments, talkTime: talkTime))
+        hindsight:     \(hindsightSummary(segments, significant: significant))
 
         """)
+
+        dumpTurns(segments, talkTime: talkTime)
 
         XCTAssertFalse(segments.isEmpty, "diarizer produced no turns at all")
         // Embeddings are what cross-meeting voice matching will key on, so
         // confirm they're actually coming through before building on them.
         XCTAssertFalse(segments.first?.embedding.isEmpty ?? true, "no voice embedding on the turns")
+    }
+
+    private func hindsightSummary(_ segments: [DiarizedSegment], significant: Set<String>) -> String {
+        let result = HindsightReassignment.apply(to: segments, among: significant)
+        guard result.moved > 0 else { return "nothing to move" }
+        var moves: [String: Int] = [:]
+        for (before, after) in zip(segments, result.turns) where before.speakerID != after.speakerID {
+            moves["\(before.speakerID)→\(after.speakerID)", default: 0] += 1
+        }
+        return "would move \(result.moved) turn(s), \(Int(result.movedSeconds))s: "
+            + moves.sorted { $0.value > $1.value }.map { "\($0.key) ×\($0.value)" }.joined(separator: ", ")
+    }
+
+    /// Every turn with its similarity to each cluster's final signature,
+    /// written beside `diarize-target.txt` as `diarize-dump.csv`. This is how
+    /// you tell a cold-start misassignment (the turn is closer to another
+    /// cluster in hindsight) from a segmentation miss (there is no turn).
+    private func dumpTurns(_ segments: [DiarizedSegment], talkTime: [String: TimeInterval]) {
+        let ids = talkTime.filter { $0.value >= 3 }.sorted { $0.value > $1.value }.map(\.key)
+        var sigs: [String: VoiceSignature] = [:]
+        for id in ids {
+            let turns = segments.filter { $0.speakerID == id }.map { (embedding: $0.embedding, seconds: max(0, $0.endTime - $0.startTime)) }
+            sigs[id] = VoiceSignature.from(turns: turns)
+        }
+        var lines = ["speaker,start,end,quality," + ids.map { "sim_\($0)" }.joined(separator: ",")]
+        for turn in segments.sorted(by: { $0.startTime < $1.startTime }) {
+            let own = VoiceSignature.from(turns: [(embedding: turn.embedding, seconds: 1)])
+            let sims = ids.map { id -> String in
+                guard let own, let sig = sigs[id] else { return "" }
+                return String(format: "%.3f", own.similarity(to: sig))
+            }
+            lines.append("\(turn.speakerID),\(String(format: "%.2f", turn.startTime)),\(String(format: "%.2f", turn.endTime)),\(String(format: "%.3f", turn.confidence)),\(sims.joined(separator: ","))")
+        }
+        let url = StorageManager.shared.appSupportURL.appendingPathComponent("diarize-dump.csv")
+        try? lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+        print("turn dump: \(url.path)")
     }
 
     /// Cosine similarity between every pair of clusters with a few seconds

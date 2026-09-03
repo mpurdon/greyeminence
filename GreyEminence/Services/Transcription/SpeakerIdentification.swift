@@ -84,6 +84,26 @@ enum SpeakerIdentification {
         meeting: Meeting,
         minimumVoices: Int = 1
     ) -> Attribution? {
+        // Second look first: the clusterer assigned each turn knowing only
+        // the voices heard before it, so a new speaker's opening words sit on
+        // whoever they sounded most like at the time. With the whole meeting
+        // heard, those turns are re-checked against the final voices.
+        let firstPass = diarized.map {
+            SpeakerAlignment.Span(speakerID: $0.speakerID, start: $0.startTime, end: $0.endTime)
+        }
+        let hindsight = HindsightReassignment.apply(
+            to: diarized,
+            among: SpeakerAlignment.significantSpeakerIDs(in: firstPass)
+        )
+        if hindsight.moved > 0 {
+            LogManager.send(
+                "Hindsight moved \(hindsight.moved) turn(s), \(Int(hindsight.movedSeconds))s, to the voice they match",
+                category: .transcription,
+                meetingID: meeting.id
+            )
+        }
+        let diarized = hindsight.turns
+
         let spans = diarized.map {
             SpeakerAlignment.Span(speakerID: $0.speakerID, start: $0.startTime, end: $0.endTime)
         }
