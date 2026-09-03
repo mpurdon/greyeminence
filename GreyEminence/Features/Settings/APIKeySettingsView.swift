@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct APIKeySettingsView: View {
     @AppStorage("aiProvider") private var selectedProvider: String = "anthropic"
-    @AppStorage("claudeModel") private var selectedModel: String = "claude-sonnet-4-20250514"
+    @AppStorage(AIModelCatalog.mainModelKey) private var selectedModel: String = AIModelCatalog.defaultMainModel
     @AppStorage("awsProfile") private var awsProfile: String = "default"
     @AppStorage("awsRegion") private var awsRegion: String = "us-east-1"
 
@@ -264,9 +264,9 @@ struct APIKeySettingsView: View {
     private var modelSection: some View {
         Section {
             Picker("Model", selection: $selectedModel) {
-                Text("Opus 4 (Most capable)").tag("claude-opus-4-20250514")
-                Text("Sonnet 4 (Balanced)").tag("claude-sonnet-4-20250514")
-                Text("Haiku 3.5 (Fastest)").tag("claude-haiku-4-5-20251001")
+                Text("Opus 5 (Most capable)").tag(AIModelCatalog.opus)
+                Text("Sonnet 5 (Balanced)").tag(AIModelCatalog.sonnet)
+                Text("Haiku 4.5 (Fastest)").tag(AIModelCatalog.haiku)
             }
 
             LabeledContent("Analysis Interval") {

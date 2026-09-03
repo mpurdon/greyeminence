@@ -25,6 +25,7 @@ struct GreyEminenceApp: App {
         UserDefaults.standard.register(defaults: [
             "calendarIntegration": true
         ])
+        AIModelCatalog.migrateStoredDefaults()
 
         let delegate = SparkleUpdaterDelegate()
         self.updaterDelegate = delegate

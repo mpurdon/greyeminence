@@ -1720,7 +1720,7 @@ final class RecordingViewModel {
                 return
             }
 
-            let model = UserDefaults.standard.string(forKey: "claudeModel") ?? "claude-sonnet-4-20250514"
+            let model = AIModelCatalog.mainModel
             await MainActor.run {
                 self.log.log("AI intelligence service starting (model: \(model))", category: .ai)
             }

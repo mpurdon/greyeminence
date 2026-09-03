@@ -6,7 +6,7 @@ struct ClaudeAPIClient: AIClient, Sendable {
 
     var modelIdentifier: String { "anthropic:\(model)" }
 
-    init(apiKey: String, model: String = "claude-sonnet-4-20250514") {
+    init(apiKey: String, model: String = AIModelCatalog.defaultMainModel) {
         self.apiKey = apiKey
         self.model = model
     }
@@ -67,7 +67,7 @@ struct ClaudeAPIClient: AIClient, Sendable {
         let body = RequestBody(
             model: model,
             max_tokens: maxTokens,
-            system: system,
+            system: SystemPromptBlock.cached(system),
             messages: messages,
             thinking: .disabled
         )
@@ -127,7 +127,7 @@ struct ClaudeAPIClient: AIClient, Sendable {
         if let usage = AIUsage.decode(fromResponseBody: data) {
             UsageRecorder.record(modelIdentifier: modelIdentifier, usage: usage)
             LogManager.send(
-                "usage: \(usage.inputTokens.formatted()) in / \(usage.outputTokens.formatted()) out (\(model))",
+                "usage: \(usage.inputTokens.formatted()) in / \(usage.outputTokens.formatted()) out, cache \(usage.cacheReadTokens.formatted()) read / \(usage.cacheWriteTokens.formatted()) written (\(model))",
                 category: .ai
             )
         }
@@ -159,7 +159,7 @@ struct ClaudeAPIClient: AIClient, Sendable {
     private struct RequestBody: Encodable {
         let model: String
         let max_tokens: Int
-        let system: String
+        let system: [SystemPromptBlock]
         let messages: [Message]
         let thinking: ThinkingConfig
     }

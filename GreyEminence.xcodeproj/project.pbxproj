@@ -45,6 +45,7 @@
 		1BD50BA428B227711DD3FD21 /* RubricBonusSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C6927F280175D31CAADD91 /* RubricBonusSignal.swift */; };
 		1D781B4999F7C11613FDB8EA /* CONTRIBUTING.md in Resources */ = {isa = PBXBuildFile; fileRef = CD8714B1A96853CD73CAE8D7 /* CONTRIBUTING.md */; };
 		1D806CBFD5110BE5E8967FA9 /* AIUsageEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFCD6A271729276B0D8ABEE2 /* AIUsageEvent.swift */; };
+		1E1BE948015240CAC4E1D909 /* AIModelCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1FF8C06BCAB55D33B1C493D /* AIModelCatalogTests.swift */; };
 		1E9491591B4678CBCE46C8E2 /* TranscriptionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD246F57B67011F22F1AF64A /* TranscriptionCoordinator.swift */; };
 		1F2D4AF595328BFF999E2BE8 /* VoiceSignatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA643177684443588E617FDD /* VoiceSignatureTests.swift */; };
 		2086A94A9E6CC889D547825A /* StartupActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF016F2C1CC30A730B1A0E5E /* StartupActivityTests.swift */; };
@@ -88,6 +89,7 @@
 		3FAC8EEE1160183F8FF49BA1 /* InterviewRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9332875D8DF9786389A129 /* InterviewRole.swift */; };
 		4049FE1019DF0F0079883216 /* InterviewIntelligenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8363D29DBB4CADCC8DD08381 /* InterviewIntelligenceService.swift */; };
 		410FF2704E7C22D08D23D9D6 /* ForceSimulation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E750BB3E0037D9160A228F10 /* ForceSimulation.swift */; };
+		43F3336B86B0D013BB432E42 /* AIModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F45CC89CE3662A159200FF2 /* AIModelCatalog.swift */; };
 		467F4540B4DA4A675F18441B /* EmbeddingIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E889F823B1576875F27A74 /* EmbeddingIndexer.swift */; };
 		468D89A5C59728BCF165C8B5 /* MicrophoneCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACFC782BC165D3DA75DFE688 /* MicrophoneCaptureService.swift */; };
 		4705676DC92E562C35BD7323 /* AskViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3288C11A7C44738155FDB42 /* AskViewModel.swift */; };
@@ -521,6 +523,7 @@
 		9E9BD9C1EDBF636CD6482196 /* TopicGraphTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopicGraphTypes.swift; sourceTree = "<group>"; };
 		9EA408D29CF047676AC4ED4E /* ActionItemOwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionItemOwnershipTests.swift; sourceTree = "<group>"; };
 		9F43B13AE41AF8236D03AB34 /* InterviewImpressionTrait.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewImpressionTrait.swift; sourceTree = "<group>"; };
+		9F45CC89CE3662A159200FF2 /* AIModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelCatalog.swift; sourceTree = "<group>"; };
 		9FA5FAFDECE066A3112DE8CC /* GraphAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphAuthService.swift; sourceTree = "<group>"; };
 		9FD936D81A73CF8DA5D6EBD2 /* AskChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskChatView.swift; sourceTree = "<group>"; };
 		A0AF2329398C06BB75B022FF /* StorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageManager.swift; sourceTree = "<group>"; };
@@ -575,6 +578,7 @@
 		C0A58B8B68B5A249D975F355 /* DeveloperPromptEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperPromptEditorView.swift; sourceTree = "<group>"; };
 		C0FFE615EDF257D5D3EC87E1 /* LiveTranscriptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTranscriptView.swift; sourceTree = "<group>"; };
 		C1042E6A22B62FFEFCB01BAA /* GreyEminenceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreyEminenceApp.swift; sourceTree = "<group>"; };
+		C1FF8C06BCAB55D33B1C493D /* AIModelCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelCatalogTests.swift; sourceTree = "<group>"; };
 		C243ABF13B24C3050CAEFF44 /* VoiceSignature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSignature.swift; sourceTree = "<group>"; };
 		C28472798341F1E27B7D42F4 /* TopicDetailPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopicDetailPanel.swift; sourceTree = "<group>"; };
 		C345769BE4ED62462F4C54E7 /* MicRecoveryPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicRecoveryPolicyTests.swift; sourceTree = "<group>"; };
@@ -807,6 +811,7 @@
 				4D73DBC02E9A067276E806B8 /* AIClientFactory.swift */,
 				8D5C025F672896B9EBCD995D /* AIClientProtocol.swift */,
 				B66D41A4DDC8876D46E90AD7 /* AIIntelligenceService.swift */,
+				9F45CC89CE3662A159200FF2 /* AIModelCatalog.swift */,
 				274311285D36EB560C1740A2 /* AIPricing.swift */,
 				69AB1E3DF6577FB00871B539 /* AIPromptTemplates.swift */,
 				EAC44B8273F73F89106E1626 /* AIResponseDecoder.swift */,
@@ -861,6 +866,7 @@
 				9EA408D29CF047676AC4ED4E /* ActionItemOwnershipTests.swift */,
 				CBC62114408AA9948168BD1F /* AdaptiveConcurrencyLimiterTests.swift */,
 				A897E1310F4B2252EE1BA2EE /* AIClientFactoryTests.swift */,
+				C1FF8C06BCAB55D33B1C493D /* AIModelCatalogTests.swift */,
 				12B95F8E9BACC70BAD348428 /* AIResponseExcerptTests.swift */,
 				3946643E25AD52CD5C5B4307 /* AIRetryTests.swift */,
 				9BA36138ADE882A98E9B6CF0 /* AIUsageTests.swift */,
@@ -1440,6 +1446,7 @@
 				8B007657E79B35D0EE9E89A3 /* AIClientFactory.swift in Sources */,
 				EDF38D93C1682EED3F51100C /* AIClientProtocol.swift in Sources */,
 				818879FDFE90846E3A165E26 /* AIIntelligenceService.swift in Sources */,
+				43F3336B86B0D013BB432E42 /* AIModelCatalog.swift in Sources */,
 				7AC00E15A17BA8B5197C2E3F /* AIPricing.swift in Sources */,
 				CA4D93E6FAEA9C013721DD8D /* AIPromptTemplates.swift in Sources */,
 				020FD20C6991036F7EF6A145 /* AIResponseDecoder.swift in Sources */,
@@ -1702,6 +1709,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5B3254AD0768AA9613DB6AE4 /* AIClientFactoryTests.swift in Sources */,
+				1E1BE948015240CAC4E1D909 /* AIModelCatalogTests.swift in Sources */,
 				3CC4FEBCE37C2A964DD56B8A /* AIResponseExcerptTests.swift in Sources */,
 				6E45CEDA458C896848FE2178 /* AIRetryTests.swift in Sources */,
 				BF7FB8850CF54A9DE5406C39 /* AIUsageTests.swift in Sources */,
@@ -1836,14 +1844,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260903013556;
+				CURRENT_PROJECT_VERSION = 20260903092736;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.32.5;
+				MARKETING_VERSION = 0.33.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1860,14 +1868,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260903013556;
+				CURRENT_PROJECT_VERSION = 20260903092736;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.32.5;
+				MARKETING_VERSION = 0.33.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

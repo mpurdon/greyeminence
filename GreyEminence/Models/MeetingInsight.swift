@@ -17,8 +17,8 @@ final class MeetingInsight {
     /// later if the parser improves.
     var rawLLMResponse: String?
 
-    /// Model that produced this insight, e.g. `"anthropic:claude-sonnet-4-20250514"`
-    /// or `"bedrock:us-east-1:anthropic.claude-opus-4-20250514-v1:0"`.
+    /// Model that produced this insight, e.g. `"anthropic:claude-sonnet-5"`
+    /// or `"bedrock:us-east-2:arn:aws:bedrock:…:application-inference-profile/…"`.
     var modelIdentifier: String?
 
     /// Version of the built-in prompt that produced this insight (e.g. `"meeting.v1"`).

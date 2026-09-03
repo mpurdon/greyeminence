@@ -70,7 +70,7 @@ struct BedrockAPIClient: AIClient, Sendable {
         let body = RequestBody(
             anthropic_version: "bedrock-2023-05-31",
             max_tokens: maxTokens,
-            system: system,
+            system: SystemPromptBlock.cached(system),
             messages: messages,
             thinking: .disabled
         )
@@ -136,7 +136,7 @@ struct BedrockAPIClient: AIClient, Sendable {
         if let usage = AIUsage.decode(fromResponseBody: data) {
             UsageRecorder.record(modelIdentifier: modelIdentifier, usage: usage)
             LogManager.send(
-                "usage: \(usage.inputTokens.formatted()) in / \(usage.outputTokens.formatted()) out (\(model))",
+                "usage: \(usage.inputTokens.formatted()) in / \(usage.outputTokens.formatted()) out, cache \(usage.cacheReadTokens.formatted()) read / \(usage.cacheWriteTokens.formatted()) written (\(model))",
                 category: .ai
             )
         }
@@ -156,7 +156,7 @@ struct BedrockAPIClient: AIClient, Sendable {
     private struct RequestBody: Encodable {
         let anthropic_version: String
         let max_tokens: Int
-        let system: String
+        let system: [SystemPromptBlock]
         let messages: [Message]
         let thinking: ThinkingConfig
     }

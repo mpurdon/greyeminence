@@ -1,6 +1,7 @@
 import Foundation
 
-/// $/MTok prices for a Claude model family, current as of mid-2026. Used
+/// $/MTok prices for a Claude model family: Haiku 4.5, Sonnet 5, Opus 5 list
+/// prices as of September 2026. Used
 /// only for the estimated-cost labels in the UI — the ledger itself stores
 /// tokens, so stale prices never corrupt stored data.
 struct AIPricing: Sendable, Equatable {
@@ -12,8 +13,8 @@ struct AIPricing: Sendable, Equatable {
     var cacheWritePerMTok: Double { inputPerMTok * 1.25 }
 
     static let haiku = AIPricing(inputPerMTok: 1, outputPerMTok: 5)
-    static let sonnet = AIPricing(inputPerMTok: 3, outputPerMTok: 15)
-    static let opus = AIPricing(inputPerMTok: 15, outputPerMTok: 75)
+    static let sonnet = AIPricing(inputPerMTok: 2, outputPerMTok: 10)
+    static let opus = AIPricing(inputPerMTok: 5, outputPerMTok: 25)
 
     /// Map a stored model identifier to a price family. Identifiers usually
     /// contain the family name ("anthropic:claude-haiku-…",

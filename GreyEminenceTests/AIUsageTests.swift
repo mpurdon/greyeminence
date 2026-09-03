@@ -75,7 +75,7 @@ final class AIUsageTests: XCTestCase {
         XCTAssertEqual(AIPricing.haiku.cost(of: usage), 6.0, accuracy: 0.0001)
         // Cache reads bill at 10% of input.
         let cached = AIUsage(inputTokens: 0, outputTokens: 0, cacheReadTokens: 1_000_000, cacheWriteTokens: 0)
-        XCTAssertEqual(AIPricing.sonnet.cost(of: cached), 0.3, accuracy: 0.0001)
+        XCTAssertEqual(AIPricing.sonnet.cost(of: cached), 0.2, accuracy: 0.0001)
     }
 
     // MARK: - Aggregator
@@ -101,7 +101,7 @@ final class AIUsageTests: XCTestCase {
         let totals = AIUsageAggregator.totals(lines, settings: nil)
         XCTAssertEqual(totals.inputTokens, 1_000_000)
         XCTAssertEqual(totals.outputTokens, 1_000_000)
-        XCTAssertEqual(totals.estimatedCost, 16.0, accuracy: 0.0001)  // $1 haiku in + $15 sonnet out
+        XCTAssertEqual(totals.estimatedCost, 11.0, accuracy: 0.0001)  // $1 haiku in + $10 sonnet out
         XCTAssertTrue(totals.pricedEverything)
     }
 

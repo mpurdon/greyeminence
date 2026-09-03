@@ -24,7 +24,7 @@ enum ScreenShareSettings {
     static let defaultMaxAnalyzedFrames = 200
     static let defaultMaxKeptFrames = 400
     static let defaultChangeThreshold = 8
-    static let defaultFrameAnalysisModel = "claude-haiku-4-5-20251001"
+    static let defaultFrameAnalysisModel = AIModelCatalog.haiku
     static let defaultAnalysisPixelBudget = 600_000
 
     static var isEnabled: Bool {
@@ -62,7 +62,7 @@ enum ScreenShareSettings {
     /// Empty string is a deliberate user choice ("same as main model"), so
     /// only a missing key falls back to the Haiku default.
     static var frameAnalysisModel: String {
-        UserDefaults.standard.string(forKey: frameAnalysisModelKey) ?? defaultFrameAnalysisModel
+        AIModelCatalog.canonical(UserDefaults.standard.string(forKey: frameAnalysisModelKey) ?? defaultFrameAnalysisModel)
     }
 
     static var analysisPixelBudget: Int {

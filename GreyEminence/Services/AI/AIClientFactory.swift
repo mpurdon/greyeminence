@@ -9,18 +9,17 @@ enum AIClientFactory {
     static func makeClient() async throws -> (any AIClient)? {
         let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? "anthropic"
         let provider = AIProvider(rawValue: providerRaw) ?? .anthropic
-        let model = UserDefaults.standard.string(forKey: "claudeModel") ?? "claude-sonnet-4-20250514"
-        return try await makeClient(provider: provider, model: model)
+        return try await makeClient(provider: provider, model: AIModelCatalog.mainModel)
     }
 
     /// Client for per-frame vision analysis. Defaults to Haiku — frame
-    /// descriptions don't need the main model's depth, and Haiku is ~3×
-    /// cheaper per token. Session synthesis and transcript analysis stay
-    /// on `makeClient()`.
+    /// descriptions don't need the main model's depth, and Haiku is ~2×
+    /// cheaper per token than Sonnet 5. Session synthesis and transcript
+    /// analysis stay on `makeClient()`.
     static func makeFrameAnalysisClient() async throws -> (any AIClient)? {
         let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? "anthropic"
         let provider = AIProvider(rawValue: providerRaw) ?? .anthropic
-        let mainModel = UserDefaults.standard.string(forKey: "claudeModel") ?? "claude-sonnet-4-20250514"
+        let mainModel = AIModelCatalog.mainModel
 
         // No trajector settings at all means the main model also runs on
         // foundation IDs, so Haiku's foundation ID is equally reachable.
@@ -84,33 +83,38 @@ enum AIClientFactory {
     /// Resolve model: prefer inference profile ARN from trajector settings, fall back to foundation model ID
     static func resolveBedrockModel(for anthropicModel: String) -> String {
         let settings = TrajectorSettings.load()
+        let model = AIModelCatalog.canonical(anthropicModel)
 
         // Map the UI model choice to the corresponding inference profile ARN
-        switch anthropicModel {
-        case "claude-opus-4-20250514":
+        switch model {
+        case AIModelCatalog.opus:
             if let arn = settings?.opusModel { return arn }
-        case "claude-sonnet-4-20250514":
+        case AIModelCatalog.sonnet:
             if let arn = settings?.sonnetModel { return arn }
-        case "claude-haiku-4-5-20251001":
+        case AIModelCatalog.haiku:
             if let arn = settings?.haikuModel { return arn }
         default:
             break
         }
 
         // Fall back to foundation model ID
-        return foundationModelId(for: anthropicModel)
+        return foundationModelId(for: model)
     }
 
+    /// Bedrock model ID when no inference profile is configured. The 5-series
+    /// has no ARN-versioned `-v1:0` form on Bedrock — InvokeModel takes the
+    /// `anthropic.`-prefixed alias. Haiku 4.5 keeps its dated ID and needs a
+    /// cross-region prefix: the bare ID 400s on on-demand throughput.
     static func foundationModelId(for anthropicModel: String) -> String {
-        switch anthropicModel {
-        case "claude-opus-4-20250514":
-            "anthropic.claude-opus-4-20250514-v1:0"
-        case "claude-sonnet-4-20250514":
-            "anthropic.claude-sonnet-4-20250514-v1:0"
-        case "claude-haiku-4-5-20251001":
-            "anthropic.claude-haiku-4-5-20251001-v1:0"
+        switch AIModelCatalog.canonical(anthropicModel) {
+        case AIModelCatalog.opus:
+            "anthropic.claude-opus-5"
+        case AIModelCatalog.sonnet:
+            "anthropic.claude-sonnet-5"
+        case AIModelCatalog.haiku:
+            "global.anthropic.claude-haiku-4-5-20251001-v1:0"
         default:
-            "anthropic.\(anthropicModel)-v1:0"
+            "anthropic.\(anthropicModel)"
         }
     }
 }

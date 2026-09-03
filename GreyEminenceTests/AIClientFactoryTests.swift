@@ -5,8 +5,8 @@ import XCTest
 /// no network.
 final class AIClientFactoryTests: XCTestCase {
 
-    private let haiku = "claude-haiku-4-5-20251001"
-    private let sonnet = "claude-sonnet-4-20250514"
+    private let haiku = AIModelCatalog.haiku
+    private let sonnet = AIModelCatalog.sonnet
 
     func testAnthropicUsesPreferredHaiku() {
         let choice = AIClientFactory.frameAnalysisModel(

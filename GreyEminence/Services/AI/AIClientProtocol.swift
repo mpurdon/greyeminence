@@ -151,3 +151,27 @@ struct ThinkingConfig: Encodable {
 
     static let disabled = ThinkingConfig(type: "disabled")
 }
+
+/// System prompt as a content-block array so the last block can carry a
+/// prompt-cache breakpoint. The system prompt is the only part of a request
+/// that repeats verbatim across a meeting's rolling passes (the user turn
+/// carries the growing summary and new transcript), and the 45-second cadence
+/// keeps the 5-minute cache entry warm. Cache reads bill at 10% of input.
+/// Bedrock rejects top-level automatic caching, so the marker is explicit.
+struct SystemPromptBlock: Encodable {
+    let type = "text"
+    let text: String
+    let cache_control: CacheControl?
+
+    struct CacheControl: Encodable {
+        let type: String
+        static let ephemeral = CacheControl(type: "ephemeral")
+    }
+
+    /// One block holding the whole prompt, marked as the cache breakpoint.
+    /// Prompts shorter than the model's cacheable minimum (1,024 tokens on
+    /// Sonnet 5, 4,096 on Haiku 4.5) are silently sent uncached — no error.
+    static func cached(_ text: String) -> [SystemPromptBlock] {
+        [SystemPromptBlock(text: text, cache_control: .ephemeral)]
+    }
+}
