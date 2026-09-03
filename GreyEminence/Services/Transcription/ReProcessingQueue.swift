@@ -449,8 +449,9 @@ final class ReProcessingQueue {
             if seg.source == .mic {
                 speaker = .me
             } else {
-                // An unattributed stretch keeps the honest label: better than
-                // assigning it to whoever happened to speak nearby.
+                // With several remote voices an unattributed stretch keeps the
+                // honest label rather than going to whoever spoke nearby; with
+                // one, the attribution hands it to that voice.
                 speaker = attribution?.speaker(from: seg.startTime, to: seg.endTime) ?? .unidentified
             }
             return TranscriptSegment(

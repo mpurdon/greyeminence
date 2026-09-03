@@ -26,11 +26,15 @@ final class DiarizationSmokeTests: XCTestCase {
     func testDiarizeRealMeetingAudio() async throws {
         try XCTSkipIf(meetingID.isEmpty, "Write a meeting UUID to diarize-target.txt in the app container to run.")
 
-        let dir = URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent("Library/Containers/com.greyeminence.app/Data/Library/Application Support/GreyEminence/Recordings")
-            .appendingPathComponent(meetingID)
-        let chunks = AudioFileWriter.existingChunkURLs(base: dir.appendingPathComponent("system.m4a"))
-        try XCTSkipIf(chunks.isEmpty, "No system audio for \(meetingID).")
+        // Resolved through the storage manager, not a hard-coded container
+        // path: the test host is sandboxed, so `NSHomeDirectory()` is already
+        // inside the container and appending the container path again finds
+        // nothing.
+        guard let id = UUID(uuidString: meetingID) else {
+            throw XCTSkip("\(meetingID) is not a meeting UUID.")
+        }
+        let chunks = AudioFileWriter.existingChunkURLs(base: StorageManager.shared.systemAudioURL(for: id))
+        try XCTSkipIf(chunks.isEmpty, "No system audio for \(meetingID) at \(StorageManager.shared.systemAudioURL(for: id).path).")
 
         let service = SpeakerDiarizationService()
         try await service.prepare()
@@ -55,12 +59,20 @@ final class DiarizationSmokeTests: XCTestCase {
         wall clock:    \(String(format: "%.1f", elapsed))s
         turns:         \(segments.count)
         raw clusters:  \(talkTime.count)
-        significant:   \(significant.count)  (>= 3s of speech)
+        significant:   \(significant.count)  (>= \(Int(SpeakerAlignment.minimumParticipantSeconds))s of speech)
         audio spanned: \(String(format: "%.0f", span))s, attributed \(String(format: "%.0f", covered))s
-        talk time:
+        talk time (total / turns / longest turn / median turn):
         \(talkTime.sorted { $0.value > $1.value }
-            .map { "  \($0.key.prefix(12).padding(toLength: 12, withPad: " ", startingAt: 0))  \(String(format: "%6.1f", $0.value))s\(significant.contains($0.key) ? "" : "   (sliver)")" }
+            .map { id, total -> String in
+                let turns = spans.filter { $0.speakerID == id }.map(\.duration).sorted()
+                let longest = turns.last ?? 0
+                let median = turns.isEmpty ? 0 : turns[turns.count / 2]
+                let tag = significant.contains(id) ? "" : "   (sliver)"
+                return "  \(id.prefix(12).padding(toLength: 12, withPad: " ", startingAt: 0))  \(String(format: "%6.1f", total))s  \(String(format: "%3d", turns.count)) turns  longest \(String(format: "%5.1f", longest))s  median \(String(format: "%4.1f", median))s\(tag)"
+            }
             .joined(separator: "\n"))
+        cluster similarity (duration-weighted signatures):
+        \(similarityMatrix(segments, talkTime: talkTime))
 
         """)
 
@@ -68,5 +80,24 @@ final class DiarizationSmokeTests: XCTestCase {
         // Embeddings are what cross-meeting voice matching will key on, so
         // confirm they're actually coming through before building on them.
         XCTAssertFalse(segments.first?.embedding.isEmpty ?? true, "no voice embedding on the turns")
+    }
+
+    /// Cosine similarity between every pair of clusters with a few seconds
+    /// behind them — whether a split voice is recoverable by similarity.
+    private func similarityMatrix(_ segments: [DiarizedSegment], talkTime: [String: TimeInterval]) -> String {
+        let ids = talkTime.filter { $0.value >= 3 }.sorted { $0.value > $1.value }.map(\.key)
+        var sigs: [String: VoiceSignature] = [:]
+        for id in ids {
+            let turns = segments.filter { $0.speakerID == id }.map { (embedding: $0.embedding, seconds: max(0, $0.endTime - $0.startTime)) }
+            sigs[id] = VoiceSignature.from(turns: turns)
+        }
+        var lines: [String] = []
+        for i in ids.indices {
+            for j in ids.indices where j > i {
+                guard let a = sigs[ids[i]], let b = sigs[ids[j]] else { continue }
+                lines.append("  \(ids[i]) ~ \(ids[j]): \(String(format: "%.3f", a.similarity(to: b)))")
+            }
+        }
+        return lines.isEmpty ? "  (one cluster)" : lines.joined(separator: "\n")
     }
 }

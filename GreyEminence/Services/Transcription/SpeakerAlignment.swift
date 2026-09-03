@@ -69,12 +69,29 @@ enum SpeakerAlignment {
         return labels
     }
 
+    /// Speech a cluster needs before it counts as a participant.
+    ///
+    /// Twenty seconds is a few sentences. It was three, which only caught
+    /// coughs and crossfades and let through the failure that actually
+    /// happens: a one-word "Yeah." mid-call is too little audio for a stable
+    /// voice embedding, so it lands far from the speaker's centroid and seeds
+    /// a new cluster, which then collects the rest of their backchannel. In a
+    /// 25-minute 1:1 that cluster reached 13 seconds — a whole extra
+    /// participant made of nothing but "Yeah", "Okay" and "Absolutely".
+    /// Someone who genuinely says only that much is not a voice the reader
+    /// needs numbered; in a single-voice meeting their words go to that voice,
+    /// otherwise they keep the plain "Speaker" label.
+    static let minimumParticipantSeconds: TimeInterval = 20
+
     /// Clusters too small to be a real participant.
     ///
     /// Diarizers emit slivers — a cough, a crossfade, half a word of overlap —
     /// and each one otherwise becomes a numbered "speaker" that never says
     /// anything, which makes a two-person call look like a panel.
-    static func significantSpeakerIDs(in spans: [Span], minimumTotalSeconds: TimeInterval = 3.0) -> Set<String> {
+    static func significantSpeakerIDs(
+        in spans: [Span],
+        minimumTotalSeconds: TimeInterval = minimumParticipantSeconds
+    ) -> Set<String> {
         var totals: [String: TimeInterval] = [:]
         for span in spans {
             totals[span.speakerID, default: 0] += span.duration

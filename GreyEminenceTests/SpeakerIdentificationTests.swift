@@ -54,6 +54,44 @@ final class SpeakerIdentificationTests: XCTestCase {
         )
     }
 
+    // MARK: - Attributing segments
+
+    private func attribution(labels: [String: String], names: [String: String]? = nil) -> SpeakerIdentification.Attribution {
+        let spans = labels.keys.sorted().enumerated().map { index, id in
+            SpeakerAlignment.Span(speakerID: id, start: Double(index) * 100, end: Double(index) * 100 + 60)
+        }
+        return .init(
+            spans: spans,
+            names: names ?? Dictionary(uniqueKeysWithValues: labels.values.map { ($0, $0) }),
+            voiceCount: labels.count,
+            labels: labels
+        )
+    }
+
+    func testUnattributedSpeechGoesToTheOnlyVoice() {
+        // The diarizer skips one-word interjections; in a 1:1 they can only
+        // be the one remote person, and labelling them "Speaker" showed a
+        // third participant who said nothing but "Okay."
+        let single = attribution(labels: ["a": "Speaker 1"])
+        XCTAssertEqual(single.speaker(from: 5, to: 8), .other("Speaker 1"))
+        XCTAssertEqual(single.speaker(from: 500, to: 501), .other("Speaker 1"), "no overlap, but nobody else it could be")
+    }
+
+    func testSoleVoiceCarriesItsRecognisedName() {
+        let single = attribution(labels: ["a": "Speaker 1"], names: ["Speaker 1": "Liran"])
+        XCTAssertEqual(single.speaker(from: 500, to: 501), .other("Liran"))
+    }
+
+    func testUnattributedSpeechStaysUnlabelledWithSeveralVoices() {
+        // A "Yeah" during someone's monologue is usually the listener; with
+        // two candidates the honest answer is not to guess.
+        let pair = attribution(labels: ["a": "Speaker 1", "b": "Speaker 2"])
+        XCTAssertEqual(pair.speaker(from: 5, to: 8), .other("Speaker 1"))
+        XCTAssertEqual(pair.speaker(from: 105, to: 108), .other("Speaker 2"))
+        XCTAssertNil(pair.speaker(from: 500, to: 501))
+        XCTAssertNil(pair.soleVoice)
+    }
+
     // MARK: - Resolving to people
 
     func testConfidentMatchIsApplied() {

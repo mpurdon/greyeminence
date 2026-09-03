@@ -44,15 +44,32 @@ enum SpeakerIdentification {
         let names: [String: String]
         let voiceCount: Int
 
-        /// What a segment covering this range should be called, or nil when
-        /// nothing overlaps it.
+        /// What a segment covering this range should be called.
+        ///
+        /// Nil when nothing overlaps it and there is more than one voice to
+        /// choose from: a "Yeah" during someone's monologue is usually the
+        /// listener, not the talker, so nearest-in-time would guess wrong and
+        /// the plain label is more honest. With exactly one remote voice there
+        /// is nobody else it could be, and leaving the diarizer's misses
+        /// unlabelled is what made a 1:1 show a third, anonymous "Speaker"
+        /// whose every line was "Okay."
         func speaker(from start: TimeInterval, to end: TimeInterval) -> Speaker? {
-            guard let id = SpeakerAlignment.dominantSpeakerID(from: start, to: end, in: spans),
-                  let label = labels[id] else { return nil }
+            if let id = SpeakerAlignment.dominantSpeakerID(from: start, to: end, in: spans),
+               let label = labels[id] {
+                return .other(names[label] ?? label)
+            }
+            return soleVoice
+        }
+
+        /// The one remote voice, when there is exactly one.
+        var soleVoice: Speaker? {
+            guard labels.count == 1, let label = labels.values.first else { return nil }
             return .other(names[label] ?? label)
         }
 
-        fileprivate let labels: [String: String]
+        /// Cluster id → display label ("Speaker 2"). Internal so a test can
+        /// build an attribution without running the diarizer.
+        let labels: [String: String]
     }
 
     /// Resolve diarization into speakers, persisting the voice signatures on

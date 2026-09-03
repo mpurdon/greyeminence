@@ -89,19 +89,35 @@ final class SpeakerAlignmentTests: XCTestCase {
 
     func testBriefClustersAreNotTreatedAsParticipants() {
         // A cough or a crossfade shouldn't make a 1:1 look like a panel.
-        let withSliver = spans + [Span(speakerID: "blip", start: 12, end: 12.4)]
+        let withSliver = [
+            Span(speakerID: "a", start: 0, end: 60),
+            Span(speakerID: "b", start: 60, end: 120),
+            Span(speakerID: "blip", start: 62, end: 62.4),
+        ]
         let significant = SpeakerAlignment.significantSpeakerIDs(in: withSliver)
         XCTAssertEqual(significant, ["a", "b"])
     }
 
     func testShortTurnsStillCountWhenTheyAddUp() {
-        // Someone who only ever interjects is still a participant.
-        let interjector = (0..<6).map { Span(speakerID: "c", start: Double($0) * 10, end: Double($0) * 10 + 0.8) }
+        // Someone who only ever interjects is still a participant, once
+        // there's enough of it.
+        let interjector = (0..<30).map { Span(speakerID: "c", start: Double($0) * 10, end: Double($0) * 10 + 0.8) }
         XCTAssertTrue(SpeakerAlignment.significantSpeakerIDs(in: interjector).contains("c"))
     }
 
+    func testBackchannelOnlyClusterIsNotAParticipant() {
+        // The case that actually happens: a one-word "Yeah." seeds its own
+        // cluster and then collects a dozen more. Thirteen seconds of
+        // backchannel across a 25-minute 1:1 is not a third person.
+        let backchannel = (0..<7).map { Span(speakerID: "yeah", start: 100 + Double($0) * 120, end: 100 + Double($0) * 120 + 1.8) }
+        let liran = [Span(speakerID: "a", start: 0, end: 600)]
+        XCTAssertEqual(SpeakerAlignment.significantSpeakerIDs(in: liran + backchannel), ["a"])
+    }
+
     func testThresholdIsInclusive() {
-        let exact = [Span(speakerID: "x", start: 0, end: 3)]
+        let exact = [Span(speakerID: "x", start: 0, end: SpeakerAlignment.minimumParticipantSeconds)]
         XCTAssertTrue(SpeakerAlignment.significantSpeakerIDs(in: exact).contains("x"))
+        let justUnder = [Span(speakerID: "x", start: 0, end: SpeakerAlignment.minimumParticipantSeconds - 0.01)]
+        XCTAssertTrue(SpeakerAlignment.significantSpeakerIDs(in: justUnder).isEmpty)
     }
 }
