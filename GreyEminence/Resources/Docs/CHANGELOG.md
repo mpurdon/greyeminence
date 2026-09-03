@@ -4,6 +4,19 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.32.4 — 2026-09-03
+
+**Fixing over-split speakers in older meetings**
+- Settings ▸ Audio ▸ "Fix speakers in older meetings" now also handles
+  meetings that show more voices than were on the call — a "Speaker 2"
+  with almost nothing to say, or a stray anonymous "Speaker" beside the
+  one real remote voice. It listens to the audio again and keeps the
+  result only if it hears fewer voices; a meeting where the numbering
+  was right is left exactly as it was. Words and timings never change,
+  and it can be undone like before.
+- That button had been disabled since it shipped: the scan counted the
+  meetings needing repair but never kept the list. It works now.
+
 ## 0.32.3 — 2026-09-02
 
 **A two-person call no longer shows three voices**
