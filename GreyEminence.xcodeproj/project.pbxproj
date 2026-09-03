@@ -154,7 +154,9 @@
 		7960F6A714486B5DAF8348B3 /* MeetingUnlinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE98E78710B13E2714E2AE7 /* MeetingUnlinkTests.swift */; };
 		7A4F454AC4B9BA571EF81973 /* ReProcessingStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300EAE12152D87923A870EA9 /* ReProcessingStatusBar.swift */; };
 		7AC00E15A17BA8B5197C2E3F /* AIPricing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274311285D36EB560C1740A2 /* AIPricing.swift */; };
+		7BB25A0C9D4D3294323FDEE7 /* HindsightReassignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B1BE59B7E8BDE097C97668 /* HindsightReassignment.swift */; };
 		7C169E02EA7A7A86699F2F32 /* LiveInterviewIntelligenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52BA4CA49EBD1B2A041D5E84 /* LiveInterviewIntelligenceView.swift */; };
+		7C8DEC32E33835483292C3C8 /* HindsightReassignmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946FE0E870C8BA5505B20264 /* HindsightReassignmentTests.swift */; };
 		7CEB0A0F16374551DA00F110 /* CharacterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0AD8CAF60468321ABA92DD /* CharacterSheet.swift */; };
 		7CEC57C8475969BBAA9C3003 /* PhaseTimerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C52E08ABD3095131A87B65D /* PhaseTimerService.swift */; };
 		7D9A806167723D4CF60E689E /* TestEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 389AE4B943F5A6EF5C00519D /* TestEnvironment.swift */; };
@@ -507,6 +509,7 @@
 		92551E29994E7C2FCDC046A7 /* ReProcessingQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReProcessingQueue.swift; sourceTree = "<group>"; };
 		92EF044B82FF46EA5AE42BB2 /* CallPromptBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallPromptBar.swift; sourceTree = "<group>"; };
 		93C28939DE9447A9DCE2636A /* TrajectorSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrajectorSettings.swift; sourceTree = "<group>"; };
+		946FE0E870C8BA5505B20264 /* HindsightReassignmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HindsightReassignmentTests.swift; sourceTree = "<group>"; };
 		97149F3BA600B75B86FBBC1A /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		9777ACE77F882D5DF615E010 /* TranscriptTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptTestView.swift; sourceTree = "<group>"; };
 		980E9BFF806B56551CE76E1A /* RecordingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingViewModel.swift; sourceTree = "<group>"; };
@@ -579,6 +582,7 @@
 		C3FC0FAEC2C978AACE4AC272 /* ReportHTMLRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportHTMLRenderer.swift; sourceTree = "<group>"; };
 		C4EF91E8F82E0C8EF8ED9093 /* AudioFileWriterEncoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFileWriterEncoderTests.swift; sourceTree = "<group>"; };
 		C545A92420F35CB8B9F137A1 /* AskSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskSettingsView.swift; sourceTree = "<group>"; };
+		C5B1BE59B7E8BDE097C97668 /* HindsightReassignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HindsightReassignment.swift; sourceTree = "<group>"; };
 		C5E0850098FB7EB6B1D48C73 /* ScoreEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreEvidence.swift; sourceTree = "<group>"; };
 		C6774606B2258926F847E4C4 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		C6D5983297B2344756FAB9B4 /* ReportPDFRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPDFRenderer.swift; sourceTree = "<group>"; };
@@ -874,6 +878,7 @@
 				C8D7127B99A5B16285D765CB /* FeatureHighlightTests.swift */,
 				6F5FF391189154844DFFC005 /* FrameFileCleanupTests.swift */,
 				3C8B4C05A02D3A4C5A814ECA /* GraphCalendarTests.swift */,
+				946FE0E870C8BA5505B20264 /* HindsightReassignmentTests.swift */,
 				24E62151A7511B5FC5E32D4C /* MarkdownTextTests.swift */,
 				DE34F94CCC87A546584720A0 /* MeetingAppRegistryTests.swift */,
 				383E06A194D2451E3833C045 /* MeetingListGroupingTests.swift */,
@@ -1194,6 +1199,7 @@
 			children = (
 				0967272565AFAF7A394DB16E /* FluidAsrService.swift */,
 				72F471A4457C433C3E6F503D /* HighQualityTranscriber.swift */,
+				C5B1BE59B7E8BDE097C97668 /* HindsightReassignment.swift */,
 				00113CB03ECCACD1B6516101 /* ModelDownloadManager.swift */,
 				33F9B432E262F95A41D09023 /* ReProcessingCheckpoint.swift */,
 				92551E29994E7C2FCDC046A7 /* ReProcessingQueue.swift */,
@@ -1527,6 +1533,7 @@
 				EBDFB61941795F32A239C472 /* GreyEminenceApp.swift in Sources */,
 				75975FE04822E0E4F46FA626 /* HelpDocsView.swift in Sources */,
 				7ECA8C58F4255BD8241F9D4E /* HighQualityTranscriber.swift in Sources */,
+				7BB25A0C9D4D3294323FDEE7 /* HindsightReassignment.swift in Sources */,
 				F9A80A4871C0F7EFA7A4D3A6 /* Interview.swift in Sources */,
 				495F4E2FEEAC19E852271002 /* InterviewBookmark.swift in Sources */,
 				8CE329DA5B53CF2CB9A49DE6 /* InterviewCreationSheet.swift in Sources */,
@@ -1714,6 +1721,7 @@
 				10E90242297FD7807B427E03 /* FeatureHighlightTests.swift in Sources */,
 				DFCB314C2574E8ECA06D019E /* FrameFileCleanupTests.swift in Sources */,
 				9947345F325AC7C5285ACD04 /* GraphCalendarTests.swift in Sources */,
+				7C8DEC32E33835483292C3C8 /* HindsightReassignmentTests.swift in Sources */,
 				AD6BEC051B8BD32839B1AA50 /* MarkdownTextTests.swift in Sources */,
 				81840AC1B254769430BDA2B6 /* MeetingAppRegistryTests.swift in Sources */,
 				5ED69E4FD1D90304FFCDA378 /* MeetingListGroupingTests.swift in Sources */,
@@ -1828,14 +1836,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260903000301;
+				CURRENT_PROJECT_VERSION = 20260903013556;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.32.4;
+				MARKETING_VERSION = 0.32.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1852,14 +1860,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260903000301;
+				CURRENT_PROJECT_VERSION = 20260903013556;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.32.4;
+				MARKETING_VERSION = 0.32.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

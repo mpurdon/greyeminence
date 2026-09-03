@@ -4,6 +4,20 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.32.5 — 2026-09-03
+
+**A new speaker's first words no longer go to the previous speaker**
+- The diarizer decides who said each turn knowing only the voices it has
+  heard so far, so the first thing a new person says landed on whoever
+  they sounded most like at the time. In a team sync, Paras's opening
+  sentences were filed under Carlos; his own cluster only existed from
+  his second turn on.
+- Once a meeting has been fully heard, every turn is now re-checked
+  against the final set of voices, and moves when it clearly matches
+  another voice and clearly doesn't match its own. Short interjections
+  and ambiguous turns stay where they were. This applies to
+  re-transcription and to "Fix speakers in older meetings".
+
 ## 0.32.4 — 2026-09-03
 
 **Fixing over-split speakers in older meetings**
