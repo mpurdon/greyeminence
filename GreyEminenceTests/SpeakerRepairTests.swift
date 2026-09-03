@@ -65,13 +65,95 @@ final class SpeakerRepairTests: XCTestCase {
         XCTAssertFalse(SpeakerRepairService.isCollapsed(m))
     }
 
+    // MARK: - Over-split transcripts
+
+    /// Remote lines with the given label and duration, interleaved with "Me".
+    private func meeting(remote lines: [(Speaker, TimeInterval)]) -> Meeting {
+        let meeting = Meeting(title: "Test")
+        var clock: TimeInterval = 0
+        var segments: [TranscriptSegment] = []
+        for (speaker, seconds) in lines {
+            segments.append(TranscriptSegment(speaker: .me, text: "me", startTime: clock, endTime: clock + 5, isFinal: true))
+            clock += 5
+            segments.append(TranscriptSegment(speaker: speaker, text: "them", startTime: clock, endTime: clock + seconds, isFinal: true))
+            clock += seconds
+        }
+        meeting.segments = segments
+        return meeting
+    }
+
+    func testNumberedVoiceWithAlmostNothingToSayIsOverSplit() {
+        // The Milo call: Speaker 1 for fourteen minutes, Speaker 2 for 38
+        // seconds of "Yeah."
+        let m = meeting(remote: [(.other("Speaker 1"), 400), (.other("Speaker 2"), 20), (.other("Speaker 1"), 440), (.other("Speaker 2"), 18)])
+        let c = SpeakerRepairService.classify(m)
+        XCTAssertTrue(c.isOverSplit)
+        XCTAssertFalse(c.isCollapsed)
+        XCTAssertTrue(c.isRepairable)
+    }
+
+    func testStrayAnonymousLinesBesideOneNumberedVoiceAreOverSplit() {
+        // One remote voice plus interjections the diarizer skipped: the
+        // anonymous lines can only be that voice.
+        let m = meeting(remote: [(.other("Speaker 1"), 300), (.other("Speaker"), 90), (.other("Speaker 1"), 300)])
+        XCTAssertTrue(SpeakerRepairService.classify(m).isOverSplit)
+    }
+
+    func testTwoRealVoicesAreNotOverSplit() {
+        let m = meeting(remote: [(.other("Speaker 1"), 300), (.other("Speaker 2"), 240), (.other("Speaker 1"), 120)])
+        let c = SpeakerRepairService.classify(m)
+        XCTAssertFalse(c.isOverSplit)
+        XCTAssertFalse(c.isRepairable)
+    }
+
+    func testAnonymousLinesBesideSeveralVoicesAreNotOverSplit() {
+        // With two or more voices an unplaced line stays "Speaker" after a
+        // fresh listen too, so there is nothing to gain by relistening.
+        let m = meeting(remote: [(.other("Speaker 1"), 300), (.other("Speaker 2"), 240), (.other("Speaker"), 90)])
+        XCTAssertFalse(SpeakerRepairService.classify(m).isOverSplit)
+    }
+
+    func testHandNamedMeetingIsNeverOverSplit() {
+        let m = meeting(remote: [(.other("Liran"), 300), (.other("Speaker 2"), 10)])
+        let c = SpeakerRepairService.classify(m)
+        XCTAssertFalse(c.isOverSplit)
+        XCTAssertFalse(c.isRepairable)
+    }
+
+    func testCollapsedIsNotAlsoOverSplit() {
+        let m = meeting(remote: [(.other("Speaker"), 300)])
+        let c = SpeakerRepairService.classify(m)
+        XCTAssertTrue(c.isCollapsed)
+        XCTAssertFalse(c.isOverSplit)
+    }
+
+    func testFoldRequiresFewerVoices() {
+        let current: [Speaker] = [.other("Speaker 1"), .other("Speaker 2"), .other("Speaker 1"), .other("Speaker")]
+        XCTAssertTrue(SpeakerRepairService.isFold(
+            current: current,
+            proposed: [.other("Speaker 1"), .other("Speaker 1"), .other("Speaker 1"), .other("Speaker 1")]
+        ))
+        // Same count, different numbers: a reshuffle, not a fold.
+        XCTAssertFalse(SpeakerRepairService.isFold(
+            current: [.other("Speaker 1"), .other("Speaker 2")],
+            proposed: [.other("Speaker 2"), .other("Speaker 1")]
+        ))
+        // More voices is the opposite of what this repair is for.
+        XCTAssertFalse(SpeakerRepairService.isFold(
+            current: [.other("Speaker 1"), .other("Speaker 1")],
+            proposed: [.other("Speaker 1"), .other("Speaker 2")]
+        ))
+        XCTAssertFalse(SpeakerRepairService.isFold(current: [], proposed: []))
+    }
+
     // MARK: - Outcomes
 
     func testOutcomesAreDistinguishable() {
         // The UI reports these differently: "couldn't tell voices apart" is
         // not the same as "the audio is gone", and neither is a failure.
         XCTAssertNotEqual(SpeakerRepairService.Outcome.singleVoice, .audioUnavailable)
-        XCTAssertNotEqual(SpeakerRepairService.Outcome.notCollapsed, .singleVoice)
+        XCTAssertNotEqual(SpeakerRepairService.Outcome.notACandidate, .singleVoice)
+        XCTAssertNotEqual(SpeakerRepairService.Outcome.unchanged, .singleVoice)
         XCTAssertNotEqual(
             SpeakerRepairService.Outcome.repaired(voices: 2, segments: 10),
             .repaired(voices: 3, segments: 10)

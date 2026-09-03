@@ -16,6 +16,8 @@ struct AudioSettingsView: View {
     /// Held rather than counted: the run reuses this instead of surveying the
     /// library again.
     @State private var repairable: [Meeting] = []
+    @State private var repairCollapsed = 0
+    @State private var repairOverSplit = 0
     @State private var repairSummary: String?
     @State private var repairResettable = 0
     @State private var isScanning = false
@@ -46,6 +48,11 @@ struct AudioSettingsView: View {
         isScanning = true
         defer { isScanning = false }
         let survey = await SpeakerRepairService.survey(in: modelContext)
+        // The list itself, not just its count: the button was disabled forever
+        // because the survey's candidates were counted here and never kept.
+        repairable = survey.repairable
+        repairCollapsed = survey.collapsedCount
+        repairOverSplit = survey.overSplitCount
         repairResettable = survey.resettableCount
     }
 
@@ -62,9 +69,24 @@ struct AudioSettingsView: View {
             repairTotal = total
         }
         repairSummary = result.repaired == 0
-            ? "Nothing to change — the voices in those meetings couldn't be told apart."
-            : "Separated speakers in \(result.repaired) meeting\(result.repaired == 1 ? "" : "s")."
-            + (result.skipped > 0 ? " \(result.skipped) skipped — see the Activity Log." : "")
+            ? "Nothing to change — listening again heard the same voices those meetings already show."
+            : "Fixed speakers in \(result.repaired) meeting\(result.repaired == 1 ? "" : "s")."
+            + (result.skipped > 0 ? " \(result.skipped) left as they were — see the Activity Log." : "")
+    }
+
+    /// What the repair button would do, in the reader's terms.
+    private var repairDescription: String {
+        guard !repairable.isEmpty else {
+            return isScanning ? "" : "Every meeting with audio still on disk has its speakers right."
+        }
+        var reasons: [String] = []
+        if repairCollapsed > 0 {
+            reasons.append("\(repairCollapsed) \(repairCollapsed == 1 ? "was" : "were") transcribed before speakers were told apart, so everyone but you shows as \"Speaker\"")
+        }
+        if repairOverSplit > 0 {
+            reasons.append("\(repairOverSplit) \(repairOverSplit == 1 ? "shows" : "show") more voices than were probably on the call — a one-word \"Yeah\" used to become its own speaker")
+        }
+        return "\(repairable.count) meeting\(repairable.count == 1 ? "" : "s") need\(repairable.count == 1 ? "s" : "") it: \(reasons.joined(separator: "; ")). This listens to the audio again and fixes who each line is attributed to — the words and timings don't change, and a meeting is only changed if listening again hears fewer voices. It doesn't re-transcribe, so it's far quicker than re-processing."
     }
 
     var body: some View {
@@ -137,7 +159,7 @@ struct AudioSettingsView: View {
 
             Section {
                 HStack {
-                    Button(isRepairing ? "Identifying…" : "Identify speakers in older meetings") {
+                    Button(isRepairing ? "Listening…" : "Fix speakers in older meetings") {
                         Task { await repairSpeakers() }
                     }
                     .disabled(isRepairing || isScanning || repairable.isEmpty)
@@ -157,7 +179,7 @@ struct AudioSettingsView: View {
                 }
                 if repairResettable > 0 {
                     HStack {
-                        Button("Undo speaker separation") {
+                        Button("Undo speaker fixes") {
                             Task { await resetSpeakers() }
                         }
                         .disabled(isRepairing)
@@ -171,9 +193,7 @@ struct AudioSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text(repairable.isEmpty
-                     ? (isScanning ? "" : "Every meeting with audio still on disk has its speakers separated.")
-                     : "\(repairable.count) meeting\(repairable.count == 1 ? "" : "s") were transcribed before speakers were told apart, so everyone but you shows as \"Speaker\". This listens to the audio again and separates the voices — the words and timings don't change, only who each line is attributed to. It doesn't re-transcribe, so it's far quicker than re-processing.")
+                Text(repairDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("Meetings whose audio has already been cleared by the retention setting can't be repaired. Voices are numbered per meeting — \"Speaker 1\" in one isn't the same person as in another.")
