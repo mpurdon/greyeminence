@@ -4,6 +4,22 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.32.3 — 2026-09-02
+
+**A two-person call no longer shows three voices**
+- The diarizer was turning one-word interjections into extra people. A
+  "Yeah." or "Okay." is too little audio for a stable voice signature, so
+  it landed far from the speaker who said it, seeded a new cluster, and
+  then collected the rest of their backchannel — in a 25-minute 1:1 that
+  produced a "Speaker 2" made of nothing but "Yeah" and "Absolutely".
+  Interjections the diarizer skipped entirely were left as a third,
+  anonymous "Speaker".
+- A voice now needs twenty seconds of speech, not three, before it counts
+  as a participant. And when only one remote voice remains, speech the
+  diarizer missed goes to that voice, since there is nobody else it could
+  be. With several voices it still stays unlabelled rather than guessing.
+- Re-transcribe an affected meeting (Reanalyze menu) to relabel it.
+
 ## 0.32.2 — 2026-08-28
 
 **The app no longer freezes while it tidies up**
