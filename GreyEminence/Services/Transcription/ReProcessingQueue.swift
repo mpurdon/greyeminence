@@ -76,7 +76,7 @@ final class ReProcessingQueue {
         for meeting in stuck {
             let priorState = meeting.reProcessingState.flatMap(ReProcessingState.init(rawValue:))
             switch priorState {
-            case .queued, .transcribing, .analyzing, .reindexing:
+            case .queued, .transcribing, .correcting, .analyzing, .reindexing:
                 meeting.reProcessingState = ReProcessingState.failed.rawValue
                 meeting.reProcessingError = "Interrupted on previous session — click Retry to resume"
                 interrupted += 1
@@ -250,12 +250,23 @@ final class ReProcessingQueue {
         setPhase(.transcribing, for: meeting, in: context)
         phaseStart = Date()
         let checkpoint = StorageManager.shared.loadReProcessCheckpoint(for: meetingID)
+        // The same nouns feed both passes: Whisper gets them as a prompt so
+        // it mishears fewer of them, and the correction pass gets them as
+        // context so it knows what the mis-heard ones should have been.
+        let correctionContext = TranscriptCorrectionService.Context.make(for: meeting)
+        let promptText = HighQualityTranscriber.promptText(
+            title: correctionContext.title,
+            participants: correctionContext.participants,
+            vocabulary: correctionContext.vocabulary,
+            topics: correctionContext.topics
+        )
         let upgraded: [HighQualityTranscriber.Segment]
         do {
             upgraded = try await transcriber.transcribe(
                 micChunks: micChunks,
                 systemChunks: sysChunks,
                 resumeFrom: checkpoint,
+                promptText: promptText,
                 onProgress: { [weak self] progress in
                     Task { @MainActor [weak self] in
                         self?.updateTranscriptionProgress(progress)
@@ -334,9 +345,16 @@ final class ReProcessingQueue {
             LogManager.send("Diarization found \(voiceCount) distinct voice(s) in \"\(title)\"", category: .transcription)
         }
 
+        // Fix mis-hearings before the summary is built from them.
+        setPhase(.correcting, for: meeting, in: context)
+        phaseStart = Date()
+        let correctedLines = await applyCorrections(meeting: meeting, correctionContext: correctionContext, in: context)
+        let correctDuration = Date().timeIntervalSince(phaseStart)
+        let analysisSegments = correctedLines > 0 ? Self.snapshots(of: meeting) : segmentSnapshots
+
         setPhase(.analyzing, for: meeting, in: context)
         phaseStart = Date()
-        await reRunAIAnalysis(meeting: meeting, segments: segmentSnapshots, context: context)
+        await reRunAIAnalysis(meeting: meeting, segments: analysisSegments, context: context)
         analyzeDuration = Date().timeIntervalSince(phaseStart)
 
         setPhase(.reindexing, for: meeting, in: context)
@@ -359,6 +377,7 @@ final class ReProcessingQueue {
             Re-processing report for "\(title)":
               total:       \(Self.fmt(totalDuration))
               transcribe:  \(Self.fmt(transcribeDuration)) (\(chunksProcessed) chunks, \(String(format: "%.1fx", throughput)) realtime)
+              correct:     \(Self.fmt(correctDuration)) (\(correctedLines) line(s) fixed)
               analyze:     \(Self.fmt(analyzeDuration))
               reindex:     \(Self.fmt(reindexDuration))
               output:      \(upgraded.count) segments, \(wordCount) words, covers \(Self.fmt(audioRanges)) of audio
@@ -454,13 +473,15 @@ final class ReProcessingQueue {
                 // one, the attribution hands it to that voice.
                 speaker = attribution?.speaker(from: seg.startTime, to: seg.endTime) ?? .unidentified
             }
-            return TranscriptSegment(
+            let segment = TranscriptSegment(
                 speaker: speaker,
                 text: seg.text,
                 startTime: seg.startTime,
                 endTime: seg.endTime,
                 isFinal: true
             )
+            segment.confidence = seg.confidence
+            return segment
         }
         let dedup = TranscriptDeduplicator.deduplicate(raw)
         if dedup.removedCount > 0 {
@@ -485,6 +506,71 @@ final class ReProcessingQueue {
         }
         PersistenceGate.save(context, site: "reProcess/swapSegments", critical: true, meetingID: meeting.id)
         return (snapshots, totalDuration, attribution?.voiceCount)
+    }
+
+    /// Fix mis-heard words on the transcript as it stands, without
+    /// re-transcribing. The on-demand path for a meeting that was processed
+    /// before this pass existed; re-indexes search when anything changed.
+    /// Returns how many lines were corrected.
+    func correctTranscript(for meeting: Meeting, in context: ModelContext) async -> Int {
+        let correctionContext = TranscriptCorrectionService.Context.make(for: meeting)
+        let corrected = await applyCorrections(meeting: meeting, correctionContext: correctionContext, in: context)
+        if corrected > 0 {
+            await reIndexEmbeddings(meeting: meeting)
+        }
+        return corrected
+    }
+
+    private func applyCorrections(
+        meeting: Meeting,
+        correctionContext: TranscriptCorrectionService.Context,
+        in context: ModelContext
+    ) async -> Int {
+        let segments = meeting.segments.sorted { $0.startTime < $1.startTime }
+        guard !segments.isEmpty else { return 0 }
+        guard let client = try? await AIClientFactory.makeClient() else {
+            LogManager.send("Transcript correction skipped: AI not configured", category: .transcription, meetingID: meeting.id)
+            return 0
+        }
+        let lines = segments.enumerated().map { offset, segment in
+            TranscriptCorrectionService.Line(
+                index: offset,
+                speaker: segment.speaker.displayName,
+                text: segment.text,
+                confidence: segment.confidence,
+                isUserEdited: segment.isEdited
+            )
+        }
+        do {
+            let corrections = try await TranscriptCorrectionService(client: client)
+                .corrections(for: lines, context: correctionContext, meetingID: meeting.id)
+            let applied = TranscriptCorrectionService.apply(corrections, to: segments)
+            if applied > 0 {
+                PersistenceGate.save(context, site: "reProcess/corrections", critical: true, meetingID: meeting.id)
+            }
+            LogManager.send(
+                "Transcript correction: \(applied) of \(lines.count) line(s) fixed (\(corrections.count) proposed)",
+                category: .transcription,
+                meetingID: meeting.id
+            )
+            return applied
+        } catch {
+            LogManager.send(
+                "Transcript correction skipped: \(error.localizedDescription)",
+                category: .transcription,
+                level: .warning,
+                meetingID: meeting.id
+            )
+            return 0
+        }
+    }
+
+    /// The analysis input, rebuilt after corrections so the summary sees
+    /// the fixed words. Same shape `swapSegments` produces.
+    private static func snapshots(of meeting: Meeting) -> [SegmentSnapshot] {
+        meeting.segments
+            .sorted { $0.startTime < $1.startTime }
+            .map { SegmentSnapshot(speaker: $0.speaker, text: $0.text, formattedTimestamp: "", isFinal: true) }
     }
 
     private func reRunAIAnalysis(meeting: Meeting, segments: [SegmentSnapshot], context: ModelContext) async {

@@ -94,6 +94,23 @@ struct EditableTranscriptSegmentRow: View {
                     .help("Edited")
             }
 
+            // A mis-hearing the correction pass fixed. The original is one
+            // hover away, which is what makes an automatic change acceptable.
+            if !segment.isEdited, let original = segment.originalText, original != segment.text {
+                Image(systemName: "sparkles")
+                    .font(.caption2)
+                    .foregroundStyle(.teal)
+                    .help("Corrected by AI. Recogniser heard: \u{201C}\(original)\u{201D}")
+            }
+
+            // The recogniser itself was unsure — worth pressing play.
+            if segment.confidence < TranscriptCorrectionService.lowConfidenceThreshold {
+                Circle()
+                    .fill(segment.confidence < 0.3 ? Color.red : Color.yellow)
+                    .frame(width: 6, height: 6)
+                    .help(String(format: "Transcriber confidence %.0f%% — worth a listen", segment.confidence * 100))
+            }
+
             // Text content
             textContentView
 

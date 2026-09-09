@@ -79,6 +79,7 @@
 		35E1728D83EE5E36848E0733 /* SpeakerContactMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F5B5497FD93F6C7BFE23CE6 /* SpeakerContactMapper.swift */; };
 		367C511BC7B8D998882DFE3C /* EmbeddingRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC7F4A787F25A862374515E /* EmbeddingRecord.swift */; };
 		36A1C9238C5911FED5D5B521 /* LogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8DBD9003CCA77B1F437121C /* LogManager.swift */; };
+		373F3363D09826F1B465C744 /* TranscriptCorrectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02399D489B13F2576FD7E24D /* TranscriptCorrectionService.swift */; };
 		390FF076D5D31B58C391477A /* VocabularySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1623F804DDEF0B92D3B6A41 /* VocabularySettingsView.swift */; };
 		3AA83AF5E55969C40719957C /* RubricListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47BC52049DFA6A2808B1FC6 /* RubricListView.swift */; };
 		3AFD8CE06EAC4884BC3323B8 /* ReportPDFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D5983297B2344756FAB9B4 /* ReportPDFRenderer.swift */; };
@@ -248,6 +249,7 @@
 		BB7633BE94F6BB761292A8B5 /* RubricEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD672DF259613086F9FC8826 /* RubricEditorView.swift */; };
 		BBB05812E8776A60C628AD0B /* MeetingIntelligenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB5B7F2625CA891A0A4FE73 /* MeetingIntelligenceView.swift */; };
 		BCFE8F9A5D779015BD38FA97 /* FluidAsrService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0967272565AFAF7A394DB16E /* FluidAsrService.swift */; };
+		BD73944DC5BF4774EBD95829 /* TranscriptCorrectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95EB0D12744B4FBA8E885657 /* TranscriptCorrectionTests.swift */; };
 		BD98B27D397675FC5ADCC4FC /* ActionItemsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C048A116939EC01A529A4FDC /* ActionItemsSection.swift */; };
 		BE7977E8A0C4D7B950EA6F29 /* ScreenCaptureIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43D66EBD90AEB1779A63DAA0 /* ScreenCaptureIndicator.swift */; };
 		BF7FB8850CF54A9DE5406C39 /* AIUsageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA36138ADE882A98E9B6CF0 /* AIUsageTests.swift */; };
@@ -345,6 +347,7 @@
 		005DE71EA8DE1BBCC390CF17 /* AWSProfileClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AWSProfileClassificationTests.swift; sourceTree = "<group>"; };
 		01A04196F7926C630F7DC3BC /* ResumeTextExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumeTextExtractor.swift; sourceTree = "<group>"; };
 		02203A251A6442629C7C3EA5 /* SparkleUpdaterDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdaterDelegate.swift; sourceTree = "<group>"; };
+		02399D489B13F2576FD7E24D /* TranscriptCorrectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptCorrectionService.swift; sourceTree = "<group>"; };
 		035F3AE9352BFA1B1EC72E90 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		0364AF825A0A158818A2C86D /* CriterionEvaluation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriterionEvaluation.swift; sourceTree = "<group>"; };
 		049811664B96F6AC7CB5CB6D /* ReportAnchoringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportAnchoringTests.swift; sourceTree = "<group>"; };
@@ -520,6 +523,7 @@
 		92EF044B82FF46EA5AE42BB2 /* CallPromptBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallPromptBar.swift; sourceTree = "<group>"; };
 		93C28939DE9447A9DCE2636A /* TrajectorSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrajectorSettings.swift; sourceTree = "<group>"; };
 		946FE0E870C8BA5505B20264 /* HindsightReassignmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HindsightReassignmentTests.swift; sourceTree = "<group>"; };
+		95EB0D12744B4FBA8E885657 /* TranscriptCorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptCorrectionTests.swift; sourceTree = "<group>"; };
 		97149F3BA600B75B86FBBC1A /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		9777ACE77F882D5DF615E010 /* TranscriptTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptTestView.swift; sourceTree = "<group>"; };
 		980E9BFF806B56551CE76E1A /* RecordingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingViewModel.swift; sourceTree = "<group>"; };
@@ -922,6 +926,7 @@
 				EF016F2C1CC30A730B1A0E5E /* StartupActivityTests.swift */,
 				80A717B7D00035B80DA03D31 /* StoreBackupServiceTests.swift */,
 				ACD13CBF8483BC48BC008542 /* TopicMapTests.swift */,
+				95EB0D12744B4FBA8E885657 /* TranscriptCorrectionTests.swift */,
 				4FF974950191C5C374C3F116 /* TranscriptTimelineTests.swift */,
 				6EA05E156126309652EB5932 /* TransientActivityProgressTests.swift */,
 				A296315BDFED4525488F4DEB /* VoiceProfileMatchingTests.swift */,
@@ -1231,6 +1236,7 @@
 				BF9E0AAA6698237410B9DE87 /* SpeakerIdentification.swift */,
 				1313BBF88ACC1323F7757FAF /* SpeakerIdentityService.swift */,
 				2DF5366DC3135DA1653F66EA /* SpeakerRepairService.swift */,
+				02399D489B13F2576FD7E24D /* TranscriptCorrectionService.swift */,
 				3808CC293C20D0583278C3F9 /* TranscriptDeduplicator.swift */,
 				BD246F57B67011F22F1AF64A /* TranscriptionCoordinator.swift */,
 				3A49043AC4DC48EF88C729BE /* VocabularyManager.swift */,
@@ -1705,6 +1711,7 @@
 				A56AA659210C04EDA55E5547 /* TopicMapView.swift in Sources */,
 				C8A09C98EF56FD84DB69494C /* TopicMapViewModel.swift in Sources */,
 				D844A67123CE2E80F33DA503 /* TrajectorSettings.swift in Sources */,
+				373F3363D09826F1B465C744 /* TranscriptCorrectionService.swift in Sources */,
 				5B0D134A768087BDA747466F /* TranscriptDeduplicator.swift in Sources */,
 				24A51E8E58619EC0E363982F /* TranscriptFile.swift in Sources */,
 				5BE06B68015F12B69EB436D8 /* TranscriptPanelView.swift in Sources */,
@@ -1772,6 +1779,7 @@
 				2086A94A9E6CC889D547825A /* StartupActivityTests.swift in Sources */,
 				9AD1A6B7364F61A0019DE2CB /* StoreBackupServiceTests.swift in Sources */,
 				046A05CC7579B2253099D51D /* TopicMapTests.swift in Sources */,
+				BD73944DC5BF4774EBD95829 /* TranscriptCorrectionTests.swift in Sources */,
 				0058E246725037DD8BA34505 /* TranscriptTimelineTests.swift in Sources */,
 				19A5224CA3E48A48D7CED075 /* TransientActivityProgressTests.swift in Sources */,
 				2FA4179627AE89EF40DD04A4 /* VoiceProfileMatchingTests.swift in Sources */,
@@ -1864,14 +1872,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260908193808;
+				CURRENT_PROJECT_VERSION = 20260908204800;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.36.0;
+				MARKETING_VERSION = 0.37.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1888,14 +1896,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260908193808;
+				CURRENT_PROJECT_VERSION = 20260908204800;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.36.0;
+				MARKETING_VERSION = 0.37.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

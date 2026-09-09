@@ -34,6 +34,8 @@ struct TranscriptPanelView: View {
     @State private var highlightedSegmentID: UUID?
     @State private var sortedSegments: [TranscriptSegment] = []
     @State private var showDedupDebug = false
+    @State private var isCorrecting = false
+    @State private var correctionStatus: String?
     @State private var editSaveError: String?
 
     private var editedCount: Int {
@@ -185,6 +187,21 @@ struct TranscriptPanelView: View {
         return "Split from \"\(preview)\(seg.text.count > 60 ? "…" : "")\"?"
     }
 
+    // MARK: - Mis-hearing correction
+
+    /// Runs the correction pass on the transcript as it stands — no
+    /// re-transcription — so a meeting processed before the pass existed
+    /// can be fixed on demand.
+    private func runCorrection() {
+        isCorrecting = true
+        correctionStatus = nil
+        Task { @MainActor in
+            let fixed = await ReProcessingQueue.shared.correctTranscript(for: meeting, in: modelContext)
+            correctionStatus = fixed == 0 ? "No mis-hearings found" : "\(fixed) line\(fixed == 1 ? "" : "s") corrected"
+            isCorrecting = false
+        }
+    }
+
     // MARK: - Transcript Toolbar
 
     /// Three classes of control live here, and treating them as peers in one
@@ -217,6 +234,21 @@ struct TranscriptPanelView: View {
                 Label("Select", systemImage: "checklist")
             }
             .controlSize(.small)
+
+            Button {
+                runCorrection()
+            } label: {
+                Label(isCorrecting ? "Fixing…" : "Fix Mis-hearings", systemImage: "sparkles")
+            }
+            .controlSize(.small)
+            .disabled(isCorrecting)
+            .help("Ask the AI to repair words the recogniser misheard. Only phonetic slips that make no sense in context are changed; each fix keeps the original on hover.")
+
+            if let correctionStatus {
+                Text(correctionStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Spacer(minLength: 8)
 

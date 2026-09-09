@@ -14,6 +14,7 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
     /// should appear at most once per meeting however many times you export.
     case reportFigureAnchors
     case reanalysis
+    case transcriptCorrection
     case ask
     /// Building search vectors. Free on-device; billed per token on Bedrock,
     /// which is the whole reason it needs a line in the ledger.
@@ -31,6 +32,7 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .sessionSynthesis: "Session recaps"
         case .reportFigureAnchors: "Report figures"
         case .reanalysis: "Reanalysis"
+        case .transcriptCorrection: "Transcript corrections"
         case .ask: "Ask"
         case .embedding: "Search index"
         case .interview: "Interview"
@@ -42,7 +44,7 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
     var group: AIUsageGroup {
         switch self {
         case .transcriptInitial, .transcriptRolling: .transcript
-        case .transcriptFinal, .reanalysis: .finalAnalysis
+        case .transcriptFinal, .reanalysis, .transcriptCorrection: .finalAnalysis
         case .frameAnalysis, .sessionSynthesis: .screenShare
         case .reportFigureAnchors: .reports
         case .ask, .embedding, .interview, .prep, .other: .other

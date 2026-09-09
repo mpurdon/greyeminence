@@ -35,12 +35,16 @@ struct ReProcessingCheckpoint: Codable, Sendable {
         var text: String
         var startTime: TimeInterval
         var endTime: TimeInterval
+        /// Optional so checkpoints written before confidence existed still
+        /// decode; they resume as fully confident, which is what they were.
+        var confidence: Float?
 
         init(_ segment: HighQualityTranscriber.Segment) {
             self.source = segment.source == .mic ? .mic : .system
             self.text = segment.text
             self.startTime = segment.startTime
             self.endTime = segment.endTime
+            self.confidence = segment.confidence
         }
 
         func toSegment() -> HighQualityTranscriber.Segment {
@@ -48,7 +52,8 @@ struct ReProcessingCheckpoint: Codable, Sendable {
                 source: source == .mic ? .mic : .system,
                 text: text,
                 startTime: startTime,
-                endTime: endTime
+                endTime: endTime,
+                confidence: confidence ?? 1
             )
         }
     }

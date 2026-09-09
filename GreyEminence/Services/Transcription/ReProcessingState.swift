@@ -4,6 +4,7 @@ import SwiftUI
 enum ReProcessingState: String, Codable, CaseIterable, Sendable {
     case queued
     case transcribing
+    case correcting
     case analyzing
     case reindexing
     case cancelling
@@ -13,6 +14,7 @@ enum ReProcessingState: String, Codable, CaseIterable, Sendable {
         switch self {
         case .queued: "Queued"
         case .transcribing: "Re-transcribing"
+        case .correcting: "Correcting"
         case .analyzing: "Analyzing"
         case .reindexing: "Indexing"
         case .cancelling: "Cancelling…"
@@ -24,6 +26,7 @@ enum ReProcessingState: String, Codable, CaseIterable, Sendable {
         switch self {
         case .queued: "Queued"
         case .transcribing: "Re-transcribing audio (WhisperKit large-v3)"
+        case .correcting: "Fixing mis-heard words with AI"
         case .analyzing: "Rebuilding AI summary and tasks"
         case .reindexing: "Updating semantic search index"
         case .cancelling: "Cancelling — finishing current sub-chunk"
@@ -36,6 +39,7 @@ enum ReProcessingState: String, Codable, CaseIterable, Sendable {
         case .queued: .secondary
         case .transcribing: .blue
         case .analyzing: .purple
+        case .correcting: .purple
         case .reindexing: .teal
         case .cancelling: .secondary
         case .failed: .orange

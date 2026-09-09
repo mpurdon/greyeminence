@@ -13,6 +13,10 @@ actor HighQualityTranscriber {
         let text: String
         let startTime: TimeInterval
         let endTime: TimeInterval
+        /// Whisper's own certainty, 0–1: the average token probability. High
+        /// values do not mean correct — a fluent mis-hearing scores well —
+        /// but low values reliably mark garbled audio worth a listen.
+        var confidence: Float = 1
     }
 
     enum Source: Sendable {
@@ -84,6 +88,66 @@ actor HighQualityTranscriber {
     private static let recoveryLock = NSLock()
     nonisolated(unsafe) private static var recoveredChunks = 0
 
+    // MARK: - Prompt and confidence
+
+    /// Whisper reads the prompt as preceding context, so it is worth about
+    /// a paragraph of the right nouns. Beyond this the model's own window
+    /// (224 tokens) truncates it anyway.
+    static let maxPromptTokens = 180
+
+    /// The prompt handed to Whisper before every chunk: the meeting's title,
+    /// who was on it, the user's custom vocabulary, and the topics a prior
+    /// analysis found. Names and jargon are what the model mishears most,
+    /// and a prompt that contains them biases decoding toward them. Written
+    /// as prose because Whisper was trained on transcripts, not lists.
+    static func promptText(
+        title: String,
+        participants: [String],
+        vocabulary: [String],
+        topics: [String]
+    ) -> String {
+        func clean(_ items: [String]) -> [String] {
+            var seen = Set<String>()
+            return items
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+        }
+        var sentences: [String] = []
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanTitle.isEmpty { sentences.append("Meeting: \(cleanTitle).") }
+        let people = clean(participants)
+        if !people.isEmpty { sentences.append("With \(people.prefix(12).joined(separator: ", ")).") }
+        let terms = clean(vocabulary)
+        if !terms.isEmpty { sentences.append("Terms: \(terms.prefix(40).joined(separator: ", ")).") }
+        let subjects = clean(topics)
+        if !subjects.isEmpty { sentences.append("Topics: \(subjects.prefix(20).joined(separator: ", ")).") }
+        let text = sentences.joined(separator: " ")
+        return text.count > 900 ? String(text.prefix(900)) : text
+    }
+
+    /// Default decoding, plus the prompt when one was given. Every other
+    /// option stays at WhisperKit's default so this changes nothing but the
+    /// bias.
+    nonisolated static func decodingOptions(promptText: String?, tokenizer: (any WhisperTokenizer)?) -> DecodingOptions {
+        var options = DecodingOptions()
+        if let promptText, !promptText.isEmpty, let tokenizer {
+            let tokens = tokenizer.encode(text: " " + promptText)
+                .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+            if !tokens.isEmpty {
+                options.promptTokens = Array(tokens.suffix(maxPromptTokens))
+                options.usePrefillPrompt = true
+            }
+        }
+        return options
+    }
+
+    /// Average token probability from Whisper's average log-probability.
+    /// -0.3 (typical clean speech) → 0.74; -1.0 (garbled) → 0.37.
+    nonisolated static func confidence(fromAvgLogprob avgLogprob: Float) -> Float {
+        guard avgLogprob.isFinite else { return 1 }
+        return min(1, max(0, exp(avgLogprob)))
+    }
+
     private func loadWhisperKit() async throws -> WhisperKit {
         if let whisper { return whisper }
         LogManager.send("WhisperKit: loading \(Self.modelName) (first load ~1.5GB download)", category: .transcription)
@@ -107,10 +171,15 @@ actor HighQualityTranscriber {
         micChunks: [URL],
         systemChunks: [URL],
         resumeFrom: ReProcessingCheckpoint? = nil,
+        promptText: String? = nil,
         onProgress: ProgressCallback? = nil,
         onCheckpoint: CheckpointCallback? = nil
     ) async throws -> [Segment] {
         let kit = try await loadWhisperKit()
+        let options = Self.decodingOptions(promptText: promptText, tokenizer: kit.tokenizer)
+        if let promptText, options.promptTokens?.isEmpty == false {
+            LogManager.send("WhisperKit prompt (\(options.promptTokens?.count ?? 0) tokens): \(promptText.prefix(200))", category: .transcription)
+        }
         var progress = TranscriptionProgress(checkpoint: resumeFrom)
 
         let totalChunks = micChunks.count + systemChunks.count
@@ -123,6 +192,7 @@ actor HighQualityTranscriber {
             micChunks,
             source: .mic,
             kit: kit,
+            options: options,
             progress: &progress,
             totalChunks: totalChunks,
             onProgress: onProgress,
@@ -132,6 +202,7 @@ actor HighQualityTranscriber {
             systemChunks,
             source: .system,
             kit: kit,
+            options: options,
             progress: &progress,
             totalChunks: totalChunks,
             onProgress: onProgress,
@@ -266,6 +337,7 @@ actor HighQualityTranscriber {
         _ chunks: [URL],
         source: Source,
         kit: WhisperKit,
+        options: DecodingOptions,
         progress: inout TranscriptionProgress,
         totalChunks: Int,
         onProgress: ProgressCallback?,
@@ -325,7 +397,7 @@ actor HighQualityTranscriber {
                 guard subSamples.count >= Self.minChunkSamples else { continue }
                 let subOffset = TimeInterval(subStart) / 16000.0
                 do {
-                    let results = try await kit.transcribe(audioArray: subSamples)
+                    let results = try await kit.transcribe(audioArray: subSamples, decodeOptions: options)
                     for r in results {
                         for seg in r.segments {
                             let text = Self.cleanWhisperText(seg.text)
@@ -337,7 +409,8 @@ actor HighQualityTranscriber {
                                 source: source,
                                 text: text,
                                 startTime: chunkBaseOffset + subOffset + TimeInterval(seg.start),
-                                endTime: chunkBaseOffset + subOffset + TimeInterval(seg.end)
+                                endTime: chunkBaseOffset + subOffset + TimeInterval(seg.end),
+                                confidence: Self.confidence(fromAvgLogprob: seg.avgLogprob)
                             ))
                         }
                     }
