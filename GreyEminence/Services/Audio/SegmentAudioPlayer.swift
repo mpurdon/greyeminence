@@ -1,4 +1,8 @@
-import AVFoundation
+// `@preconcurrency`: CI's older SDK does not mark `AVAssetTrack` Sendable, so
+// `loadTracks(withMediaType:)` awaited from the nonisolated composition
+// builder fails strict-concurrency checking there while compiling clean
+// locally. Same divergence and same fix as ScreenShareCaptureService.
+@preconcurrency import AVFoundation
 import Foundation
 
 /// Plays the recorded audio behind one transcript segment.
