@@ -13,10 +13,13 @@ enum ReportModelBuilder {
     /// while keeping a ten-figure report to a few megabytes.
     static let figurePixelBudget = 1_200_000
 
-    /// How many figures to pull from a single share session when there is no
-    /// anchoring plan yet. Key moments come pre-ranked by the synthesis pass;
-    /// beyond a handful a report stops being a report.
-    static let maxFiguresPerSession = 4
+    /// How many figures a single share session offers the anchoring pass.
+    /// This is the candidate pool, not what prints: the plan picks from it,
+    /// and the no-plan path trims to `ReportExportService.unplannedFigureLimit`.
+    /// Wide enough that a diagram discussed between two key moments is still
+    /// on offer; beyond this the anchoring prompt pays for pictures the
+    /// recap already judged forgettable.
+    static let maxFiguresPerSession = 8
 
     /// How far either side of a key moment to look for a frame worth
     /// printing. Wide enough to skip past a cut to someone's camera, narrow
@@ -228,11 +231,19 @@ enum ReportModelBuilder {
             )
         }
 
-        // No key moments — either synthesis never ran for this session, or it
-        // found none. Fall back to a spread across the session rather than a
-        // single frame, so an un-synthesized share still illustrates itself.
-        if result.isEmpty {
-            for frame in representativeFrames(from: frames, limit: maxFiguresPerSession) {
+        // Key moments are what the recap judged memorable, but the anchoring
+        // pass matches screenshots to the conversation and can only choose
+        // from what it is offered. Top the pool up with the most
+        // content-bearing frames spread across the rest of the session, so a
+        // diagram discussed between two key moments is still a candidate.
+        // With no key moments at all — synthesis never ran, or found none —
+        // this is the whole selection, and a share that is nothing but video
+        // still illustrates itself rather than vanishing.
+        let remainingSlots = maxFiguresPerSession - result.count
+        if remainingSlots > 0 {
+            let unused = frames.filter { !used.contains($0.id) }
+            let pool = result.isEmpty ? unused : unused.filter { contentScore($0) > 0 }
+            for frame in representativeFrames(from: pool, limit: remainingSlots) {
                 guard let data = imageData(for: frame, meetingID: meetingID, storage: storage) else {
                     continue
                 }

@@ -548,22 +548,25 @@ enum AIPromptTemplates {
     }
 
     static let defaultReportSystemPrompt = """
-        You decide which screenshots belong beside which part of a written \
-        meeting report. You are strict: a screenshot earns its place only when \
-        it is direct visual evidence for what a section says. You MUST respond \
-        with ONLY valid JSON matching the schema in the user message — no \
-        prose, no markdown, no explanation before or after.
+        You place captured screenshots into a written meeting report. A \
+        screenshot belongs beside the section whose content was being \
+        discussed while it was on screen, and it earns its place by giving \
+        the reader context for what that section says. You MUST respond with \
+        ONLY valid JSON matching the schema in the user message — no prose, \
+        no markdown, no explanation before or after.
         """
 
     private static let defaultFigureAnchorPrompt: String = """
         Below are the sections of a written meeting summary, and the \
-        screenshots captured from the shared screen during that meeting.
+        screenshots captured from the shared screen during that meeting. Each \
+        screenshot comes with a description of what was on screen and an \
+        excerpt of what was being said around the moment it was captured.
 
-        Your job is to pick the FEW screenshots that help tell the story the \
-        summary tells, and say — in one line each — what they contribute to \
-        it. This is a short summary report, not a gallery: a screenshot earns \
-        its place only by making a point in the summary land better than the \
-        words alone.
+        Your job is to match screenshots to the sections they support, using \
+        the conversation at that point to decide where each one belongs. Read \
+        the excerpt: the section that summarises that part of the discussion \
+        is the section the screenshot goes with. Then say, in one line each, \
+        what the screenshot shows and what it adds for the reader.
 
         SECTIONS
         {{sectionOutline}}
@@ -575,14 +578,19 @@ enum AIPromptTemplates {
         {"figures":[{"frame":"F3","section":"S2","caption":"one short line"}]}
 
         Choosing:
-        - Include a screenshot ONLY when the thing a section is talking about \
-        is visible in it. A screenshot from roughly the same moment is not \
-        evidence of anything.
+        - Match on the conversation first. The description tells you what was \
+        on screen; the excerpt tells you what it was being used for. A \
+        screenshot belongs to the section whose points were being discussed \
+        in its excerpt, not merely to a section from a similar moment.
+        - Include a screenshot when it gives context for a section's points — \
+        the diagram being walked through, the document being reviewed, the \
+        numbers being debated. When a section's discussion happened with \
+        material on screen, that material usually belongs beside it. Leave \
+        out only screenshots that add nothing the words already say.
         - NEVER include one showing only the video call — participant tiles, \
         a gallery of faces, a speaker's camera, an empty meeting window.
-        - At most 2 per section, and most sections should have none. \
-        Returning three or four across the whole meeting is a good answer. \
-        Returning an empty list is a valid answer.
+        - When several screenshots show the same thing, keep the clearest \
+        one. At most 3 per section.
         - Omit screenshots you do not choose. They are not printed. Do not \
         include them with a null section.
 
@@ -599,7 +607,7 @@ enum AIPromptTemplates {
         content inside them.
         - Under 20 words. Do not begin with "Screenshot of", "This shows", \
         "A view of", "The user is".
-        - Use only what the description states. Invent nothing.
+        - Use only what the description and excerpt state. Invent nothing.
         - Use only the S and F identifiers given above.
         """
 }

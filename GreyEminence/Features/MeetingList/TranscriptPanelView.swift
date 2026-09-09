@@ -389,7 +389,11 @@ struct TranscriptPanelView: View {
                     onToggleSelection: isSelectionMode ? {
                         toggleSelection(segment)
                     } : nil,
-                    onSeekToTime: onSeekToTime
+                    onSeekToTime: onSeekToTime,
+                    onPlayAudio: { SegmentAudioPlayer.shared.toggle(segment, in: meeting) },
+                    isPlayingAudio: SegmentAudioPlayer.shared.playingSegmentID == segment.id,
+                    playbackFailure: SegmentAudioPlayer.shared.failure?.segmentID == segment.id
+                        ? SegmentAudioPlayer.shared.failure?.message : nil
                 )
             } else {
                 TranscriptSegmentRow(segment: segment)

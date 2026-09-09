@@ -31,6 +31,42 @@ final class MeetingDetectionService {
         let pid: pid_t
         let bundleID: String?
         let appName: String?
+        /// The microphone this process is capturing from, when Core Audio
+        /// reports a real one. A call app that has the Yeti open reports the
+        /// Yeti here, which is how the recorder ends up on the same device.
+        var inputDevice: InputDevice? = nil
+    }
+
+    /// A real input device another process has open.
+    struct InputDevice: Sendable, Equatable {
+        let uid: String
+        let name: String
+    }
+
+    /// Whether recordings should follow the call app's microphone rather
+    /// than the device chosen in Settings. On by default: the whole point of
+    /// recording a call is to hear what the call heard.
+    static let followCallMicrophoneKey = "audio.followCallMicrophone"
+
+    static var followsCallMicrophone: Bool {
+        followsCallMicrophone(in: .standard)
+    }
+
+    static func followsCallMicrophone(in defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: followCallMicrophoneKey) as? Bool ?? true
+    }
+
+    /// The microphone to record from, given who is holding the mic.
+    ///
+    /// The holder the start policy would act on wins — that is the call —
+    /// and any other holder with a real device is the fallback, since two
+    /// apps listening at once are almost always on the same microphone.
+    /// nil means nothing useful was learned and the Settings choice applies.
+    static func captureDevice(for holders: [MicHolder]) -> InputDevice? {
+        if let device = startDecision(for: holders).holder?.inputDevice {
+            return device
+        }
+        return holders.lazy.compactMap(\.inputDevice).first
     }
 
     private(set) var mode: Mode = .disabled
@@ -328,6 +364,14 @@ final class MeetingDetectionService {
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
+        // Input-scoped: the global scope answers with nothing, and the output
+        // scope lists the speakers. Verified 2026-09-08 against a live Teams
+        // call, which reported "Yeti Stereo Microphone" here.
+        var devicesAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioProcessPropertyDevices,
+            mScope: kAudioObjectPropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
         var holders: [MicHolder] = []
         for processObject in processObjects {
             var pid: pid_t = 0
@@ -353,11 +397,31 @@ final class MeetingDetectionService {
                 appName: MeetingAppRegistry.displayName(
                     for: app?.bundleIdentifier,
                     fallback: app?.localizedName
-                )
+                ),
+                inputDevice: Self.inputDevice(of: processObject, address: &devicesAddress)
             ))
         }
 
         return holders
+    }
+
+    /// The first recordable microphone a process object has open, if any.
+    nonisolated private static func inputDevice(
+        of processObject: AudioObjectID,
+        address: inout AudioObjectPropertyAddress
+    ) -> InputDevice? {
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(processObject, &address, 0, nil, &size) == noErr,
+              size > 0 else { return nil }
+        var devices = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(processObject, &address, 0, nil, &size, &devices) == noErr else {
+            return nil
+        }
+        for device in devices where AudioDeviceInfo.isRecordableInput(device) {
+            guard let uid = AudioDeviceInfo.uid(of: device), let name = AudioDeviceInfo.name(of: device) else { continue }
+            return InputDevice(uid: uid, name: name)
+        }
+        return nil
     }
 
     /// Logs only on transitions — the poll runs every 5s and would otherwise
@@ -366,7 +430,10 @@ final class MeetingDetectionService {
         guard holders != lastLoggedHolders else { return }
         lastLoggedHolders = holders
         let identity = holders
-            .map { $0.bundleID ?? "pid \($0.pid)" }
+            .map { holder in
+                let who = holder.bundleID ?? "pid \(holder.pid)"
+                return holder.inputDevice.map { "\(who) on \($0.name)" } ?? who
+            }
             .joined(separator: ", ")
         if holders.isEmpty {
             LogManager.send("Meeting detector: no other app holding the mic", category: .audio)

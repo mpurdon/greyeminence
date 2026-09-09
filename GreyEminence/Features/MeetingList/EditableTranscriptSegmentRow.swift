@@ -14,6 +14,13 @@ struct EditableTranscriptSegmentRow: View {
     /// When set (meeting has captured screen frames), the timestamp becomes
     /// a click target that seeks the screen-share player to this moment.
     var onSeekToTime: ((TimeInterval) -> Void)?
+    /// Play (or stop) the recorded audio behind this segment. Only offered
+    /// for completed meetings whose audio is on disk to be read.
+    var onPlayAudio: (() -> Void)?
+    var isPlayingAudio: Bool = false
+    /// Why the last play attempt for this segment failed, shown in the
+    /// button's tooltip so a missing file explains itself.
+    var playbackFailure: String?
 
     @State private var isEditingText = false
     @State private var editedText: String = ""
@@ -34,6 +41,25 @@ struct EditableTranscriptSegmentRow: View {
                         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
+            }
+
+            // Play the audio behind this line — the way to tell a bad
+            // recording from a bad transcription of a good one.
+            if let onPlayAudio {
+                Button {
+                    onPlayAudio()
+                } label: {
+                    Image(systemName: isPlayingAudio ? "stop.circle.fill" : "play.circle")
+                        .font(.caption)
+                        .foregroundStyle(
+                            isPlayingAudio ? Color.accentColor
+                                : playbackFailure != nil ? Color.orange : Color.secondary
+                        )
+                        .frame(width: 14)
+                }
+                .buttonStyle(.plain)
+                .help(playbackFailure ?? (isPlayingAudio ? "Stop" : "Play this segment's audio"))
+                .contextMenu { playbackTrackMenu }
             }
 
             // Timestamp — clickable when a screen-share player is present
@@ -77,7 +103,10 @@ struct EditableTranscriptSegmentRow: View {
         .padding(.horizontal, 4)
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(isSelected ? Color.accentColor.opacity(0.08) : .clear)
+                .fill(
+                    isSelected ? Color.accentColor.opacity(0.08)
+                        : isPlayingAudio ? Color.accentColor.opacity(0.05) : .clear
+                )
         )
         .contextMenu { contextMenuItems }
         .confirmationDialog(
@@ -90,6 +119,23 @@ struct EditableTranscriptSegmentRow: View {
             }
         } message: {
             Text("\"\(segment.text.prefix(80))...\"")
+        }
+    }
+
+    // MARK: - Playback track
+
+    /// Which recording to play. Lives on the play button rather than in a
+    /// toolbar because it is only meaningful next to the thing it changes.
+    @ViewBuilder
+    private var playbackTrackMenu: some View {
+        let player = SegmentAudioPlayer.shared
+        Picker("Play from", selection: Binding(
+            get: { player.track },
+            set: { player.track = $0 }
+        )) {
+            ForEach(SegmentAudioPlayer.Track.allCases) { track in
+                Text(track.label).tag(track)
+            }
         }
     }
 

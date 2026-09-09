@@ -84,6 +84,9 @@ final class RecordingViewModel {
     /// hasn't necessarily had a chance to grant permission or check device
     /// selection.
     private var autoDetectedRecordingStart: Bool = false
+    /// The microphone the call app was using when this recording started,
+    /// handed to mic capture so the recording hears what the call heard.
+    private var callInputDevice: MeetingDetectionService.InputDevice?
 
     // Screen-share capture
     enum ScreenCaptureState: Equatable {
@@ -452,6 +455,29 @@ final class RecordingViewModel {
         // However the recording began, the question is answered.
         clearCallPrompt()
 
+        // Who else is on the microphone right now, and on which one. The
+        // detector's poll (≤5s old) is preferred over a fresh Core Audio
+        // enumeration, which would run inline on the record-start path.
+        let holders = meetingDetector.isPolling
+            ? meetingDetector.currentHolders
+            : meetingDetector.snapshotHolders()
+
+        // Record from the call's own microphone. Teams, Discord and the rest
+        // pick their input independently of the system default, and a
+        // recording made from a different mic than the call is the laptop's
+        // built-in mic hearing the room — the exact failure this replaces.
+        if MeetingDetectionService.followsCallMicrophone,
+           let device = MeetingDetectionService.captureDevice(for: holders) {
+            callInputDevice = device
+            let who = holders.first(where: { $0.inputDevice == device })?.appName ?? "the call"
+            log.log("Recording from \(device.name) — the microphone \(who) is using", category: .audio)
+        } else {
+            callInputDevice = nil
+            if !holders.isEmpty {
+                log.log("No microphone reported by the call app — using the Settings input device", category: .audio)
+            }
+        }
+
         let meeting: Meeting
         if let existing {
             meeting = existing
@@ -460,13 +486,7 @@ final class RecordingViewModel {
             meeting = Meeting(title: "Meeting \(DateFormatter.shortDate.string(from: .now))")
 
             // Which app is this call in? Best-effort provenance — a solo
-            // recording legitimately has no other app holding the mic. The
-            // detector's poll (≤5s old) is preferred over a fresh Core Audio
-            // enumeration, which would run inline on the record-start path
-            // for a field that is pure metadata.
-            let holders = meetingDetector.isPolling
-                ? meetingDetector.currentHolders
-                : meetingDetector.snapshotHolders()
+            // recording legitimately has no other app holding the mic.
             if let source = holders.first {
                 meeting.sourceAppBundleID = source.bundleID
                 meeting.sourceAppName = source.appName
@@ -1459,9 +1479,10 @@ final class RecordingViewModel {
 
         // Start microphone capture
         let autoDetectedStart = self.autoDetectedRecordingStart
+        let callDeviceUID = self.callInputDevice?.uid
         let micTask = Task {
             do {
-                let micStream = try await micCapture.startCapture()
+                let micStream = try await micCapture.startCapture(deviceUID: callDeviceUID)
 
                 var firstBufferLogged = false
                 var bufferCount: Int = 0

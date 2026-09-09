@@ -239,6 +239,58 @@ final class ReportAnchoringTests: XCTestCase {
         XCTAssertTrue(rendered.contains("Joint Pain"), "the specifics must reach the model")
     }
 
+    // MARK: - Transcript excerpts
+
+    private func line(_ t: TimeInterval, _ speaker: String, _ text: String) -> ReportComposerService.TranscriptLine {
+        .init(startTime: t, speaker: speaker, text: text)
+    }
+
+    /// The excerpt is what ties a screenshot to a section: the words spoken
+    /// as it was on screen, leaning toward what led up to it.
+    func testExcerptTakesTheConversationAroundTheCapture() {
+        let lines = [
+            line(100, "Ann", "Before the window."),
+            line(230, "Ann", "Let me share the pipeline."),
+            line(290, "Bob", "That OCR step is new."),
+            line(320, "Ann", "Right, it branches here."),
+            line(400, "Bob", "Moving on to budget."),
+        ]
+        let excerpt = ReportComposerService.transcriptExcerpt(around: 300, in: lines)
+        XCTAssertEqual(excerpt, "Ann: Let me share the pipeline. Bob: That OCR step is new. Ann: Right, it branches here.")
+    }
+
+    func testExcerptIsOrderedByTimeRegardlessOfInputOrder() {
+        let lines = [line(310, "Bob", "second"), line(290, "Ann", "first")]
+        XCTAssertEqual(ReportComposerService.transcriptExcerpt(around: 300, in: lines), "Ann: first Bob: second")
+    }
+
+    func testExcerptIsEmptyWhenNothingWasSaid() {
+        XCTAssertEqual(ReportComposerService.transcriptExcerpt(around: 300, in: []), "")
+        XCTAssertEqual(ReportComposerService.transcriptExcerpt(around: 300, in: [line(10, "Ann", "far away")]), "")
+    }
+
+    func testExcerptIsCappedOnAWordBoundary() {
+        let long = (1...200).map { "word\($0)" }.joined(separator: " ")
+        let excerpt = ReportComposerService.transcriptExcerpt(around: 300, in: [line(300, "Ann", long)])
+        XCTAssertLessThanOrEqual(excerpt.count, ReportComposerService.transcriptCap + 1)
+        XCTAssertTrue(excerpt.hasSuffix("…"))
+        XCTAssertFalse(excerpt.dropLast().hasSuffix("wor"), "cut mid-word")
+    }
+
+    func testCatalogueCarriesTheExcerptAndOmitsItWhenEmpty() {
+        let spoken = ReportComposerService.FrameCandidate(
+            id: UUID(), formattedTimestamp: "5:00", observation: "A pipeline diagram.",
+            contentType: "diagram", entities: [], transcriptExcerpt: "Ann: here is the OCR branch"
+        )
+        let silent = ReportComposerService.FrameCandidate(
+            id: UUID(), formattedTimestamp: "6:00", observation: "A slide.",
+            contentType: "slide", entities: []
+        )
+        let rendered = ReportComposerService.renderFrames([spoken, silent])
+        XCTAssertTrue(rendered.contains("said around then: \"Ann: here is the OCR branch\""))
+        XCTAssertEqual(rendered.components(separatedBy: "said around then").count, 2, "only the frame with an excerpt carries one")
+    }
+
     // MARK: - Placement
 
     func testAnchoredFigureMovesFromAppendixIntoItsSection() {

@@ -163,6 +163,15 @@ enum ReportExportService {
             meeting.screenFrames.map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
+        // Frame timestamps and segment times share the meeting clock, so the
+        // words spoken around a capture are a plain window over the segments.
+        let transcript = meeting.segments.map {
+            ReportComposerService.TranscriptLine(
+                startTime: $0.startTime,
+                speaker: $0.speaker.displayName,
+                text: $0.text
+            )
+        }
         return report.allFigures.compactMap { figure in
             let frame = byID[figure.id]
             guard present.contains(figure.id) else { return nil }
@@ -171,7 +180,11 @@ enum ReportExportService {
                 formattedTimestamp: figure.formattedTimestamp,
                 observation: frame?.observation ?? figure.caption,
                 contentType: frame?.contentType?.rawValue,
-                entities: frame?.keyEntities ?? []
+                entities: frame?.keyEntities ?? [],
+                transcriptExcerpt: ReportComposerService.transcriptExcerpt(
+                    around: figure.timestamp,
+                    in: transcript
+                )
             )
         }
     }

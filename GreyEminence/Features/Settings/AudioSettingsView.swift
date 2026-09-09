@@ -7,6 +7,7 @@ struct AudioSettingsView: View {
     @State private var audioManager = AudioSessionManager()
     @State private var monitor = MicLevelMonitor()
     @AppStorage("inputGain") private var inputGain: Double = 1.0
+    @AppStorage(MeetingDetectionService.followCallMicrophoneKey) private var followCallMicrophone = true
     @AppStorage("autoReprocessMeetings") private var autoReprocessMeetings: Bool = true
     @State private var captureSystemAudio = true
 
@@ -97,6 +98,11 @@ struct AudioSettingsView: View {
                         Text(device.name).tag(device as AudioSessionManager.AudioDevice?)
                     }
                 }
+
+                Toggle("Use the call's microphone when one is running", isOn: $followCallMicrophone)
+                Text("Teams, Zoom, Discord and the rest choose their own microphone. When a recording starts during a call, it records from whichever mic that app has open, so the recording hears what the call heard. The device above is used when nothing else is listening.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 HStack {
                     Text("Input Gain")

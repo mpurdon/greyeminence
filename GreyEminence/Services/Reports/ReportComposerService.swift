@@ -16,6 +16,17 @@ actor ReportComposerService {
         let observation: String
         let contentType: String?
         let entities: [String]
+        /// What was being said around the moment the frame was captured.
+        /// The observation says what was on screen; this says what it was
+        /// being used for, which is what ties a screenshot to a section.
+        var transcriptExcerpt: String = ""
+    }
+
+    /// One transcript segment, reduced to what the excerpt needs.
+    struct TranscriptLine: Sendable {
+        let startTime: TimeInterval
+        let speaker: String
+        let text: String
     }
 
     struct SectionOutline: Sendable {
@@ -42,6 +53,15 @@ actor ReportComposerService {
     /// away exactly what a useful caption is made of and left the model
     /// describing the application window instead of its contents.
     static let observationCap = 700
+    /// Transcript excerpt per frame. Enough for the point under discussion
+    /// to be recognisable against the section outline; the full transcript
+    /// is not what the model is matching on.
+    static let transcriptCap = 600
+    /// How far before and after a capture the excerpt reaches. Weighted
+    /// toward what led up to the frame: a screen is usually shared because of
+    /// what was just said, and what follows is often the next topic.
+    static let excerptLead: TimeInterval = 90
+    static let excerptTrail: TimeInterval = 30
 
     private let client: any AIClient
 
@@ -143,9 +163,38 @@ actor ReportComposerService {
             if !frame.entities.isEmpty {
                 parts.append("[" + frame.entities.prefix(6).joined(separator: ", ") + "]")
             }
+            let excerpt = frame.transcriptExcerpt.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !excerpt.isEmpty {
+                parts.append("said around then: \"\(excerpt)\"")
+            }
             return parts.joined(separator: " | ")
         }
         .joined(separator: "\n")
+    }
+
+    /// The conversation around `timestamp`: every line that starts inside
+    /// the window, in order, as `Speaker: text`, capped at `transcriptCap`
+    /// characters on a word boundary. Empty when nothing was said.
+    static func transcriptExcerpt(
+        around timestamp: TimeInterval,
+        in lines: [TranscriptLine],
+        lead: TimeInterval = excerptLead,
+        trail: TimeInterval = excerptTrail
+    ) -> String {
+        let window = (timestamp - lead)...(timestamp + trail)
+        let spoken = lines
+            .filter { window.contains($0.startTime) }
+            .sorted { $0.startTime < $1.startTime }
+            .map { line -> String in
+                let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                return line.speaker.isEmpty ? text : "\(line.speaker): \(text)"
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard spoken.count > transcriptCap else { return spoken }
+        let clipped = String(spoken.prefix(transcriptCap))
+        let boundary = clipped.lastIndex(of: " ").map { String(clipped[..<$0]) } ?? clipped
+        return boundary.trimmingCharacters(in: .whitespaces) + "…"
     }
 
     /// Decode tolerantly: accept the JSON wherever it sits in the response,

@@ -23,7 +23,11 @@ struct ReportAnchorPlan: Codable, Sendable, Equatable {
     ///     budget so the specifics survive into the prompt
     ///  5. pick only the few that carry the story; unpicked ones are not
     ///     printed, and captions tie the picture to its section
-    static let currentVersion = 5
+    ///  6. each candidate carries the transcript around its capture; the
+    ///     model matches on the conversation and favours screenshots that
+    ///     give a section context; the candidate pool is topped up beyond
+    ///     key moments
+    static let currentVersion = 6
 
     /// Missing in v1 files, which is intentional: decoding fails, the cache
     /// misses, and the plan is recomputed. Self-correcting rather than a
