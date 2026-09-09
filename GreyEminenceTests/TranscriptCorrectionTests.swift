@@ -82,6 +82,22 @@ final class TranscriptCorrectionTests: XCTestCase {
         XCTAssertEqual(prompt, "Meeting: OL efficiency. With Teancum Besendorfer, Me. Terms: Cadence, CarePatron. Topics: software engineering, cadence.")
     }
 
+    /// The prompt is built and logged but must not reach the decoder while
+    /// prompting is disabled: with it on, WhisperKit 0.9 returned ~1% of a
+    /// meeting's words.
+    func testPromptingIsDisabledAndDecodingOptionsStayDefault() {
+        XCTAssertFalse(HighQualityTranscriber.promptingEnabled)
+        let options = HighQualityTranscriber.decodingOptions(promptText: "Meeting: anything.", tokenizer: nil)
+        XCTAssertNil(options.promptTokens)
+    }
+
+    func testAThinRetranscriptionIsRejectedButShortOriginalsAreNot() {
+        XCTAssertTrue(HighQualityTranscriber.isImplausiblyThin(newWords: 349, existingWords: 17_000), "19 segments for two hours")
+        XCTAssertFalse(HighQualityTranscriber.isImplausiblyThin(newWords: 12_000, existingWords: 17_000), "a normal pass loses some filler")
+        XCTAssertFalse(HighQualityTranscriber.isImplausiblyThin(newWords: 5, existingWords: 40), "a 45-second recording has nothing to protect")
+        XCTAssertFalse(HighQualityTranscriber.isImplausiblyThin(newWords: 0, existingWords: 0))
+    }
+
     func testPromptTextIsEmptyWhenThereIsNothingToSay() {
         XCTAssertEqual(HighQualityTranscriber.promptText(title: " ", participants: [], vocabulary: [], topics: []), "")
     }

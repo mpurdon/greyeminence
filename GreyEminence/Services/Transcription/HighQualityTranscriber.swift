@@ -125,11 +125,23 @@ actor HighQualityTranscriber {
         return text.count > 900 ? String(text.prefix(900)) : text
     }
 
-    /// Default decoding, plus the prompt when one was given. Every other
-    /// option stays at WhisperKit's default so this changes nothing but the
-    /// bias.
+    /// Prompting is OFF until it is proven safe. Measured 2026-09-09 on
+    /// WhisperKit 0.9 with `promptTokens` set: two 111-minute meetings came
+    /// back as 13 and 19 segments at ~9x realtime, against ~1,800 segments
+    /// at ~3x for a prompt-less run the same day — the decoder emits
+    /// end-of-text almost immediately once a prompt is prefilled (WhisperKit's
+    /// own TODO in `TextDecoder.prepareDecoderInputs` notes the prefill cache
+    /// breaks with prompt tokens). The prompt text is still built and logged
+    /// so the experiment can be re-run offline; it must not reach the decoder
+    /// again without a harness that compares word counts against the
+    /// prompt-less run on the same audio.
+    static let promptingEnabled = false
+
+    /// Default decoding, plus the prompt when one was given and prompting is
+    /// enabled. Every other option stays at WhisperKit's default.
     nonisolated static func decodingOptions(promptText: String?, tokenizer: (any WhisperTokenizer)?) -> DecodingOptions {
         var options = DecodingOptions()
+        guard promptingEnabled else { return options }
         if let promptText, !promptText.isEmpty, let tokenizer {
             let tokens = tokenizer.encode(text: " " + promptText)
                 .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
@@ -139,6 +151,16 @@ actor HighQualityTranscriber {
             }
         }
         return options
+    }
+
+    /// Whether a re-transcription is too thin to replace what the meeting
+    /// already has. The live transcript is the floor: a pass that returns a
+    /// small fraction of its words did not hear the meeting, whatever the
+    /// reason, and swapping it in destroys the only transcript there is.
+    /// Short or empty originals are exempt — there is nothing to protect.
+    nonisolated static func isImplausiblyThin(newWords: Int, existingWords: Int) -> Bool {
+        guard existingWords >= 200 else { return false }
+        return Double(newWords) < Double(existingWords) * 0.25
     }
 
     /// Average token probability from Whisper's average log-probability.

@@ -318,6 +318,28 @@ final class ReProcessingQueue {
             return
         }
 
+        // Same protection against a pass that ran but barely heard anything.
+        // A decoder misconfiguration (2026-09-09: prompt tokens) turned two
+        // two-hour meetings into 13 and 19 segments, and the swap below
+        // threw away the live transcripts that had them in full.
+        let existingWords = meeting.segments.reduce(0) { $0 + $1.text.split(separator: " ").count }
+        let newWords = upgraded.reduce(0) { $0 + $1.text.split(separator: " ").count }
+        if HighQualityTranscriber.isImplausiblyThin(newWords: newWords, existingWords: existingWords) {
+            StorageManager.shared.deleteReProcessCheckpoint(for: meetingID)
+            LogManager.send(
+                "Re-transcription of \"\(title)\" heard far less than the live transcript (\(newWords) vs \(existingWords) words) — keeping original",
+                category: .transcription,
+                level: .error
+            )
+            markState(
+                meeting: meeting,
+                state: .failed,
+                error: "Re-transcription heard far less than the live transcript (\(newWords) vs \(existingWords) words) — original kept",
+                in: context
+            )
+            return
+        }
+
         // Live recording started mid-transcription — requeue and let it run later.
         if recordingViewModel?.state != .idle {
             LogManager.send("Live recording started during reprocess of \(meetingID); requeueing", category: .transcription)
