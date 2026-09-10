@@ -11,6 +11,12 @@ actor MicrophoneCaptureService {
     /// stuck capture (IOProc stopped firing — route change, sleep/wake,
     /// tap revoked) without hopping actors per buffer.
     private let lastBufferAt = OSAllocatedUnfairLock<Date?>(initialState: nil)
+    /// Buffers handed to the stream by the tap; see `SystemAudioCaptureService`.
+    private let delivered = OSAllocatedUnfairLock<Int>(initialState: 0)
+
+    nonisolated var deliveredBufferCount: Int {
+        delivered.withLock { $0 }
+    }
 
     let bufferSize: AVAudioFrameCount = 4096
 
@@ -57,6 +63,7 @@ actor MicrophoneCaptureService {
         self.requestedDeviceUID = deviceUID
         self.captureStartUptime = ProcessInfo.processInfo.systemUptime
         self.recoveryAttempts = 0
+        delivered.withLock { $0 = 0 }
 
         let stream = AsyncStream<TaggedAudioBuffer> { continuation in
             self.continuation = continuation
@@ -131,6 +138,8 @@ actor MicrophoneCaptureService {
         let startTime = self.captureStartUptime
         let cont = self.continuation
         let lastBuffer = self.lastBufferAt
+        let deliveredCount = self.delivered
+        // A rebuilt engine continues the same capture, so the count carries on.
 
         inputNode.installTap(
             onBus: 0,
@@ -144,6 +153,7 @@ actor MicrophoneCaptureService {
                 timestamp: elapsed
             )
             lastBuffer.withLock { $0 = Date() }
+            deliveredCount.withLock { $0 += 1 }
             cont?.yield(tagged)
         }
 

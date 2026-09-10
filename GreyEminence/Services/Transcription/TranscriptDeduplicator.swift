@@ -21,6 +21,24 @@ struct TranscriptDeduplicator {
     /// How far before the system segment's start the mic can begin (ASR jitter).
     static let maxLeadTime: Double = 2.0
 
+    // MARK: Fragments
+
+    /// A mic line that is a *piece* of a system line. Dice is symmetric, so
+    /// a clean echo of "in Anthropic" against a hundred-character line scores
+    /// about 0.2 and survives. Containment asks the right question — how much
+    /// of the fragment is in the line — and a better microphone (the Yeti,
+    /// since v0.36) hears the speakers clearly enough that Whisper now
+    /// produces exactly these tidy fragments.
+    static let containmentThreshold: Double = 0.7
+    /// Below these the fragment is too short to be evidence of anything:
+    /// "okay" or "yeah" is in every line of every meeting.
+    static let minFragmentWords = 2
+    static let minFragmentBigrams = 10
+    /// A fragment echoed from the tail of a long line starts long after the
+    /// line did, so its window runs from just before the line starts to a
+    /// little after it ends — not from the line's start alone.
+    static let maxTrailingEcho: Double = 8.0
+
     struct DeduplicationResult {
         let segments: [TranscriptSegment]
         let removedCount: Int
@@ -34,6 +52,10 @@ struct TranscriptDeduplicator {
         let midpointGap: Double       // seconds between midpoints
         let echoDelay: Double         // mic.startTime - sys.startTime (positive = mic is later)
         let textSimilarity: Double    // 0–1, threshold: 0.45
+        /// 0–1, how much of the mic text's bigrams appear in the system text.
+        let containment: Double
+        /// The fragment's start fell inside the system line's span (plus slack).
+        let fragmentTimingOk: Bool
         let wouldRemove: Bool
     }
 
@@ -57,14 +79,20 @@ struct TranscriptDeduplicator {
             let delay = mic.startTime - sys.startTime
             let similarity = textSimilarity(mic.text, sys.text)
             let timingOk = delay >= -maxLeadTime && delay <= maxEchoDelay
-            let wouldRemove = timingOk && similarity >= textSimilarityThreshold
+            let containment = fragmentContainment(mic.text, in: sys.text)
+            let fragmentTimingOk = fragmentTiming(micStart: mic.startTime, sys: sys)
+            let wouldRemove = (timingOk && similarity >= textSimilarityThreshold)
+                || (fragmentTimingOk && containment >= containmentThreshold)
 
-            if best == nil || similarity > best!.textSimilarity {
+            let score = max(similarity, containment)
+            if best == nil || score > max(best!.textSimilarity, best!.containment) {
                 best = MatchDebugInfo(
                     systemText: sys.text,
                     midpointGap: gap,
                     echoDelay: delay,
                     textSimilarity: similarity,
+                    containment: containment,
+                    fragmentTimingOk: fragmentTimingOk,
                     wouldRemove: wouldRemove
                 )
             }
@@ -113,6 +141,11 @@ struct TranscriptDeduplicator {
                         break
                     }
                 }
+                if fragmentTiming(micStart: mic.startTime, sys: sys),
+                   fragmentContainment(mic.text, in: sys.text) >= containmentThreshold {
+                    micIDsToRemove.insert(mic.id)
+                    break
+                }
                 idx += 1
             }
         }
@@ -125,6 +158,35 @@ struct TranscriptDeduplicator {
             removedCount: removed.count,
             removedSegments: removed
         )
+    }
+
+    /// Whether a mic line could be an echo of any part of `sys`: it starts no
+    /// earlier than ASR jitter allows before the line, and no later than the
+    /// echo delay allows after the line has ended.
+    static func fragmentTiming(micStart: TimeInterval, sys: TranscriptSegment) -> Bool {
+        micStart >= sys.startTime - maxLeadTime && micStart <= sys.endTime + maxTrailingEcho
+    }
+
+    /// Share of `fragment`'s bigrams found in `text` (0–1). Zero when the
+    /// fragment is too short to mean anything, so a stray "okay" is never a
+    /// duplicate of the line it happens to appear in.
+    static func fragmentContainment(_ fragment: String, in text: String) -> Double {
+        let fragNorm = normalize(fragment)
+        let textNorm = normalize(text)
+        let words = fragNorm.split(separator: " ").count
+        let fragBigrams = bigrams(fragNorm)
+        guard words >= minFragmentWords, fragBigrams.count >= minFragmentBigrams else { return 0 }
+        // Only a fragment: a line as long as its match is Dice's job.
+        guard fragBigrams.count < bigrams(textNorm).count else { return 0 }
+
+        var available: [String: Int] = [:]
+        for bigram in bigrams(textNorm) { available[bigram, default: 0] += 1 }
+        var matches = 0
+        for bigram in fragBigrams where (available[bigram] ?? 0) > 0 {
+            available[bigram]! -= 1
+            matches += 1
+        }
+        return Double(matches) / Double(fragBigrams.count)
     }
 
     /// Returns the index of the first element in `array` that is >= `target`.

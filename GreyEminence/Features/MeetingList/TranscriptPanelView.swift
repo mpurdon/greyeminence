@@ -33,6 +33,10 @@ struct TranscriptPanelView: View {
     @State private var splitTask: Task<Void, Never>?
     @State private var highlightedSegmentID: UUID?
     @State private var sortedSegments: [TranscriptSegment] = []
+    /// When set, the list shows only this voice. A view filter — nothing is
+    /// deleted, and every edit action still works on the full transcript.
+    @State private var filteredSpeaker: Speaker?
+    @State private var roster = TranscriptSpeakerRoster()
     @State private var showDedupDebug = false
     @State private var isCorrecting = false
     @State private var correctionStatus: String?
@@ -46,9 +50,37 @@ struct TranscriptPanelView: View {
         }
     }
 
+    /// Rebuild the sorted list and the speaker roster together. The roster
+    /// is cached rather than computed per body evaluation: it decodes a
+    /// `Speaker` out of every segment, and the toolbar reads it on every
+    /// update of a view that can hold a few thousand of them.
+    private func rebuildSegments() {
+        sortedSegments = meeting.segments.sorted { $0.startTime < $1.startTime }
+        roster = TranscriptSpeakerRoster.build(
+            speakers: sortedSegments.map { ($0.speaker, $0.endTime - $0.startTime) }
+        )
+        if let filtered = filteredSpeaker, roster.entry(for: filtered) == nil {
+            // The voice was renamed or reassigned away entirely — drop a
+            // filter that can only show an empty list.
+            filteredSpeaker = nil
+        }
+    }
+
+    /// The rows on screen. Only the list reads this: merging, splitting and
+    /// dedup index into `sortedSegments`, and filtering that would silently
+    /// join lines that aren't adjacent in the meeting.
+    private var visibleSegments: [TranscriptSegment] {
+        guard let filteredSpeaker else { return sortedSegments }
+        return sortedSegments.filter { $0.speaker == filteredSpeaker }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            SpeakerIdentityBar(meeting: meeting, refreshToken: speakerIdentityRefresh)
+            SpeakerIdentityBar(
+                meeting: meeting,
+                refreshToken: speakerIdentityRefresh,
+                onFilterSpeaker: { label in filteredSpeaker = .other(label) }
+            )
                 .onChange(of: meeting.segments.count) { _, _ in speakerIdentityRefresh += 1 }
             if meeting.status == .completed && !sortedSegments.isEmpty {
                 transcriptToolbar
@@ -80,16 +112,26 @@ struct TranscriptPanelView: View {
                     systemImage: "text.bubble",
                     description: Text("This meeting has no transcript segments")
                 )
+            } else if visibleSegments.isEmpty, let filteredSpeaker {
+                // Reachable after reassigning the last line of a voice while
+                // filtered to it — offer the way back rather than a dead end.
+                ContentUnavailableView {
+                    Label("No lines from \(filteredSpeaker.displayName)", systemImage: "person.slash")
+                } description: {
+                    Text("This voice has no remaining lines in the transcript.")
+                } actions: {
+                    Button("Show All Speakers") { self.filteredSpeaker = nil }
+                }
             } else {
                 transcriptList
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .onAppear {
-            sortedSegments = meeting.segments.sorted { $0.startTime < $1.startTime }
+            rebuildSegments()
         }
         .onChange(of: meeting.segments.count) {
-            sortedSegments = meeting.segments.sorted { $0.startTime < $1.startTime }
+            rebuildSegments()
         }
         .overlay {
             if isSplittingMeeting {
@@ -217,6 +259,9 @@ struct TranscriptPanelView: View {
             } else {
                 restingBar
             }
+            if filteredSpeaker != nil {
+                speakerFilterBanner
+            }
             if developerToolsEnabled {
                 developerStrip
             }
@@ -234,6 +279,10 @@ struct TranscriptPanelView: View {
                 Label("Select", systemImage: "checklist")
             }
             .controlSize(.small)
+
+            if roster.isFilterable {
+                speakerFilterMenu
+            }
 
             Button {
                 runCorrection()
@@ -286,7 +335,7 @@ struct TranscriptPanelView: View {
                 if allSegmentsSelected {
                     selectedSegmentIDs.removeAll()
                 } else {
-                    selectedSegmentIDs = Set(sortedSegments.map(\.id))
+                    selectedSegmentIDs = Set(visibleSegments.map(\.id))
                 }
             }
             .controlSize(.small)
@@ -331,6 +380,66 @@ struct TranscriptPanelView: View {
         .background(Color.accentColor.opacity(0.10))
     }
 
+    /// Which voice the list is showing. A menu rather than a row of chips:
+    /// a long call can have eight speakers, and the toolbar already carries
+    /// three other controls.
+    @ViewBuilder
+    private var speakerFilterMenu: some View {
+        Menu {
+            Button {
+                filteredSpeaker = nil
+            } label: {
+                if filteredSpeaker == nil {
+                    Label("All Speakers", systemImage: "checkmark")
+                } else {
+                    Text("All Speakers")
+                }
+            }
+            Divider()
+            ForEach(roster.entries) { entry in
+                Button {
+                    filteredSpeaker = entry.speaker
+                } label: {
+                    let detail = "\(entry.displayName)  ·  \(entry.segmentCount) line\(entry.segmentCount == 1 ? "" : "s"), \(entry.durationLabel)"
+                    if filteredSpeaker == entry.speaker {
+                        Label(detail, systemImage: "checkmark")
+                    } else {
+                        Text(detail)
+                    }
+                }
+            }
+        } label: {
+            Label(
+                filteredSpeaker?.displayName ?? "All Speakers",
+                systemImage: filteredSpeaker == nil ? "person.2" : "line.3.horizontal.decrease.circle.fill"
+            )
+        }
+        .controlSize(.small)
+        .fixedSize()
+        .help("Show only one speaker's lines")
+    }
+
+    /// Says what is hidden. Without it a filtered transcript reads as a
+    /// transcript that lost most of its content.
+    private var speakerFilterBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                .font(.caption)
+                .foregroundStyle(Color.accentColor)
+            Text("Showing \(visibleSegments.count) of \(sortedSegments.count) lines — \(filteredSpeaker?.displayName ?? "")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Button("Show All") { filteredSpeaker = nil }
+                .controlSize(.small)
+        }
+        .lineLimit(1)
+        .padding(.horizontal)
+        .padding(.vertical, 4)
+        .background(Color.accentColor.opacity(0.08))
+        .overlay(alignment: .top) { Divider() }
+    }
+
     /// Diagnostics, not editing. Kept in its own strip and labelled as such so
     /// it never reads as part of the transcript workflow — these tools inspect
     /// and repair the pipeline's output rather than the meeting's content.
@@ -357,8 +466,12 @@ struct TranscriptPanelView: View {
         .overlay(alignment: .top) { Divider() }
     }
 
+    /// "Select All" means everything on screen. While a speaker filter is
+    /// on, selecting the whole transcript and bulk-reassigning it is exactly
+    /// the mistake this scoping prevents.
     private var allSegmentsSelected: Bool {
-        !sortedSegments.isEmpty && selectedSegmentIDs.count == sortedSegments.count
+        let visible = visibleSegments
+        return !visible.isEmpty && visible.allSatisfy { selectedSegmentIDs.contains($0.id) }
     }
 
     // MARK: - Transcript List
@@ -368,7 +481,7 @@ struct TranscriptPanelView: View {
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach(sortedSegments) { segment in
+                    ForEach(visibleSegments) { segment in
                         transcriptRow(segment, systemSegments: systemSegments)
                             .id(segment.id)
                             .padding(.vertical, 2)
@@ -422,6 +535,9 @@ struct TranscriptPanelView: View {
                         toggleSelection(segment)
                     } : nil,
                     onSeekToTime: onSeekToTime,
+                    onFilterSpeaker: { speaker in
+                        filteredSpeaker = (filteredSpeaker == speaker) ? nil : speaker
+                    },
                     onPlayAudio: { SegmentAudioPlayer.shared.toggle(segment, in: meeting) },
                     isPlayingAudio: SegmentAudioPlayer.shared.playingSegmentID == segment.id,
                     playbackFailure: SegmentAudioPlayer.shared.failure?.segmentID == segment.id
@@ -516,6 +632,7 @@ struct TranscriptPanelView: View {
         }
         speakerIdentityRefresh += 1
         saveEdit(site: "reassignSelectedSegments")
+        rebuildSegments()
     }
 
     private func deduplicateTranscript() {
@@ -528,7 +645,7 @@ struct TranscriptPanelView: View {
             }
         }
         saveEdit(site: "deduplicateTranscript")
-        sortedSegments = meeting.segments.sorted { $0.startTime < $1.startTime }
+        rebuildSegments()
         LogManager.send("Manual dedup removed \(result.removedCount) segment(s)", category: .transcription)
     }
 
@@ -617,6 +734,7 @@ struct TranscriptPanelView: View {
         modelContext.insert(newMeeting)
 
         newMeeting.attendees = meeting.attendees
+        newMeeting.absentAttendeeIDs = meeting.absentAttendeeIDs
 
         // Audio files aren't physically split — we record offsets into the
         // source meeting's audio timeline. If the meeting being split is

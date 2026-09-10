@@ -22,7 +22,7 @@ struct RecordingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.bar)
                     .onChange(of: meeting.attendees.count) { _, _ in
-                        viewModel.speakerContactMapper.prepopulate(from: meeting.attendees)
+                        viewModel.speakerContactMapper.prepopulate(from: meeting.presentAttendees)
                     }
             }
 

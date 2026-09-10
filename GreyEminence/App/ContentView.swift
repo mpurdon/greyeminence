@@ -1116,7 +1116,7 @@ struct ActionItemRow: View {
         .popover(isPresented: $showContactPicker) {
             ContactPicker(
                 excludedContacts: excludedIDs,
-                prioritizedContacts: item.meeting?.attendees ?? []
+                prioritizedContacts: item.meeting?.presentAttendees ?? []
             ) { contact in
                 item.assignedContact = contact
                 persist("assignContact")

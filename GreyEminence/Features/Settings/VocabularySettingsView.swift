@@ -16,7 +16,7 @@ struct VocabularySettingsView: View {
                         .disabled(newTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
 
-                Text("Custom vocabulary helps the transcription engine recognize specialized terms, names, and jargon.")
+                Text("Custom vocabulary helps the transcription engine recognise specialised terms, names, and jargon, and tells the mis-hearing repair pass what to expect. A term's kind says where it can appear — a person, a document type, a system — and its boost says how likely it is: leave a name you rarely mention at 1 or 2 so it is never guessed at.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
@@ -34,6 +34,19 @@ struct VocabularySettingsView: View {
                                 .font(.body)
 
                             Spacer()
+
+                            Picker("", selection: Binding(
+                                get: { term.kind },
+                                set: { vocabularyManager.updateTerm(id: term.id, kind: $0) }
+                            )) {
+                                ForEach(TermKind.allCases) { kind in
+                                    Text(kind.label).tag(kind)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .fixedSize()
+                            .help("What this term is. The repair pass uses it to decide where the term can appear.")
 
                             HStack(spacing: 4) {
                                 Text("Boost:")

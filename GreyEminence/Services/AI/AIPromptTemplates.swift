@@ -186,7 +186,16 @@ enum AIPromptTemplates {
         punctuation, the speaker's grammar. A fix replaces a few words, never \
         rewrites a sentence.
         - Prefer the names, terms and topics listed above when they are the \
-        plausible intended words.
+        plausible intended words — but only where they genuinely fit. A term's \
+        kind says where it can go: a person fits "X said", a document or \
+        record fits "the X shows", a system fits "migrated from X". Do not put \
+        a term into a slot its kind does not fit.
+        - When a word sounds like both a participant's name and some other \
+        name, choose the participant. People on the call are mentioned far \
+        more often than people who are not.
+        - Never introduce a term listed as rarely mentioned unless the \
+        surrounding sentence plainly refers to it. A rare term is not a \
+        candidate for a word you cannot place.
         - When unsure, leave the line alone.
 
         TRANSCRIPT

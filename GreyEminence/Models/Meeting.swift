@@ -94,6 +94,32 @@ final class Meeting {
     @Relationship(deleteRule: .nullify)
     var attendees: [Contact] = []
 
+    /// Invitees who were not in the room. They stay in `attendees` so the
+    /// invite is still visible, and drop out of `presentAttendees`, which is
+    /// what the AI roster, the voice matcher and task assignment work from.
+    /// IDs rather than a second relationship: no join table, and a contact
+    /// removed from the meeting simply stops matching.
+    var absentAttendeeIDs: [UUID] = []
+
+    /// Everyone who was actually there.
+    var presentAttendees: [Contact] {
+        guard !absentAttendeeIDs.isEmpty else { return attendees }
+        let absent = Set(absentAttendeeIDs)
+        return attendees.filter { !absent.contains($0.id) }
+    }
+
+    func isAbsent(_ contact: Contact) -> Bool {
+        absentAttendeeIDs.contains(contact.id)
+    }
+
+    func setAbsent(_ contact: Contact, _ absent: Bool) {
+        if absent {
+            if !absentAttendeeIDs.contains(contact.id) { absentAttendeeIDs.append(contact.id) }
+        } else {
+            absentAttendeeIDs.removeAll { $0 == contact.id }
+        }
+    }
+
     init(
         title: String = "New Meeting",
         date: Date = .now,

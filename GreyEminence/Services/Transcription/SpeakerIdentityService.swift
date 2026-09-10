@@ -46,7 +46,7 @@ enum SpeakerIdentityService {
         let profiles = VoiceProfileStore.load()
         // Only people in the room are candidates; matching against everyone
         // ever enrolled invites a confident name from another meeting.
-        let attendeeIDs = Set(meeting.attendees.map(\.id))
+        let attendeeIDs = Set(meeting.presentAttendees.map(\.id))
 
         return seconds.map { label, total in
             let signature = stored?.cluster(labelled: label)?.signature

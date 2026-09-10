@@ -46,9 +46,12 @@ struct MeetingRoster: Sendable {
     @MainActor
     static func snapshot(for meeting: Meeting) -> MeetingRoster {
         let myID = Meeting.storedMyContactID
+        // Present attendees only: an invitee who never joined must not be
+        // handed action items or offered to the model as someone who spoke.
+        let present = meeting.presentAttendees
         return MeetingRoster(
-            myName: meeting.attendees.first { $0.id == myID }?.name,
-            otherAttendees: meeting.attendees.filter { $0.id != myID }.map(\.name)
+            myName: present.first { $0.id == myID }?.name,
+            otherAttendees: present.filter { $0.id != myID }.map(\.name)
         )
     }
 }

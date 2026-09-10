@@ -25,6 +25,14 @@ actor SystemAudioCaptureService {
     /// The watchdog reads this synchronously to detect a stuck tap (default
     /// output device changed, aggregate device torn down, etc.).
     private let lastBufferAt = OSAllocatedUnfairLock<Date?>(initialState: nil)
+    /// Buffers handed to the stream by the IOProc. Compared with what the
+    /// consumer has taken, this is the backlog — audio sitting in memory
+    /// because the consumer is behind.
+    private let delivered = OSAllocatedUnfairLock<Int>(initialState: 0)
+
+    nonisolated var deliveredBufferCount: Int {
+        delivered.withLock { $0 }
+    }
 
     nonisolated var lastBufferTimestamp: Date? {
         lastBufferAt.withLock { $0 }
@@ -100,6 +108,8 @@ actor SystemAudioCaptureService {
         let cont = self.continuation
         let format = tapFormat
         let lastBuffer = self.lastBufferAt
+        let deliveredCount = self.delivered
+        deliveredCount.withLock { $0 = 0 }
 
         // Step 7: Create IOProc callback on the aggregate device
         var procID: AudioDeviceIOProcID?
@@ -133,6 +143,7 @@ actor SystemAudioCaptureService {
             let elapsed = ProcessInfo.processInfo.systemUptime - startTime
             let tagged = TaggedAudioBuffer(buffer: copiedBuffer, source: .system, timestamp: elapsed)
             lastBuffer.withLock { $0 = Date() }
+            deliveredCount.withLock { $0 += 1 }
             cont?.yield(tagged)
         }
 

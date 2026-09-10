@@ -21,19 +21,66 @@ actor TranscriptCorrectionService {
         var isUserEdited: Bool = false
     }
 
-    /// What the model should know about the meeting: the same nouns the
-    /// Whisper prompt carries, so both passes pull toward the same words.
+    /// What the model should know about the meeting.
+    ///
+    /// A flat list of terms was actively harmful: every term looked equally
+    /// likely, so a name weighted 1 ("almost never says this") competed on
+    /// even footing with one weighted 20. Terms are grouped by what they are
+    /// and split by weight, and the people actually on the call are named as
+    /// authoritative over any similar-sounding term.
     struct Context: Sendable {
+        struct Term: Sendable, Equatable {
+            let text: String
+            let kind: TermKind
+            let boost: Float
+        }
+
         var title: String
         var participants: [String]
-        var vocabulary: [String]
+        var terms: [Term]
         var topics: [String]
+
+        /// At or below this weight a term is listed as rare rather than
+        /// expected. The Settings slider runs 1–20 with 10 as the default, so
+        /// this is the bottom of the range — a deliberate "hardly ever".
+        static let rareBoostThreshold: Float = 3
 
         var rendered: String {
             var lines: [String] = []
             if !title.isEmpty { lines.append("Meeting: \(title)") }
-            if !participants.isEmpty { lines.append("Participants: \(participants.joined(separator: ", "))") }
-            if !vocabulary.isEmpty { lines.append("Terms and names to expect: \(vocabulary.joined(separator: ", "))") }
+            if !participants.isEmpty {
+                lines.append(
+                    "Participants (these people are on this call — prefer their names over any similar-sounding name below): "
+                        + participants.joined(separator: ", ")
+                )
+            }
+
+            // A person already named as a participant is authoritative there;
+            // repeating them among the terms only dilutes that.
+            let participantNames = Set(participants.map { $0.lowercased() })
+            let usable = terms.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
+            let expected = usable.filter {
+                $0.boost > Self.rareBoostThreshold
+                    && !($0.kind == .person && participantNames.contains($0.text.lowercased()))
+            }
+            let rare = usable.filter { $0.boost <= Self.rareBoostThreshold }
+
+            if !expected.isEmpty {
+                lines.append("Terms to expect, by kind:")
+                for kind in TermKind.promptOrder {
+                    let group = expected
+                        .filter { $0.kind == kind }
+                        .sorted { $0.boost > $1.boost }
+                    guard !group.isEmpty else { continue }
+                    lines.append("- \(kind.promptHeading): \(group.map(\.text).joined(separator: ", "))")
+                }
+            }
+            if !rare.isEmpty {
+                lines.append(
+                    "Rarely mentioned — use one of these ONLY when the context plainly calls for it, never as a guess at a similar-sounding word: "
+                        + rare.sorted { $0.boost > $1.boost }.map(\.text).joined(separator: ", ")
+                )
+            }
             if !topics.isEmpty { lines.append("Topics discussed: \(topics.joined(separator: ", "))") }
             return lines.isEmpty ? "No additional context." : lines.joined(separator: "\n")
         }
@@ -42,8 +89,10 @@ actor TranscriptCorrectionService {
         static func make(for meeting: Meeting) -> Context {
             Context(
                 title: meeting.title,
-                participants: meeting.attendees.map(\.name),
-                vocabulary: VocabularyManager().terms.map(\.text),
+                participants: meeting.presentAttendees.map(\.name),
+                terms: VocabularyManager().terms.map {
+                    Term(text: $0.text, kind: $0.kind, boost: $0.boost)
+                },
                 topics: meeting.latestInsight?.topics ?? []
             )
         }

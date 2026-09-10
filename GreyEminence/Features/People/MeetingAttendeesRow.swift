@@ -1,40 +1,35 @@
 import SwiftUI
 import SwiftData
 
-struct ContactChip: View {
+/// What a chip or dot can do to its person. Attendance is a toggle, not a
+/// removal: an invitee who never joined stays listed as invited and drops
+/// out of the roster the AI, the voice matcher and task assignment use.
+struct AttendeeActions {
+    var isAbsent: Bool
+    var onToggleAbsent: () -> Void
+    var onRemove: () -> Void
+}
+
+private struct AttendeeMenu: View {
     let contact: Contact
-    var onRemove: (() -> Void)?
+    let actions: AttendeeActions
 
     var body: some View {
-        HStack(spacing: 4) {
-            Text(contact.initials)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 18, height: 18)
-                .background(contact.avatarColor.gradient, in: Circle())
-
-            Text(contact.displayNickname)
-                .font(.caption)
-                .lineLimit(1)
+        Button(actions.isAbsent ? "Mark as Attended" : "Did Not Attend") {
+            actions.onToggleAbsent()
         }
-        .padding(.leading, 2)
-        .padding(.trailing, 8)
-        .padding(.vertical, 3)
-        .background(.quaternary, in: Capsule())
-        .help(contact.attendeeTooltip)
-        .contextMenu {
-            if let onRemove {
-                Button("Remove", role: .destructive) {
-                    onRemove()
-                }
-            }
+        Divider()
+        Button("Remove from Meeting", role: .destructive) {
+            actions.onRemove()
         }
     }
 }
 
-struct CompactContactDot: View {
+/// The initials circle. Absence reads as faded and colourless — still there,
+/// plainly not in the room.
+private struct InitialsDot: View {
     let contact: Contact
-    var onRemove: (() -> Void)?
+    var isAbsent: Bool = false
 
     var body: some View {
         Text(contact.initials)
@@ -42,13 +37,49 @@ struct CompactContactDot: View {
             .foregroundStyle(.white)
             .frame(width: 18, height: 18)
             .background(contact.avatarColor.gradient, in: Circle())
-            .help(contact.attendeeTooltip)
+            .saturation(isAbsent ? 0 : 1)
+            .opacity(isAbsent ? 0.35 : 1)
+    }
+}
+
+struct ContactChip: View {
+    let contact: Contact
+    var actions: AttendeeActions?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            InitialsDot(contact: contact, isAbsent: actions?.isAbsent ?? false)
+            Text(contact.displayNickname)
+                .font(.caption)
+                .lineLimit(1)
+                .strikethrough(actions?.isAbsent ?? false, color: .secondary)
+                .foregroundStyle(actions?.isAbsent ?? false ? .secondary : .primary)
+        }
+        .padding(.leading, 2)
+        .padding(.trailing, 8)
+        .padding(.vertical, 3)
+        .background(.quaternary, in: Capsule())
+        .help(contact.attendeeTooltip(absent: actions?.isAbsent ?? false))
+        .contextMenu {
+            if let actions { AttendeeMenu(contact: contact, actions: actions) }
+        }
+    }
+}
+
+/// A dot with no `.help`: the system tooltip takes a second to appear and
+/// often never does when the pointer moves between adjacent dots. The name
+/// is reported through `onHover` instead and drawn by the row, instantly.
+struct CompactContactDot: View {
+    let contact: Contact
+    var actions: AttendeeActions?
+    var onHover: ((Bool) -> Void)?
+
+    var body: some View {
+        InitialsDot(contact: contact, isAbsent: actions?.isAbsent ?? false)
+            .contentShape(Circle())
+            .onHover { onHover?($0) }
             .contextMenu {
-                if let onRemove {
-                    Button("Remove", role: .destructive) {
-                        onRemove()
-                    }
-                }
+                if let actions { AttendeeMenu(contact: contact, actions: actions) }
             }
     }
 }
@@ -57,100 +88,59 @@ extension Contact {
     /// Name plus email, unless the "name" *is* the email (calendar invites for
     /// people who aren't in Contacts often come through that way).
     var attendeeTooltip: String {
+        attendeeTooltip(absent: false)
+    }
+
+    func attendeeTooltip(absent: Bool) -> String {
+        var text = name
         if let email, !email.isEmpty, email.lowercased() != name.lowercased() {
-            return "\(name) · \(email)"
+            text += " · \(email)"
         }
-        return name
+        if absent { text += " · did not attend" }
+        return text
     }
 }
 
-/// Capsule that stands in for attendees the row had no width to draw — either
-/// the tail of a truncated dot run ("+12") or, at the narrowest fallback, the
-/// whole roster ("18 people"). Tapping it opens the full list.
-private struct AttendeeOverflowPill: View {
-    let label: String
-    let systemImage: String?
+/// Everyone, one per line, with what can be done to them. Sits under the
+/// dot row when expanded, so a twenty-person invite is readable without
+/// hovering twenty circles.
+private struct AttendeeList: View {
     let contacts: [Contact]
-    var onRemove: ((Contact) -> Void)?
-
-    @State private var showList = false
+    let actions: (Contact) -> AttendeeActions
 
     var body: some View {
-        Button {
-            showList.toggle()
-        } label: {
-            HStack(spacing: 3) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 9))
-                }
-                Text(label)
-                    .font(.caption)
-                    .lineLimit(1)
+        VStack(alignment: .leading, spacing: 1) {
+            ForEach(contacts) { contact in
+                AttendeeListRow(contact: contact, actions: actions(contact))
             }
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(.quaternary, in: Capsule())
-            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .help("Show all \(contacts.count) attendees")
-        .popover(isPresented: $showList, arrowEdge: .bottom) {
-            AttendeeListPopover(contacts: contacts, onRemove: onRemove)
-        }
-    }
-}
-
-/// Scrolling roster shown from an overflow pill. Bounded height so a 40-person
-/// invite can't grow a popover taller than the screen.
-private struct AttendeeListPopover: View {
-    let contacts: [Contact]
-    var onRemove: ((Contact) -> Void)?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("\(contacts.count) attendees")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 6)
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 1) {
-                    ForEach(contacts) { contact in
-                        AttendeeListRow(contact: contact, onRemove: onRemove)
-                    }
-                }
-                .padding(6)
-            }
-            .frame(maxHeight: 320)
-        }
-        .frame(width: 260)
+        .padding(.vertical, 4)
+        .padding(.leading, 20)
     }
 }
 
 private struct AttendeeListRow: View {
     let contact: Contact
-    var onRemove: ((Contact) -> Void)?
+    let actions: AttendeeActions
 
     @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(contact.initials)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 18, height: 18)
-                .background(contact.avatarColor.gradient, in: Circle())
+            InitialsDot(contact: contact, isAbsent: actions.isAbsent)
 
             VStack(alignment: .leading, spacing: 0) {
-                Text(contact.name)
-                    .font(.caption)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(contact.name)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .foregroundStyle(actions.isAbsent ? .secondary : .primary)
+                    if actions.isAbsent {
+                        Text("did not attend")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
                 if let email = contact.email,
                    !email.isEmpty,
                    email.lowercased() != contact.name.lowercased() {
@@ -163,16 +153,23 @@ private struct AttendeeListRow: View {
 
             Spacer(minLength: 4)
 
-            if let onRemove, isHovering {
+            if isHovering {
+                Button(actions.isAbsent ? "Attended" : "Did not attend") {
+                    actions.onToggleAbsent()
+                }
+                .buttonStyle(.plain)
+                .font(.caption2)
+                .foregroundStyle(Color.accentColor)
+
                 Button {
-                    onRemove(contact)
+                    actions.onRemove()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Remove \(contact.name)")
+                .help("Remove \(contact.name) from this meeting")
             }
         }
         .padding(.horizontal, 6)
@@ -182,16 +179,23 @@ private struct AttendeeListRow: View {
                 .fill(isHovering ? Color.secondary.opacity(0.15) : .clear)
         )
         .onHover { isHovering = $0 }
+        .contextMenu { AttendeeMenu(contact: contact, actions: actions) }
     }
 }
 
 struct MeetingAttendeesRow: View {
     @Bindable var meeting: Meeting
     @State private var showPicker = false
+    @State private var isExpanded = false
+    @State private var hovered: Contact?
 
+    /// Present people first, then the absent, each group by name — so the
+    /// faded dots gather at the end instead of breaking up the roster.
     private var attendees: [Contact] {
-        meeting.attendees.sorted {
-            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        meeting.attendees.sorted { left, right in
+            let leftAbsent = meeting.isAbsent(left), rightAbsent = meeting.isAbsent(right)
+            if leftAbsent != rightAbsent { return !leftAbsent }
+            return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
         }
     }
 
@@ -200,82 +204,107 @@ struct MeetingAttendeesRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "person.2")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            let people = attendees
-
-            if people.isEmpty {
-                Text("No attendees")
+        let people = attendees
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Image(systemName: "person.2")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else {
-                roster(people)
-            }
 
-            Button {
-                showPicker.toggle()
-            } label: {
-                Image(systemName: "plus.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showPicker) {
-                ContactPicker(excludedContacts: excludedIDs) { contact in
-                    meeting.attendees.append(contact)
-                    // Stay open so the user can add several attendees in one
-                    // pass; click outside (or hit Escape) to dismiss.
+                if people.isEmpty {
+                    Text("No attendees")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    roster(people)
                 }
+
+                Button {
+                    showPicker.toggle()
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showPicker) {
+                    ContactPicker(excludedContacts: excludedIDs) { contact in
+                        meeting.attendees.append(contact)
+                        // Stay open so the user can add several attendees in one
+                        // pass; click outside (or hit Escape) to dismiss.
+                    }
+                }
+
+                if people.count > Self.chipLimit {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+                    } label: {
+                        Image(systemName: isExpanded ? "chevron.up.circle" : "chevron.down.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(isExpanded ? "Hide the list" : "List everyone by name")
+                }
+
+                // The hover readout. Instant, because it is plain state, and
+                // never clipped, because it is inline rather than floating.
+                if let hovered {
+                    Text(hovered.attendeeTooltip(absent: meeting.isAbsent(hovered)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                }
+            }
+
+            if isExpanded, people.count > Self.chipLimit {
+                AttendeeList(contacts: people, actions: actions)
             }
         }
     }
 
-    /// Full-name chips up to this headcount; past it the row drops to
-    /// initials-only dots.
+    /// Full-name chips up to this headcount; past it the row shows initials.
     private static let chipLimit = 4
-    /// Hard ceiling on dots before the overflow pill absorbs the rest. This
-    /// constant — not measurement — is what keeps the row from pushing its
-    /// container wider than the window at high headcount.
-    private static let dotLimit = 8
 
-    /// The arrangement is chosen from the headcount alone, deliberately NOT by
-    /// measuring. A `ViewThatFits` here had to realize *every* candidate's
-    /// element list — Text, Capsule background, `.help`, `.contextMenu`, and a
-    /// popover per overflow pill — on every layout pass, and with a `ForEach`
-    /// inside each candidate that came to dominate the main thread (73% of it
-    /// in a sample, rebuilding view elements and AttributeGraph nodes rather
-    /// than just sizing). Fixed caps bound the width just as well, in O(1).
+    /// Chips or dots — chosen from the headcount alone, never by measuring
+    /// (a `ViewThatFits` here once cost most of the main thread). Every dot
+    /// is shown; a `FlowLayout` wraps them rather than an overflow pill
+    /// hiding the tail, and the expanding list below carries the names.
     @ViewBuilder
     private func roster(_ people: [Contact]) -> some View {
         if people.count <= Self.chipLimit {
             HStack(spacing: 6) {
                 ForEach(people) { contact in
-                    ContactChip(contact: contact) { remove(contact) }
+                    ContactChip(contact: contact, actions: actions(contact))
                 }
             }
         } else {
-            let shown = people.prefix(Self.dotLimit)
-            let hidden = people.count - shown.count
-            HStack(spacing: 3) {
-                ForEach(shown) { contact in
-                    CompactContactDot(contact: contact) { remove(contact) }
-                }
-                if hidden > 0 {
-                    AttendeeOverflowPill(
-                        label: "+\(hidden)",
-                        systemImage: nil,
-                        contacts: people,
-                        onRemove: remove
-                    )
+            FlowLayout(spacing: 3, rowAlignment: .center) {
+                ForEach(people) { contact in
+                    CompactContactDot(contact: contact, actions: actions(contact)) { inside in
+                        if inside {
+                            hovered = contact
+                        } else if hovered?.id == contact.id {
+                            hovered = nil
+                        }
+                    }
                 }
             }
         }
     }
 
+    private func actions(_ contact: Contact) -> AttendeeActions {
+        AttendeeActions(
+            isAbsent: meeting.isAbsent(contact),
+            onToggleAbsent: { meeting.setAbsent(contact, !meeting.isAbsent(contact)) },
+            onRemove: { remove(contact) }
+        )
+    }
+
     private func remove(_ contact: Contact) {
+        if hovered?.id == contact.id { hovered = nil }
+        meeting.setAbsent(contact, false)
         meeting.attendees.removeAll { $0.id == contact.id }
     }
 }

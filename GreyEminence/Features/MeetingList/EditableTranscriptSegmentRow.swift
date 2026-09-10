@@ -14,6 +14,8 @@ struct EditableTranscriptSegmentRow: View {
     /// When set (meeting has captured screen frames), the timestamp becomes
     /// a click target that seeks the screen-share player to this moment.
     var onSeekToTime: ((TimeInterval) -> Void)?
+    /// Click the speaker badge to show only that voice's lines.
+    var onFilterSpeaker: ((Speaker) -> Void)?
     /// Play (or stop) the recorded audio behind this segment. Only offered
     /// for completed meetings whose audio is on disk to be read.
     var onPlayAudio: (() -> Void)?
@@ -160,7 +162,7 @@ struct EditableTranscriptSegmentRow: View {
 
     @ViewBuilder
     private var speakerBadgeView: some View {
-        SpeakerBadge(speaker: segment.speaker)
+        badgeButton
             .contextMenu {
                 Button("Change Speaker...") {
                     showContactPicker = true
@@ -194,6 +196,23 @@ struct EditableTranscriptSegmentRow: View {
             .popover(isPresented: $showSpeakerRename) {
                 speakerRenamePopover
             }
+    }
+
+    /// The badge itself. A plain button when filtering is available, so the
+    /// right-click menu (change / rename speaker) keeps working either way.
+    @ViewBuilder
+    private var badgeButton: some View {
+        if let onFilterSpeaker {
+            Button {
+                onFilterSpeaker(segment.speaker)
+            } label: {
+                SpeakerBadge(speaker: segment.speaker)
+            }
+            .buttonStyle(.plain)
+            .help("Show only \(segment.speaker.displayName)\u{2019}s lines")
+        } else {
+            SpeakerBadge(speaker: segment.speaker)
+        }
     }
 
     // MARK: - Speaker Rename Popover

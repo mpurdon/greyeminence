@@ -64,7 +64,7 @@ enum ReportModelBuilder {
             title: meeting.title,
             date: meeting.date,
             duration: meeting.formattedDuration,
-            attendees: meeting.attendees.map(\.name).sorted(),
+            attendees: meeting.presentAttendees.map(\.name).sorted(),
             sourceApp: MeetingAppRegistry.displayName(
                 for: meeting.sourceAppBundleID,
                 fallback: meeting.sourceAppName

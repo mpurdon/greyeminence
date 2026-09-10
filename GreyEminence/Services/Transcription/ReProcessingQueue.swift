@@ -257,7 +257,13 @@ final class ReProcessingQueue {
         let promptText = HighQualityTranscriber.promptText(
             title: correctionContext.title,
             participants: correctionContext.participants,
-            vocabulary: correctionContext.vocabulary,
+            // Whisper's prompt is prose, not a weighted list, so it takes the
+            // terms flat — but not the ones weighted as barely-ever, which is
+            // the same reason the repair pass quarantines them.
+            vocabulary: correctionContext.terms
+                .filter { $0.boost > TranscriptCorrectionService.Context.rareBoostThreshold }
+                .sorted { $0.boost > $1.boost }
+                .map(\.text),
             topics: correctionContext.topics
         )
         let upgraded: [HighQualityTranscriber.Segment]

@@ -27,6 +27,11 @@ struct DedupDebugRow: View {
                         value: String(format: "%.2f", info.textSimilarity),
                         pass: info.textSimilarity >= TranscriptDeduplicator.textSimilarityThreshold
                     )
+                    scoreTag(
+                        label: "contained",
+                        value: String(format: "%.2f", info.containment),
+                        pass: info.fragmentTimingOk && info.containment >= TranscriptDeduplicator.containmentThreshold
+                    )
                     if info.wouldRemove {
                         Text("DUPLICATE")
                             .font(.caption2)

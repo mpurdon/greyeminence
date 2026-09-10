@@ -89,7 +89,7 @@ enum ObsidianExportService {
         lines.append("date: \(dateString)")
         lines.append("duration: \(meeting.formattedDuration)")
         lines.append("tags: [\(tagList)]")
-        let attendeeNames = meeting.attendees.sorted { $0.name < $1.name }.map(\.name)
+        let attendeeNames = meeting.presentAttendees.sorted { $0.name < $1.name }.map(\.name)
         if !attendeeNames.isEmpty {
             let attendeeList = attendeeNames.map { "\"\($0)\"" }.joined(separator: ", ")
             lines.append("attendees: [\(attendeeList)]")

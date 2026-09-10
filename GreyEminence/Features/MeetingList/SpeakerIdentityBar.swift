@@ -11,6 +11,10 @@ struct SpeakerIdentityBar: View {
     let meeting: Meeting
     /// Bumped by the parent after an edit so the list recomputes.
     var refreshToken: Int = 0
+    /// Show only this voice's lines in the transcript. The point of naming a
+    /// voice is listening to it first, and a minute of speech in a two-hour
+    /// call is otherwise unfindable.
+    var onFilterSpeaker: ((String) -> Void)?
 
     @Environment(\.modelContext) private var modelContext
     @State private var picking: SpeakerIdentityService.Unidentified?
@@ -55,7 +59,7 @@ struct SpeakerIdentityBar: View {
         .popover(item: $picking) { speaker in
             ContactPicker(
                 excludedContacts: [],
-                prioritizedContacts: meeting.attendees
+                prioritizedContacts: meeting.presentAttendees
             ) { contact in
                 SpeakerIdentityService.identify(
                     label: speaker.label,
@@ -71,6 +75,24 @@ struct SpeakerIdentityBar: View {
 
     @ViewBuilder
     private func chip(_ speaker: SpeakerIdentityService.Unidentified) -> some View {
+        HStack(spacing: 2) {
+            identifyButton(speaker)
+            if let onFilterSpeaker {
+                Button {
+                    onFilterSpeaker(speaker.label)
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Show only this voice's lines, so you can listen before naming them")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func identifyButton(_ speaker: SpeakerIdentityService.Unidentified) -> some View {
         Button {
             picking = speaker
         } label: {

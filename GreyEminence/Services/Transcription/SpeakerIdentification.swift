@@ -123,7 +123,7 @@ enum SpeakerIdentification {
 
         let resolutions = resolve(
             clusters: clusters,
-            attendeeIDs: Set(meeting.attendees.map(\.id)),
+            attendeeIDs: Set(meeting.presentAttendees.map(\.id)),
             profiles: VoiceProfileStore.load()
         )
         for resolution in resolutions where resolution.identified != nil {

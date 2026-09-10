@@ -48,7 +48,6 @@ final class RecordingViewModel {
     /// The mic-silence auto-pause consults this so it doesn't trip while the
     /// user is merely listening to a meeting (mic quiet, system audio flowing) —
     /// only a genuine device fault (both streams silent) should pause.
-    private var lastSystemAudioActivityAt: Date?
     /// Total write failures for the current recording (mic + system). Exposed
     /// so the recording surface can flag "this recording had write errors"
     /// instead of the previous silent `try?` swallow.
@@ -67,6 +66,15 @@ final class RecordingViewModel {
     private let log = LogManager.shared
     private var timer: Timer?
     private var processingTasks: [Task<Void, Never>] = []
+    /// The two loops that move audio from the capture streams to disk. Held
+    /// apart from `processingTasks` because stopping must *wait* for them:
+    /// cancelling them and stopping the writer threw away whatever the
+    /// stream still held — nine minutes of the far side, on 2026-09-10.
+    private var micConsumerTask: Task<Void, Never>?
+    private var sysConsumerTask: Task<Void, Never>?
+    /// Levels and consumption counters, written by the loops off-main and
+    /// copied to `micLevel` / `systemLevel` by a 10 Hz task.
+    let levelMeter = AudioLevelMeter()
     private var modelContext: ModelContext?
     private var lastPersistedSegmentCount: Int = 0
 
@@ -247,7 +255,7 @@ final class RecordingViewModel {
         // series matching lives in CalendarService.linkEvent (shared with the
         // post-hoc "link a past meeting" flow).
         calendarService.linkEvent(event, to: meeting, in: modelContext, setTitle: true)
-        speakerContactMapper.prepopulate(from: meeting.attendees)
+        speakerContactMapper.prepopulate(from: meeting.presentAttendees)
     }
 
     /// Manual variant invoked from the recording toolbar. Operates on the
@@ -272,7 +280,7 @@ final class RecordingViewModel {
         // The event's attendees were just pruned; rebuild the speaker mappings
         // from scratch so aliases of removed contacts stop claiming speakers.
         speakerContactMapper.reset()
-        speakerContactMapper.prepopulate(from: meeting.attendees)
+        speakerContactMapper.prepopulate(from: meeting.presentAttendees)
         log.log("Calendar event unlinked from recording", category: .general)
         PersistenceGate.save(
             modelContext,
@@ -325,7 +333,7 @@ final class RecordingViewModel {
         lastAudioWriteError = nil
 
         // Re-populate speaker mapper from attendees
-        speakerContactMapper.prepopulate(from: meeting.attendees)
+        speakerContactMapper.prepopulate(from: meeting.presentAttendees)
 
         log.log("Resuming interrupted recording (\(sorted.count) existing segments, \(meeting.formattedDuration) elapsed)", category: .audio)
 
@@ -544,7 +552,7 @@ final class RecordingViewModel {
         completedMeeting = nil
         audioWriteFailures = 0
         lastAudioWriteError = nil
-        lastSystemAudioActivityAt = nil
+        levelMeter.reset()
 
         // Persist active recording ID so we can detect interrupted recordings on restart.
         // Two-layer breadcrumb: UserDefaults for fast lookup, lock file on disk as a
@@ -656,10 +664,14 @@ final class RecordingViewModel {
             task.cancel()
         }
         processingTasks = []
+        micConsumerTask?.cancel()
+        sysConsumerTask?.cancel()
         intelligenceService = nil
 
         await micCapture.stopCapture()
         await systemCapture.stopCapture()
+        // The caller has a hard ~5 s budget; spend some of it on the backlog.
+        await drainAudioConsumers(timeout: .seconds(3))
         await screenCapture.stop()
         let micWriter = self.micFileWriter
         let sysWriter = self.systemFileWriter
@@ -736,11 +748,15 @@ final class RecordingViewModel {
         }
         self.modelContext = modelContext
 
-        // Cancel all processing tasks
+        // Cancel all processing tasks. The audio loops are cancelled too,
+        // but cancellation only stops their analysis — they keep writing
+        // until the streams end, and the stop below waits for that.
         for task in processingTasks {
             task.cancel()
         }
         processingTasks = []
+        micConsumerTask?.cancel()
+        sysConsumerTask?.cancel()
 
         let service = intelligenceService
         intelligenceService = nil
@@ -757,6 +773,7 @@ final class RecordingViewModel {
                 guard let self else { return }
                 await self.micCapture.stopCapture()
                 await self.systemCapture.stopCapture()
+                await self.drainAudioConsumers(timeout: .seconds(60))
                 await self.screenCapture.stop()
                 await micWriter?.stop()
                 await sysWriter?.stop()
@@ -773,9 +790,12 @@ final class RecordingViewModel {
         Task { @MainActor [weak self] in
             guard let self else { return }
 
-            // Stop audio capture first (no more audio flowing in)
+            // Stop audio capture first (no more audio flowing in), then let
+            // the loops write out anything the streams still hold before
+            // the writers close — the backlog is real audio.
             await micCapture.stopCapture()
             await systemCapture.stopCapture()
+            await drainAudioConsumers(timeout: .seconds(60))
             let finalMicWriter = self.micFileWriter
             let finalSysWriter = self.systemFileWriter
             self.micFileWriter = nil
@@ -1492,7 +1512,10 @@ final class RecordingViewModel {
                 let captureStart = Date()
 
                 for await taggedBuffer in micStream {
-                    guard !Task.isCancelled else { break }
+                    // Cancellation means "stop as soon as the stream is
+                    // drained", never "drop what is buffered": the writer
+                    // below still gets every buffer, only the analysis stops.
+                    let draining = Task.isCancelled
 
                     let level = self.calculateRMS(taggedBuffer.buffer)
                     bufferCount += 1
@@ -1510,12 +1533,23 @@ final class RecordingViewModel {
                     // otherwise the reset zeroes the counters and the next
                     // buffer flips the freshly-empty average to 0 and trips
                     // the auto-pause spuriously.
-                    if Date().timeIntervalSince(lastDiagLog) > 30 {
+                    if !draining, Date().timeIntervalSince(lastDiagLog) > 30 {
                         let avg = summedAmplitude / Float(max(bufferCount, 1))
                         let bufferCountAtFlush = bufferCount
-                        await MainActor.run {
-                            self.log.log("Mic activity: \(bufferCountAtFlush) buffers, avg RMS \(String(format: "%.4f", avg)) over last 30s", category: .audio, level: avg < 0.001 ? .warning : .info)
-                        }
+                        let backlog = AudioLevelMeter.backlog(
+                            delivered: micCapture.deliveredBufferCount,
+                            consumed: self.levelMeter.snapshot.micConsumed
+                        )
+                        let backlogSeconds = AudioLevelMeter.backlogSeconds(
+                            buffers: backlog,
+                            framesPerBuffer: Int(taggedBuffer.buffer.frameLength),
+                            sampleRate: taggedBuffer.buffer.format.sampleRate
+                        )
+                        LogManager.send(
+                            "Mic activity: \(bufferCountAtFlush) buffers, avg RMS \(String(format: "%.4f", avg)) over last 30s, backlog \(backlog) (\(String(format: "%.1f", backlogSeconds))s)",
+                            category: .audio,
+                            level: avg < 0.001 || backlogSeconds > AudioLevelMeter.backlogWarningSeconds ? .warning : .info
+                        )
 
                         // Auto-pause only when the mic has been silent AND no
                         // system audio is flowing — that combination means a real
@@ -1527,10 +1561,10 @@ final class RecordingViewModel {
                            Date().timeIntervalSince(captureStart) > 60,
                            bufferCountAtFlush > 0,
                            avg < 0.0005 {
-                            let systemRecentlyActive = await MainActor.run {
-                                guard let last = self.lastSystemAudioActivityAt else { return false }
+                            let systemRecentlyActive: Bool = {
+                                guard let last = self.levelMeter.snapshot.lastSystemActivity else { return false }
                                 return Date().timeIntervalSince(last) < 45
-                            }
+                            }()
                             if systemRecentlyActive {
                                 await MainActor.run {
                                     self.log.log("Mic silent (avg RMS \(String(format: "%.4f", avg))) but system audio active — keeping recording.", category: .audio)
@@ -1575,12 +1609,14 @@ final class RecordingViewModel {
                         if stop { break }
                     }
 
-                    await MainActor.run {
-                        self.micLevel = level
-                    }
+                    self.levelMeter.recordMic(level: level)
 
-                    // Feed to transcription coordinator
-                    await self.coordinator.feedMicAudio(taggedBuffer.buffer, at: taggedBuffer.timestamp)
+                    // Feed to transcription coordinator — not while draining;
+                    // the coordinator is being stopped and the point of the
+                    // drain is the file.
+                    if !draining {
+                        await self.coordinator.feedMicAudio(taggedBuffer.buffer, at: taggedBuffer.timestamp)
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -1589,15 +1625,18 @@ final class RecordingViewModel {
                 }
             }
         }
-        processingTasks.append(micTask)
+        micConsumerTask = micTask
 
         // Start system audio capture
         let sysTask = Task {
             do {
                 let sysStream = try await systemCapture.startCapture()
+                var bufferCount = 0
+                var summedAmplitude: Float = 0
+                var lastDiagLog = Date()
 
                 for await taggedBuffer in sysStream {
-                    guard !Task.isCancelled else { break }
+                    let draining = Task.isCancelled
 
                     if !(await sysWriter.isWriting) {
                         do {
@@ -1622,20 +1661,42 @@ final class RecordingViewModel {
                         if stop { break }
                     }
 
-                    // Calculate system level for UI
+                    // Level for the UI, without waiting on the main actor:
+                    // that wait is what starved this loop (see AudioLevelMeter).
                     let level = self.calculateRMS(taggedBuffer.buffer)
-                    await MainActor.run {
-                        self.systemLevel = level
-                        if level > 0.0005 {
-                            self.lastSystemAudioActivityAt = Date()
-                        }
+                    self.levelMeter.recordSystem(level: level)
+                    bufferCount += 1
+                    summedAmplitude += level
+
+                    // The same 30 s health line the mic has had, plus the
+                    // backlog — the number that names this failure.
+                    if !draining, Date().timeIntervalSince(lastDiagLog) > 30 {
+                        let avg = summedAmplitude / Float(max(bufferCount, 1))
+                        let backlog = AudioLevelMeter.backlog(
+                            delivered: systemCapture.deliveredBufferCount,
+                            consumed: self.levelMeter.snapshot.systemConsumed
+                        )
+                        let backlogSeconds = AudioLevelMeter.backlogSeconds(
+                            buffers: backlog,
+                            framesPerBuffer: Int(taggedBuffer.buffer.frameLength),
+                            sampleRate: taggedBuffer.buffer.format.sampleRate
+                        )
+                        LogManager.send(
+                            "System activity: \(bufferCount) buffers, avg RMS \(String(format: "%.4f", avg)) over last 30s, backlog \(backlog) (\(String(format: "%.1f", backlogSeconds))s)",
+                            category: .audio,
+                            level: backlogSeconds > AudioLevelMeter.backlogWarningSeconds ? .warning : .info
+                        )
+                        bufferCount = 0
+                        summedAmplitude = 0
+                        lastDiagLog = Date()
                     }
 
-                    // Feed to transcription coordinator
-                    await self.coordinator.feedSystemAudio(
-                        taggedBuffer.buffer,
-                        at: taggedBuffer.timestamp
-                    )
+                    if !draining {
+                        await self.coordinator.feedSystemAudio(
+                            taggedBuffer.buffer,
+                            at: taggedBuffer.timestamp
+                        )
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -1644,9 +1705,61 @@ final class RecordingViewModel {
                 }
             }
         }
-        processingTasks.append(sysTask)
+        sysConsumerTask = sysTask
 
+        startLevelPublisher()
         startAudioFlowWatchdog()
+    }
+
+    /// Copies levels from the meter to the observable properties at 10 Hz —
+    /// as often as a level bar can usefully move, and a hundredth of the
+    /// rate the system loop used to publish at.
+    private func startLevelPublisher() {
+        let meter = levelMeter
+        let task = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard let self else { return }
+                let snapshot = meter.snapshot
+                await MainActor.run {
+                    self.micLevel = snapshot.micLevel
+                    self.systemLevel = snapshot.systemLevel
+                }
+            }
+        }
+        processingTasks.append(task)
+    }
+
+    /// Wait for the audio loops to write out whatever the streams still hold.
+    /// Call after `stopCapture()` (which ends the streams) and before the
+    /// writers stop. Bounded, so a wedged writer cannot hang the stop.
+    private func drainAudioConsumers(timeout: Duration) async {
+        let tasks = [micConsumerTask, sysConsumerTask].compactMap { $0 }
+        micConsumerTask = nil
+        sysConsumerTask = nil
+        guard !tasks.isEmpty else { return }
+        let started = Date()
+        let finished = await withTaskGroup(of: Bool.self) { group -> Bool in
+            group.addTask {
+                for task in tasks { _ = await task.value }
+                return true
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return false
+            }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+        let elapsed = Date().timeIntervalSince(started)
+        if finished {
+            if elapsed > 1 {
+                log.log("Audio consumers drained in \(String(format: "%.1f", elapsed))s — the loops had fallen behind", category: .audio, level: .warning)
+            }
+        } else {
+            log.log("Audio consumers did not finish draining within \(timeout) — stopping writers anyway", category: .audio, level: .error)
+        }
     }
 
     /// Poll capture services every 2 s for "no buffer received in too long".
