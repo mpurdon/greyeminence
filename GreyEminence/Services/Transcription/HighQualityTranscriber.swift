@@ -17,6 +17,11 @@ actor HighQualityTranscriber {
         /// values do not mean correct — a fluent mis-hearing scores well —
         /// but low values reliably mark garbled audio worth a listen.
         var confidence: Float = 1
+        /// RMS of the audio under this segment, from the 16 kHz mono samples
+        /// Whisper decoded. On the mic track it separates the user's own
+        /// voice from the far side heard through the speakers, which a good
+        /// microphone picks up clearly but much more quietly.
+        var level: Float = 0
     }
 
     enum Source: Sendable {
@@ -432,7 +437,8 @@ actor HighQualityTranscriber {
                                 text: text,
                                 startTime: chunkBaseOffset + subOffset + TimeInterval(seg.start),
                                 endTime: chunkBaseOffset + subOffset + TimeInterval(seg.end),
-                                confidence: Self.confidence(fromAvgLogprob: seg.avgLogprob)
+                                confidence: Self.confidence(fromAvgLogprob: seg.avgLogprob),
+                                level: Self.level(of: subSamples, from: seg.start, to: seg.end)
                             ))
                         }
                     }
@@ -479,6 +485,16 @@ actor HighQualityTranscriber {
         let range = NSRange(raw.startIndex..., in: raw)
         let stripped = specialTokenRegex.stringByReplacingMatches(in: raw, range: range, withTemplate: "")
         return stripped.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// RMS of the samples between two segment times (seconds into `samples`,
+    /// which are 16 kHz). Bounds are clamped: Whisper's segment times can
+    /// overshoot the audio it was given by a frame or two.
+    nonisolated static func level(of samples: [Float], from start: Float, to end: Float) -> Float {
+        let lower = max(0, Int(start * 16000))
+        let upper = min(samples.count, Int(end * 16000))
+        guard upper > lower else { return 0 }
+        return rms(Array(samples[lower..<upper]))
     }
 
     nonisolated private static func rms(_ samples: [Float]) -> Float {

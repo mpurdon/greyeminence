@@ -278,9 +278,17 @@ enum SchemaV20: VersionedSchema {
     static var models: [any PersistentModel.Type] { SchemaV19.models }
 }
 
+/// SchemaV21 adds `TranscriptSegment.micLevel` — loudness of the mic audio
+/// under a line, for telling speaker bleed from the user's voice. One
+/// optional attribute — lightweight migration; existing rows get nil.
+enum SchemaV21: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(21, 0, 0) }
+    static var models: [any PersistentModel.Type] { SchemaV20.models }
+}
+
 enum GreyEminenceMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self, SchemaV5.self, SchemaV6.self, SchemaV7.self, SchemaV8.self, SchemaV9.self, SchemaV10.self, SchemaV11.self, SchemaV12.self, SchemaV13.self, SchemaV14.self, SchemaV15.self, SchemaV16.self, SchemaV17.self, SchemaV18.self, SchemaV19.self, SchemaV20.self]
+        [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self, SchemaV5.self, SchemaV6.self, SchemaV7.self, SchemaV8.self, SchemaV9.self, SchemaV10.self, SchemaV11.self, SchemaV12.self, SchemaV13.self, SchemaV14.self, SchemaV15.self, SchemaV16.self, SchemaV17.self, SchemaV18.self, SchemaV19.self, SchemaV20.self, SchemaV21.self]
     }
 
     static var stages: [MigrationStage] {
@@ -303,7 +311,8 @@ enum GreyEminenceMigrationPlan: SchemaMigrationPlan {
             .lightweight(fromVersion: SchemaV16.self, toVersion: SchemaV17.self),
             .lightweight(fromVersion: SchemaV17.self, toVersion: SchemaV18.self),
             .lightweight(fromVersion: SchemaV18.self, toVersion: SchemaV19.self),
-            .lightweight(fromVersion: SchemaV19.self, toVersion: SchemaV20.self)
+            .lightweight(fromVersion: SchemaV19.self, toVersion: SchemaV20.self),
+            .lightweight(fromVersion: SchemaV20.self, toVersion: SchemaV21.self)
         ]
     }
 }

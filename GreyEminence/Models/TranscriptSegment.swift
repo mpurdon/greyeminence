@@ -14,6 +14,13 @@ final class TranscriptSegment {
     // Confidence indicator
     var confidence: Float = 1.0
 
+    /// Loudness of the microphone audio under this line (RMS, 16 kHz mono),
+    /// set by re-processing for mic-sourced lines. nil for the far side and
+    /// for lines that predate the measurement. The far side heard through
+    /// the speakers is far quieter than the user's own voice, which is how
+    /// echo is told apart from speech even when the words differ.
+    var micLevel: Float?
+
     // Transcript corrections
     var isEdited: Bool = false
     var originalText: String?

@@ -509,11 +509,16 @@ final class ReProcessingQueue {
                 isFinal: true
             )
             segment.confidence = seg.confidence
+            if seg.source == .mic { segment.micLevel = seg.level }
             return segment
         }
         let dedup = TranscriptDeduplicator.deduplicate(raw)
-        if dedup.removedCount > 0 {
-            LogManager.send("Re-processing dedup removed \(dedup.removedCount) echo segment(s)", category: .transcription)
+        if dedup.removedCount > 0 || dedup.reassignedCount > 0 {
+            LogManager.send(
+                "Re-processing dedup removed \(dedup.removedCount) echo segment(s), reattributed \(dedup.reassignedCount) quiet line(s) to the far side"
+                    + (dedup.userLevelBaseline.map { String(format: " (user voice baseline RMS %.4f)", $0) } ?? ""),
+                category: .transcription
+            )
         }
 
         var totalDuration: TimeInterval = 0

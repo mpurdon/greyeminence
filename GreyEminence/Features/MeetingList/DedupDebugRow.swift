@@ -4,8 +4,11 @@ struct DedupDebugRow: View {
     let mic: TranscriptSegment
     let systemSegments: [TranscriptSegment]
 
+    /// The user's own-voice baseline, from every mic line in the meeting.
+    var userLevelBaseline: Float? = nil
+
     private var info: TranscriptDeduplicator.MatchDebugInfo? {
-        TranscriptDeduplicator.debugMatch(mic: mic, sortedSystemSegments: systemSegments)
+        TranscriptDeduplicator.debugMatch(mic: mic, sortedSystemSegments: systemSegments, userLevelBaseline: userLevelBaseline)
     }
 
     var body: some View {
@@ -32,6 +35,13 @@ struct DedupDebugRow: View {
                         value: String(format: "%.2f", info.containment),
                         pass: info.fragmentTimingOk && info.containment >= TranscriptDeduplicator.containmentThreshold
                     )
+                    if let ratio = info.levelRatio {
+                        scoreTag(
+                            label: "loudness",
+                            value: String(format: "%.0f%% of you", ratio * 100),
+                            pass: TranscriptDeduplicator.isQuiet(ratio)
+                        )
+                    }
                     if info.wouldRemove {
                         Text("DUPLICATE")
                             .font(.caption2)

@@ -478,11 +478,18 @@ struct TranscriptPanelView: View {
 
     private var transcriptList: some View {
         let systemSegments = showDedupDebug ? sortedSegments.filter { !$0.speaker.isMe } : []
+        let userLevelBaseline: Float? = showDedupDebug
+            ? TranscriptDeduplicator.userLevelBaseline(
+                micSegments: sortedSegments.filter(\.speaker.isMe),
+                systemSegments: systemSegments,
+                sysMids: systemSegments.map { ($0.startTime + $0.endTime) / 2 }
+            )
+            : nil
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     ForEach(visibleSegments) { segment in
-                        transcriptRow(segment, systemSegments: systemSegments)
+                        transcriptRow(segment, systemSegments: systemSegments, userLevelBaseline: userLevelBaseline)
                             .id(segment.id)
                             .padding(.vertical, 2)
                             .background(
@@ -513,7 +520,7 @@ struct TranscriptPanelView: View {
     }
 
     @ViewBuilder
-    private func transcriptRow(_ segment: TranscriptSegment, systemSegments: [TranscriptSegment]) -> some View {
+    private func transcriptRow(_ segment: TranscriptSegment, systemSegments: [TranscriptSegment], userLevelBaseline: Float?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if meeting.status == .completed {
                 EditableTranscriptSegmentRow(
@@ -547,7 +554,7 @@ struct TranscriptPanelView: View {
                 TranscriptSegmentRow(segment: segment)
             }
             if showDedupDebug && segment.speaker.isMe {
-                DedupDebugRow(mic: segment, systemSegments: systemSegments)
+                DedupDebugRow(mic: segment, systemSegments: systemSegments, userLevelBaseline: userLevelBaseline)
             }
         }
     }
@@ -638,7 +645,7 @@ struct TranscriptPanelView: View {
     private func deduplicateTranscript() {
         let snapshots = sortedSegments
         let result = TranscriptDeduplicator.deduplicate(snapshots)
-        guard result.removedCount > 0 else { return }
+        guard result.removedCount > 0 || result.reassignedCount > 0 else { return }
         for removed in result.removedSegments {
             if let seg = meeting.segments.first(where: { $0.id == removed.id }) {
                 modelContext.delete(seg)
@@ -646,7 +653,7 @@ struct TranscriptPanelView: View {
         }
         saveEdit(site: "deduplicateTranscript")
         rebuildSegments()
-        LogManager.send("Manual dedup removed \(result.removedCount) segment(s)", category: .transcription)
+        LogManager.send("Manual dedup removed \(result.removedCount) segment(s), reattributed \(result.reassignedCount) quiet line(s)", category: .transcription)
     }
 
     private func revertAllEdits() {

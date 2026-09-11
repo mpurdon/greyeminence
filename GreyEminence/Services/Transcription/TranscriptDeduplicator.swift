@@ -39,10 +39,33 @@ struct TranscriptDeduplicator {
     /// little after it ends — not from the line's start alone.
     static let maxTrailingEcho: Double = 8.0
 
+    // MARK: Loudness
+
+    /// The far side heard through the speakers is much quieter on the mic
+    /// than the user's own voice. Below this fraction of the user's baseline
+    /// a mic line is treated as someone else's, and the text only has to
+    /// resemble a system line rather than match it.
+    static let quietRatio: Float = 0.4
+    /// Text thresholds for a quiet line — the loudness has already done most
+    /// of the work, so the words need only corroborate.
+    static let quietSimilarityThreshold: Double = 0.25
+    static let quietContainmentThreshold: Double = 0.5
+    /// A baseline needs this many mic lines that are certainly the user's
+    /// (nothing on the far side near them) before loudness is trusted.
+    static let minBaselineSamples = 4
+
     struct DeduplicationResult {
         let segments: [TranscriptSegment]
         let removedCount: Int
         let removedSegments: [TranscriptSegment]
+        /// Quiet mic lines that matched nothing but were spoken while the
+        /// far side was talking: relabelled to the unidentified far-side
+        /// speaker rather than left as the user's words.
+        var reassignedCount: Int = 0
+        var reassignedSegments: [TranscriptSegment] = []
+        /// The user's own-voice RMS the quiet test was measured against, or
+        /// nil when there was not enough to measure.
+        var userLevelBaseline: Float? = nil
     }
 
     /// Scores for the best-matching system segment against a mic segment.
@@ -56,14 +79,19 @@ struct TranscriptDeduplicator {
         let containment: Double
         /// The fragment's start fell inside the system line's span (plus slack).
         let fragmentTimingOk: Bool
+        /// Mic loudness as a fraction of the user's baseline; nil when
+        /// unmeasured. Under `quietRatio` this line is somebody else.
+        let levelRatio: Float?
         let wouldRemove: Bool
     }
 
     /// Returns debug scoring info for a single mic segment against all system segments.
     /// Returns the best candidate (highest text similarity among those passing midpoint check).
     /// `systemSegments` must be sorted by `startTime` ascending.
-    static func debugMatch(mic: TranscriptSegment, sortedSystemSegments: [TranscriptSegment]) -> MatchDebugInfo? {
+    static func debugMatch(mic: TranscriptSegment, sortedSystemSegments: [TranscriptSegment], userLevelBaseline: Float? = nil) -> MatchDebugInfo? {
         guard !mic.text.hasPrefix("[Note]") else { return nil }
+        let ratio = levelRatio(of: mic, baseline: userLevelBaseline)
+        let quiet = isQuiet(ratio)
         let micMid = (mic.startTime + mic.endTime) / 2.0
         let windowLow  = micMid - maxMidpointGap
         let windowHigh = micMid + maxMidpointGap
@@ -81,8 +109,11 @@ struct TranscriptDeduplicator {
             let timingOk = delay >= -maxLeadTime && delay <= maxEchoDelay
             let containment = fragmentContainment(mic.text, in: sys.text)
             let fragmentTimingOk = fragmentTiming(micStart: mic.startTime, sys: sys)
-            let wouldRemove = (timingOk && similarity >= textSimilarityThreshold)
-                || (fragmentTimingOk && containment >= containmentThreshold)
+            let wouldRemove = isDuplicate(
+                similarity: similarity, timingOk: timingOk,
+                containment: containment, fragmentTimingOk: fragmentTimingOk,
+                quiet: quiet
+            )
 
             let score = max(similarity, containment)
             if best == nil || score > max(best!.textSimilarity, best!.containment) {
@@ -93,6 +124,7 @@ struct TranscriptDeduplicator {
                     textSimilarity: similarity,
                     containment: containment,
                     fragmentTimingOk: fragmentTimingOk,
+                    levelRatio: ratio,
                     wouldRemove: wouldRemove
                 )
             }
@@ -117,12 +149,15 @@ struct TranscriptDeduplicator {
 
         // Pre-extract midpoints for binary search (both arrays are startTime-sorted)
         let sysMids = systemSegments.map { ($0.startTime + $0.endTime) / 2.0 }
+        let baseline = userLevelBaseline(micSegments: micSegments, systemSegments: systemSegments, sysMids: sysMids)
 
         var micIDsToRemove = Set<UUID>()
+        var reassigned: [TranscriptSegment] = []
 
         for mic in micSegments {
             if mic.text.hasPrefix("[Note]") { continue }
 
+            let quiet = isQuiet(levelRatio(of: mic, baseline: baseline))
             let micMid = (mic.startTime + mic.endTime) / 2.0
             let windowLow  = micMid - maxMidpointGap
             let windowHigh = micMid + maxMidpointGap
@@ -131,22 +166,38 @@ struct TranscriptDeduplicator {
             let lo = lowerBound(sysMids, target: windowLow)
             // Scan forward until midpoint exceeds windowHigh
             var idx = lo
+            var farSideWasTalking = false
+            var matched = false
             while idx < systemSegments.count && sysMids[idx] <= windowHigh {
                 let sys = systemSegments[idx]
                 let delay = mic.startTime - sys.startTime
-                if delay >= -maxLeadTime && delay <= maxEchoDelay {
-                    let similarity = textSimilarity(mic.text, sys.text)
-                    if similarity >= textSimilarityThreshold {
-                        micIDsToRemove.insert(mic.id)
-                        break
-                    }
-                }
-                if fragmentTiming(micStart: mic.startTime, sys: sys),
-                   fragmentContainment(mic.text, in: sys.text) >= containmentThreshold {
+                let timingOk = delay >= -maxLeadTime && delay <= maxEchoDelay
+                let fragmentTimingOk = fragmentTiming(micStart: mic.startTime, sys: sys)
+                if timingOk || fragmentTimingOk { farSideWasTalking = true }
+                let similarity = timingOk ? textSimilarity(mic.text, sys.text) : 0
+                let containment = fragmentTimingOk ? fragmentContainment(mic.text, in: sys.text) : 0
+                if isDuplicate(
+                    similarity: similarity, timingOk: timingOk,
+                    containment: containment, fragmentTimingOk: fragmentTimingOk,
+                    quiet: quiet
+                ) {
                     micIDsToRemove.insert(mic.id)
+                    matched = true
                     break
                 }
                 idx += 1
+            }
+
+            // Quiet, unmatched, and the far side was talking: this is the
+            // speakers, transcribed differently from the system track (or
+            // missed by it). It is not the user's line. Relabel rather than
+            // delete — it may be the only record of those words.
+            if !matched, quiet, farSideWasTalking, mic.speaker.isMe {
+                if !mic.isEdited, mic.originalSpeakerData == nil {
+                    mic.originalSpeakerData = mic.speakerData
+                }
+                mic.speaker = .unidentified
+                reassigned.append(mic)
             }
         }
 
@@ -156,8 +207,72 @@ struct TranscriptDeduplicator {
         return DeduplicationResult(
             segments: kept,
             removedCount: removed.count,
-            removedSegments: removed
+            removedSegments: removed,
+            reassignedCount: reassigned.count,
+            reassignedSegments: reassigned,
+            userLevelBaseline: baseline
         )
+    }
+
+    // MARK: - Loudness helpers
+
+    /// The duplicate decision, shared by the pass and the debug row. A quiet
+    /// line needs far less textual agreement than a loud one.
+    static func isDuplicate(
+        similarity: Double, timingOk: Bool,
+        containment: Double, fragmentTimingOk: Bool,
+        quiet: Bool
+    ) -> Bool {
+        let similarityBar = quiet ? quietSimilarityThreshold : textSimilarityThreshold
+        let containmentBar = quiet ? quietContainmentThreshold : containmentThreshold
+        return (timingOk && similarity >= similarityBar)
+            || (fragmentTimingOk && containment >= containmentBar)
+    }
+
+    static func levelRatio(of mic: TranscriptSegment, baseline: Float?) -> Float? {
+        guard let baseline, baseline > 0, let level = mic.micLevel else { return nil }
+        return level / baseline
+    }
+
+    static func isQuiet(_ ratio: Float?) -> Bool {
+        guard let ratio else { return false }
+        return ratio < quietRatio
+    }
+
+    /// The loudness of the user's own voice: the median level of mic lines
+    /// with nothing on the far side anywhere near them, which are the user
+    /// beyond doubt. Falls back to the median of every levelled mic line
+    /// when too few are that clean, and to nil — loudness ignored — when
+    /// there is not enough to measure at all.
+    static func userLevelBaseline(
+        micSegments: [TranscriptSegment],
+        systemSegments: [TranscriptSegment],
+        sysMids: [Double]
+    ) -> Float? {
+        let levelled = micSegments.filter { ($0.micLevel ?? 0) > 0 }
+        guard !levelled.isEmpty else { return nil }
+
+        var solo: [Float] = []
+        for mic in levelled {
+            let micMid = (mic.startTime + mic.endTime) / 2.0
+            let lo = lowerBound(sysMids, target: micMid - maxMidpointGap)
+            var alone = true
+            var idx = lo
+            while idx < systemSegments.count && sysMids[idx] <= micMid + maxMidpointGap {
+                if fragmentTiming(micStart: mic.startTime, sys: systemSegments[idx]) { alone = false; break }
+                idx += 1
+            }
+            if alone, let level = mic.micLevel { solo.append(level) }
+        }
+        let pool = solo.count >= minBaselineSamples ? solo : levelled.compactMap(\.micLevel)
+        guard pool.count >= minBaselineSamples else { return nil }
+        return median(pool)
+    }
+
+    static func median(_ values: [Float]) -> Float {
+        let sorted = values.sorted()
+        let mid = sorted.count / 2
+        return sorted.count % 2 == 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
     }
 
     /// Whether a mic line could be an echo of any part of `sys`: it starts no
