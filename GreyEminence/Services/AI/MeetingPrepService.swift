@@ -80,7 +80,10 @@ final class MeetingPrepService {
         var followUps: [String] = []
         let now = Date.now
         for meeting in recent {
-            for item in meeting.actionItems where !item.isCompleted {
+            // Unresolved means neither done nor deliberately dropped. A
+            // "won't do" item is a decision already taken; surfacing it again
+            // next time is exactly the nag the status exists to stop.
+            for item in meeting.actionItems where !item.isCompleted && !item.isDismissed {
                 let days = Calendar.current.dateComponents([.day], from: item.createdAt, to: now).day ?? 0
                 unresolvedItems.append(PrepActionItem(
                     id: item.id,
