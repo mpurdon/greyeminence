@@ -21,6 +21,11 @@ final class FluidAsrService: @unchecked Sendable {
         var startTime: TimeInterval = 0
         var hasLoggedFirstBuffer = false
         var bufferCount = 0
+        /// Buffers handed to the recogniser and not yet consumed by it. Each
+        /// feed spawns a task; if the recogniser falls behind, these pile
+        /// up silently. Read by the re-processing queue as the sign that
+        /// background work is starving live transcription.
+        var inFlight = 0
     }
 
     private let state = OSAllocatedUnfairLock(initialState: MutableState())
@@ -127,9 +132,16 @@ final class FluidAsrService: @unchecked Sendable {
             LogManager.send("[\(sourceLabel)] Fed \(count) buffers to ASR", category: .transcription)
         }
         guard let mgr else { return }
-        Task {
+        state.withLock { $0.inFlight += 1 }
+        Task { [state] in
             await mgr.streamAudio(buffer)
+            state.withLock { $0.inFlight = max(0, $0.inFlight - 1) }
         }
+    }
+
+    /// Buffers the recogniser has been given and has not yet taken.
+    nonisolated var inFlightBuffers: Int {
+        state.withLock { $0.inFlight }
     }
 
     /// Stop recognition, finalize any remaining text, and clean up.

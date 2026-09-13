@@ -141,14 +141,31 @@ final class ReProcessingQueue {
     func yieldToLiveRecording() {
         guard let current else { return }
         let id = current.id
+        // Past transcription the job is a minute of AI calls and an index
+        // write — nothing that competes with the live recording. Yielding
+        // here re-queued a job that then finished on its own, and the whole
+        // meeting was transcribed again from scratch (2026-09-11, 33 min).
+        guard Self.isYieldable(current.phase) else {
+            LogManager.send("Re-processing of \"\(current.title)\" is in its \(current.phase.label.lowercased()) phase — letting it finish", category: .transcription)
+            return
+        }
         LogManager.send("Yielding re-processing of \"\(current.title)\" to live recording", category: .transcription)
-        pending.insert(id, at: 0)
+        if !pending.contains(id) { pending.insert(id, at: 0) }
         persistPending()
         if let context = modelContainer?.mainContext,
            let meeting = fetchMeeting(meetingID: id, in: context) {
             markState(meeting: meeting, state: .queued, in: context)
         }
         jobTask?.cancel()
+    }
+
+    /// Only the transcription phase is worth interrupting for a live
+    /// recording; everything after it is short and off the Neural Engine.
+    static func isYieldable(_ phase: ReProcessingState) -> Bool {
+        switch phase {
+        case .queued, .transcribing: true
+        case .correcting, .analyzing, .reindexing, .cancelling, .failed: false
+        }
     }
 
     // MARK: - Worker
@@ -178,10 +195,61 @@ final class ReProcessingQueue {
         current = nil
     }
 
+    // MARK: Running alongside a live recording
+
+    /// Re-processing used to wait for silence: five back-to-back meetings
+    /// meant four hours of audio queued behind the last one. It can share
+    /// the machine with a live recording, at low priority and under watch —
+    /// the moment the live pipeline shows a backlog, it yields for the rest
+    /// of that recording. The audio files are never at risk either way; the
+    /// cost of getting this wrong is a lagging live transcript.
+    static let runsDuringRecordingKey = "reprocess.runsDuringRecording"
+    static var runsDuringRecording: Bool {
+        UserDefaults.standard.object(forKey: runsDuringRecordingKey) as? Bool ?? true
+    }
+    /// Seconds into a recording before background work may start: the live
+    /// recogniser and diarizer load their models in this window, and that
+    /// is when contention was measured to freeze Whisper for minutes.
+    static let recordingGrace: TimeInterval = 90
+    /// Set when the live pipeline showed strain during this recording;
+    /// cleared when the recording ends. One strike is enough — the
+    /// recording is more important than the catch-up.
+    private var pausedForThisRecording = false
+    /// Whether the running job started while a recording was live, so the
+    /// watchdog knows to look.
+    private var jobRunsAlongsideRecording = false
+
+    /// Whether the queue may start or continue work right now.
+    private func mayRunNow() -> Bool {
+        guard let vm = recordingViewModel else { return false }
+        if vm.state == .idle {
+            pausedForThisRecording = false
+            return true
+        }
+        guard Self.runsDuringRecording, !pausedForThisRecording, let load = vm.liveLoad else { return false }
+        return load.secondsSinceStart >= Self.recordingGrace && load.isHealthy
+    }
+
+    /// Called from the worker while a job runs alongside a recording.
+    private func yieldIfLiveRecordingIsStrained() {
+        guard jobRunsAlongsideRecording, let vm = recordingViewModel, vm.state != .idle, let load = vm.liveLoad else { return }
+        guard !load.isHealthy else { return }
+        pausedForThisRecording = true
+        LogManager.send(
+            String(format: "Live recording is falling behind (audio backlog %.1fs, recognition backlog %.1fs) — pausing re-processing until it ends", load.audioBacklogSeconds, load.recognitionBacklogSeconds),
+            category: .transcription,
+            level: .warning
+        )
+        yieldToLiveRecording()
+    }
+
     private func workerTickThrowing() async throws {
         if recordingViewModel == nil { return }
-        if recordingViewModel?.state != .idle { return }
-        if current != nil { return }
+        if current != nil {
+            yieldIfLiveRecordingIsStrained()
+            return
+        }
+        guard mayRunNow() else { return }
         guard !pending.isEmpty else { return }
 
         guard Self.hasEnoughDiskSpaceForReProcess() else {
@@ -192,15 +260,41 @@ final class ReProcessingQueue {
         let meetingID = pending.removeFirst()
         persistPending()
         current = RunningJob(id: meetingID, title: "", phase: .queued)
+        jobRunsAlongsideRecording = recordingViewModel?.state != .idle
+        if jobRunsAlongsideRecording {
+            LogManager.send("Re-processing alongside the live recording at low priority", category: .transcription)
+        }
 
-        let task = Task { [weak self] in
+        // Utility priority: the live recording's work must win every
+        // scheduling decision this shares with it.
+        let task = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             await self.processJob(meetingID: meetingID)
         }
         jobTask = task
+        // The tick awaits the job, so the strain check runs from a sibling.
+        let watchdog = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                await self?.yieldIfLiveRecordingIsStrained()
+            }
+        }
         await task.value
+        watchdog.cancel()
+        jobRunsAlongsideRecording = false
         jobTask = nil
         current = nil
+        // A job that ran to completion must not be waiting in the queue as
+        // well — a yield that arrived in its final second used to leave it
+        // there, and it was then processed all over again.
+        if let context = modelContainer?.mainContext,
+           let meeting = fetchMeeting(meetingID: meetingID, in: context),
+           meeting.reProcessingState == nil,
+           pending.contains(meetingID) {
+            pending.removeAll { $0 == meetingID }
+            persistPending()
+            LogManager.send("ReProcessingQueue: dropped a stale re-queue of a meeting that already finished", category: .transcription)
+        }
     }
 
     /// Re-processing holds a ~1.5 GB WhisperKit model in memory and writes
@@ -346,8 +440,10 @@ final class ReProcessingQueue {
             return
         }
 
-        // Live recording started mid-transcription — requeue and let it run later.
-        if recordingViewModel?.state != .idle {
+        // A recording is live and background work is not allowed alongside
+        // it — requeue and let it run later. When it is allowed, carry on:
+        // what follows is a minute of AI calls and an index write.
+        if recordingViewModel?.state != .idle, !Self.runsDuringRecording {
             LogManager.send("Live recording started during reprocess of \(meetingID); requeueing", category: .transcription)
             pending.insert(meetingID, at: 0)
             persistPending()

@@ -75,6 +75,42 @@ final class RecordingViewModel {
     /// Levels and consumption counters, written by the loops off-main and
     /// copied to `micLevel` / `systemLevel` by a 10 Hz task.
     let levelMeter = AudioLevelMeter()
+
+    /// Whether the live pipeline is keeping up, for background work that
+    /// shares the CPU and Neural Engine with it. Two signals: audio waiting
+    /// in the capture streams (the writer is behind) and buffers the live
+    /// recogniser has not consumed (transcription is behind). Either above
+    /// a couple of seconds means the machine is oversubscribed.
+    struct LiveLoad: Sendable, Equatable {
+        var audioBacklogSeconds: Double
+        var recognitionBacklogSeconds: Double
+        var secondsSinceStart: TimeInterval
+
+        static let backlogLimit: Double = 2
+        var isHealthy: Bool {
+            audioBacklogSeconds < Self.backlogLimit && recognitionBacklogSeconds < Self.backlogLimit
+        }
+    }
+
+    /// nil when not recording.
+    var liveLoad: LiveLoad? {
+        guard state != .idle, let start = recordingStartDate else { return nil }
+        let snapshot = levelMeter.snapshot
+        let micBacklog = AudioLevelMeter.backlog(delivered: micCapture.deliveredBufferCount, consumed: snapshot.micConsumed)
+        let sysBacklog = AudioLevelMeter.backlog(delivered: systemCapture.deliveredBufferCount, consumed: snapshot.systemConsumed)
+        // Mic buffers are 4800 frames, system 512, both at 48 kHz.
+        let audio = max(
+            AudioLevelMeter.backlogSeconds(buffers: micBacklog, framesPerBuffer: 4800, sampleRate: 48000),
+            AudioLevelMeter.backlogSeconds(buffers: sysBacklog, framesPerBuffer: 512, sampleRate: 48000)
+        )
+        let asr = coordinator.liveRecognitionBacklog
+        let recognition = max(Double(asr.mic) * 0.1, Double(asr.system) * 512 / 48000)
+        return LiveLoad(
+            audioBacklogSeconds: audio,
+            recognitionBacklogSeconds: recognition,
+            secondsSinceStart: Date().timeIntervalSince(start)
+        )
+    }
     private var modelContext: ModelContext?
     private var lastPersistedSegmentCount: Int = 0
 

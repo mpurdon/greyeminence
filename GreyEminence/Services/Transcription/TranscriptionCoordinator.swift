@@ -197,6 +197,13 @@ final class TranscriptionCoordinator {
         }
     }
 
+    /// How far behind live recognition is, in buffers, on whichever track
+    /// is worse. Mic buffers are 0.1 s, system buffers ~0.01 s, so the
+    /// caller converts with the source's buffer size in mind.
+    nonisolated var liveRecognitionBacklog: (mic: Int, system: Int) {
+        (micAsr.inFlightBuffers, systemAsr.inFlightBuffers)
+    }
+
     /// Feed a system audio buffer into the pipeline.
     nonisolated func feedSystemAudio(_ buffer: AVAudioPCMBuffer, at timestamp: TimeInterval) {
         systemAsr.feedAudio(buffer)

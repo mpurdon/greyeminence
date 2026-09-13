@@ -9,6 +9,7 @@ struct AudioSettingsView: View {
     @AppStorage("inputGain") private var inputGain: Double = 1.0
     @AppStorage(MeetingDetectionService.followCallMicrophoneKey) private var followCallMicrophone = true
     @AppStorage("autoReprocessMeetings") private var autoReprocessMeetings: Bool = true
+    @AppStorage(ReProcessingQueue.runsDuringRecordingKey) private var reprocessDuringRecording: Bool = true
     @State private var captureSystemAudio = true
 
     @State private var isRepairing = false
@@ -150,7 +151,12 @@ struct AudioSettingsView: View {
 
             Section {
                 Toggle("Re-transcribe meetings after recording", isOn: $autoReprocessMeetings)
-                Text("Live transcription uses a fast model (FluidAudio Parakeet). When a meeting ends, the audio is re-transcribed in the background with WhisperKit large-v3, and AI insights + embeddings are rebuilt on the upgraded transcript. Re-processing pauses automatically while another recording is in progress.")
+                Text("Live transcription uses a fast model (FluidAudio Parakeet). When a meeting ends, the audio is re-transcribed in the background with WhisperKit large-v3, and AI insights + embeddings are rebuilt on the upgraded transcript.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("Keep re-transcribing during other recordings", isOn: $reprocessDuringRecording)
+                    .disabled(!autoReprocessMeetings)
+                Text("Runs at low priority once a recording is 90 seconds in, and stops for the rest of that recording the moment live transcription shows a backlog. Off, back-to-back meetings queue up until the last one ends — about 20 minutes of catch-up per hour of meetings.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("First run downloads the large-v3 model (~1.5 GB).")

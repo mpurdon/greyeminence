@@ -47,7 +47,7 @@ actor HighQualityTranscriber {
     /// the asynchronous prediction" errors on lower-memory machines. Note
     /// the name uses underscores around "turbo" — HuggingFace repo
     /// `argmaxinc/whisperkit-coreml` uses that convention.
-    private static let modelName = "openai_whisper-large-v3-v20240930_turbo"
+    static let modelName = "openai_whisper-large-v3-v20240930_turbo"
     private static let minChunkSamples = 1600 // 0.1s at 16 kHz
     /// Maximum samples fed to a single `kit.transcribe` call. WhisperKit's
     /// transcribe call isn't cancellable mid-flight, so worst-case cancel
@@ -455,7 +455,16 @@ actor HighQualityTranscriber {
 
             progress.markComplete(name: chunk.lastPathComponent, addOffset: chunkDuration, source: source)
             emitProgress(&sinceLastCheckpoint, progress: progress, total: totalChunks, onProgress: onProgress, onCheckpoint: onCheckpoint)
-            if Task.isCancelled { throw CancellationError() }
+            if Task.isCancelled {
+                // Whatever finished since the last debounced checkpoint is
+                // real work; a yield to a live recording must not discard
+                // it, or the resumed job starts over (2026-09-11, ~9 min).
+                if sinceLastCheckpoint > 0 {
+                    onCheckpoint?(progress.makeCheckpoint())
+                    sinceLastCheckpoint = 0
+                }
+                throw CancellationError()
+            }
         }
 
         // Force a final checkpoint for this source so the cross-source boundary
