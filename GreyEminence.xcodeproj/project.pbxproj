@@ -21,6 +21,7 @@
 		0ADAF5362F0166CB7AA9E9C0 /* InterviewHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59A83B6524CF1BD8477EC89 /* InterviewHubView.swift */; };
 		0B71B37A9D1D33DDB115A4C8 /* ActionItemOwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA408D29CF047676AC4ED4E /* ActionItemOwnershipTests.swift */; };
 		0C3BB5FEE92AA0EEC4106E64 /* TitanEmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A271F021780612D2758B15A2 /* TitanEmbeddingService.swift */; };
+		0C75C2352B6FD5677674D6FA /* MeetingPinPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E155940C382EFCA61991C1 /* MeetingPinPrompt.swift */; };
 		0D46BFEB32C919397648E070 /* AIUsageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF603309EBAB18DEB0DEAE1 /* AIUsageSettingsView.swift */; };
 		0D8503444E87855D07C916E6 /* ScreenShareSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F60F983AA502741219BB24 /* ScreenShareSettingsView.swift */; };
 		0D999193690073A261246592 /* ResumeAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F296FDF7EC19DD5EE43B83C1 /* ResumeAnalyzer.swift */; };
@@ -81,6 +82,7 @@
 		367C511BC7B8D998882DFE3C /* EmbeddingRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC7F4A787F25A862374515E /* EmbeddingRecord.swift */; };
 		36A1C9238C5911FED5D5B521 /* LogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8DBD9003CCA77B1F437121C /* LogManager.swift */; };
 		373F3363D09826F1B465C744 /* TranscriptCorrectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02399D489B13F2576FD7E24D /* TranscriptCorrectionService.swift */; };
+		3858DA17C7E206388CB27CBF /* SegmentAudioClipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C4E1DC6F2E5883DB9A3870 /* SegmentAudioClipTests.swift */; };
 		390FF076D5D31B58C391477A /* VocabularySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1623F804DDEF0B92D3B6A41 /* VocabularySettingsView.swift */; };
 		3AA83AF5E55969C40719957C /* RubricListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A47BC52049DFA6A2808B1FC6 /* RubricListView.swift */; };
 		3AFD8CE06EAC4884BC3323B8 /* ReportPDFRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D5983297B2344756FAB9B4 /* ReportPDFRenderer.swift */; };
@@ -429,6 +431,7 @@
 		38F60F983AA502741219BB24 /* ScreenShareSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenShareSettingsView.swift; sourceTree = "<group>"; };
 		3946643E25AD52CD5C5B4307 /* AIRetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIRetryTests.swift; sourceTree = "<group>"; };
 		3997C1FE66B26CCBE369B88A /* RecordingInspectorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingInspectorPanel.swift; sourceTree = "<group>"; };
+		39C4E1DC6F2E5883DB9A3870 /* SegmentAudioClipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentAudioClipTests.swift; sourceTree = "<group>"; };
 		3A49043AC4DC48EF88C729BE /* VocabularyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyManager.swift; sourceTree = "<group>"; };
 		3AE45FF59C2AC3113F02C4CC /* TranscriptSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptSegment.swift; sourceTree = "<group>"; };
 		3C8B4C05A02D3A4C5A814ECA /* GraphCalendarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphCalendarTests.swift; sourceTree = "<group>"; };
@@ -558,6 +561,7 @@
 		9FA5FAFDECE066A3112DE8CC /* GraphAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphAuthService.swift; sourceTree = "<group>"; };
 		9FD936D81A73CF8DA5D6EBD2 /* AskChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskChatView.swift; sourceTree = "<group>"; };
 		A0AF2329398C06BB75B022FF /* StorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageManager.swift; sourceTree = "<group>"; };
+		A0E155940C382EFCA61991C1 /* MeetingPinPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingPinPrompt.swift; sourceTree = "<group>"; };
 		A16785CCF3A37067733114A2 /* ScreenShareCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenShareCaptureService.swift; sourceTree = "<group>"; };
 		A271F021780612D2758B15A2 /* TitanEmbeddingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitanEmbeddingService.swift; sourceTree = "<group>"; };
 		A296315BDFED4525488F4DEB /* VoiceProfileMatchingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceProfileMatchingTests.swift; sourceTree = "<group>"; };
@@ -948,6 +952,7 @@
 				84BE139A07FD21E9FBF0F67A /* ScreenFrameRecoveryTests.swift */,
 				199251835C03D8D4DE324718 /* ScreenFrameTriageTests.swift */,
 				692600F636D6F7C93283E1CE /* ScreenObservationFormatterTests.swift */,
+				39C4E1DC6F2E5883DB9A3870 /* SegmentAudioClipTests.swift */,
 				1AF685FD0BE24859B7412A47 /* SegmentAudioLocatorTests.swift */,
 				60817904396164066D87A911 /* ShareSessionSynthesisTests.swift */,
 				D00D0917A85C9D1748D7D898 /* SpeakerAlignmentTests.swift */,
@@ -1214,6 +1219,7 @@
 				233B5632B22BFA4C7E512907 /* MeetingDetailView.swift */,
 				69F56A5B034BDA436C319D0C /* MeetingHeaderBar.swift */,
 				AFB956B7F4F0CA68BF37E5F5 /* MeetingListView.swift */,
+				A0E155940C382EFCA61991C1 /* MeetingPinPrompt.swift */,
 				4B86DBE859B4EF56428216AA /* MeetingRowView.swift */,
 				75E2B58AC870003B20C14E18 /* SpeakerIdentityBar.swift */,
 				5225DE7E98248F22B00C08CB /* TranscriptPanelView.swift */,
@@ -1646,6 +1652,7 @@
 				1511D8ED93545EDCA506CFE1 /* MeetingInsight.swift in Sources */,
 				BBB05812E8776A60C628AD0B /* MeetingIntelligenceView.swift in Sources */,
 				3BFAC0DA58C2B59A7B9DDADC /* MeetingListView.swift in Sources */,
+				0C75C2352B6FD5677674D6FA /* MeetingPinPrompt.swift in Sources */,
 				A882ABE35BA77B48EF727F8F /* MeetingPrepService.swift in Sources */,
 				D15B92644A209FBBF7B31D8D /* MeetingPrepView.swift in Sources */,
 				B0B93EBDC1B05304CFC289ED /* MeetingRowView.swift in Sources */,
@@ -1815,6 +1822,7 @@
 				5C3A920173838447D37D2817 /* ScreenFrameRecoveryTests.swift in Sources */,
 				5946FEAE24C6182169F2A757 /* ScreenFrameTriageTests.swift in Sources */,
 				199719622E4B455A217B5E96 /* ScreenObservationFormatterTests.swift in Sources */,
+				3858DA17C7E206388CB27CBF /* SegmentAudioClipTests.swift in Sources */,
 				4E34664AE5D3D05A2B72DD76 /* SegmentAudioLocatorTests.swift in Sources */,
 				7F925FCB3D39587E17E0E4F2 /* ShareSessionSynthesisTests.swift in Sources */,
 				74E8BFA67B26EC75F7D3A2CF /* SpeakerAlignmentTests.swift in Sources */,
@@ -1920,14 +1928,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260914163749;
+				CURRENT_PROJECT_VERSION = 20260914172354;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.46.0;
+				MARKETING_VERSION = 0.47.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1944,14 +1952,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260914163749;
+				CURRENT_PROJECT_VERSION = 20260914172354;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.46.0;
+				MARKETING_VERSION = 0.47.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

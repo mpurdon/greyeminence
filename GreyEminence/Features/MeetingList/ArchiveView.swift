@@ -29,7 +29,7 @@ struct ArchiveView: View {
 
     private var archivedMeetings: [Meeting] {
         let cutoff = cutoffDate
-        return allMeetings.filter { !$0.isInterviewMeeting && $0.date < cutoff }
+        return allMeetings.filter { !$0.isInterviewMeeting && !$0.isPinned && $0.date < cutoff }
     }
 
     private var availableYears: [Int] {
@@ -249,6 +249,8 @@ struct ArchiveView: View {
                             MeetingRowView(meeting: meeting)
                                 .tag(meeting)
                                 .contextMenu {
+                                    MeetingPinButton(meeting: meeting)
+                                    Divider()
                                     Button(role: .destructive) {
                                         deleteMeeting(meeting)
                                     } label: {

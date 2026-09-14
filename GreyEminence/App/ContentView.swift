@@ -247,6 +247,24 @@ struct ContentView: View {
                 onSkip: { recordingViewModel.pendingCalendarChoices = [] }
             )
         }
+        .alert(
+            MeetingPinPrompt.title,
+            isPresented: Binding(
+                get: { recordingViewModel.pinPromptMeeting != nil },
+                set: { if !$0 { recordingViewModel.pinPromptMeeting = nil } }
+            ),
+            presenting: recordingViewModel.pinPromptMeeting
+        ) { meeting in
+            Button("Pin") {
+                meeting.isPinned = true
+                FeatureDiscovery.shared.markSeen(MeetingPinPrompt.featureID)
+            }
+            Button("Not Now", role: .cancel) {
+                FeatureDiscovery.shared.markSeen(MeetingPinPrompt.featureID)
+            }
+        } message: { meeting in
+            Text("\u{201C}\(meeting.title)\u{201D} just finished. \(MeetingPinPrompt.message)")
+        }
         .alert("Resume Recording?", isPresented: $showResumeAlert) {
             Button("Resume") {
                 if let meeting = interruptedMeeting {
@@ -310,6 +328,9 @@ struct ContentView: View {
             let brandNewUser = myContactIDString.isEmpty && ChangelogReadStore.readVersions().isEmpty
             if brandNewUser {
                 lastSeenHighlightVersion = FeatureHighlightCatalog.currentVersion
+                // Same reasoning for the one-shot prompts: they introduce a
+                // change to people who knew the old behaviour.
+                FeatureDiscovery.shared.markSeen(MeetingPinPrompt.featureID)
                 return
             }
             lastSeenHighlightVersion = "0.0.0"

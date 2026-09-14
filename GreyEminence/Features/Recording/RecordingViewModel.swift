@@ -191,6 +191,10 @@ final class RecordingViewModel {
     /// choice is pending (zero or exactly one nearby event).
     var pendingCalendarChoices: [CalendarEvent] = []
 
+    /// The just-finished meeting to offer pinning for — once, the first time
+    /// a recording completes on a build that has pinning. See `MeetingPinPrompt`.
+    var pinPromptMeeting: Meeting?
+
     /// Calendar events near *now*, surfaced on the idle screen so the user can
     /// confirm which meeting they're about to record. Empty when calendar
     /// integration is off or nothing is nearby.
@@ -1084,6 +1088,13 @@ final class RecordingViewModel {
             let autoReprocess = UserDefaults.standard.object(forKey: "autoReprocessMeetings") as? Bool ?? true
             if autoReprocess {
                 ReProcessingQueue.shared.enqueue(meetingID: meeting.id)
+            }
+
+            if MeetingPinPrompt.shouldAsk(
+                isInterview: meeting.isInterviewMeeting,
+                hasSeen: FeatureDiscovery.shared.hasSeen(MeetingPinPrompt.featureID)
+            ) {
+                self.pinPromptMeeting = meeting
             }
         }
     }

@@ -18,27 +18,43 @@ struct MeetingListView: View {
         return cal.date(byAdding: .month, value: -(Self.monthsVisible - 1), to: startOfCurrentMonth) ?? .distantPast
     }
 
+    /// Pinned meetings stay in the list however old they are — that is what
+    /// pinning is for.
     private var visibleMeetings: [Meeting] {
         let cutoff = cutoffDate
-        return meetings.filter { !$0.isInterviewMeeting && $0.date >= cutoff }
+        return meetings.filter { !$0.isInterviewMeeting && ($0.isPinned || $0.date >= cutoff) }
     }
 
     private var archivedCount: Int {
         let cutoff = cutoffDate
-        return meetings.filter { !$0.isInterviewMeeting && $0.date < cutoff }.count
+        return meetings.filter { !$0.isInterviewMeeting && !$0.isPinned && $0.date < cutoff }.count
     }
 
     private var groupedMeetings: [(String, [Meeting])] {
         Self.groupSections(for: visibleMeetings, now: .now)
     }
 
-    /// Buckets meetings into the relative sections ("Today"…"This Month") and
-    /// then one section per calendar month. `now` is injected so the bucketing
-    /// is testable without depending on the wall clock.
+    static let pinnedSectionTitle = "Pinned"
+
+    /// Buckets meetings into a "Pinned" section, then the relative sections
+    /// ("Today"…"This Month"), then one section per calendar month. A pinned
+    /// meeting appears only under Pinned — the point is to find it in one
+    /// place. `now` is injected so the bucketing is testable without
+    /// depending on the wall clock.
     static func groupSections(
         for meetings: [Meeting],
         now: Date,
         calendar: Calendar = .current
+    ) -> [(String, [Meeting])] {
+        let pinned = meetings.filter(\.isPinned).sorted { $0.date > $1.date }
+        let dated = groupDateSections(for: meetings.filter { !$0.isPinned }, now: now, calendar: calendar)
+        return pinned.isEmpty ? dated : [(pinnedSectionTitle, pinned)] + dated
+    }
+
+    private static func groupDateSections(
+        for meetings: [Meeting],
+        now: Date,
+        calendar: Calendar
     ) -> [(String, [Meeting])] {
         // Built once, and pinned to the same time zone as `calendar` so the
         // label a meeting gets always agrees with the bucket it landed in.
@@ -91,6 +107,8 @@ struct MeetingListView: View {
                         MeetingRowView(meeting: meeting)
                             .tag(meeting)
                             .contextMenu {
+                                MeetingPinButton(meeting: meeting)
+                                Divider()
                                 Button(role: .destructive) {
                                     deleteMeeting(meeting)
                                 } label: {
@@ -141,6 +159,21 @@ struct MeetingListView: View {
                     description: Text("Start a recording to create your first meeting")
                 )
             }
+        }
+    }
+}
+
+/// Pin / Unpin, for the meeting list and archive context menus.
+struct MeetingPinButton: View {
+    @Bindable var meeting: Meeting
+
+    var body: some View {
+        Button {
+            meeting.isPinned.toggle()
+            FeatureDiscovery.shared.markSeen(MeetingPinPrompt.featureID)
+        } label: {
+            Label(meeting.isPinned ? "Unpin Meeting" : "Pin Meeting",
+                  systemImage: meeting.isPinned ? "pin.slash" : "pin")
         }
     }
 }

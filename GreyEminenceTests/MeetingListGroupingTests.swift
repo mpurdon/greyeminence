@@ -110,4 +110,39 @@ final class MeetingListGroupingTests: XCTestCase {
         XCTAssertEqual(grouped.first?.1.map(\.title), ["July call"])
         XCTAssertEqual(grouped.last?.1.map(\.title), ["June call"])
     }
+
+    // MARK: - Pinned
+
+    func testPinnedMeetingsLeadInTheirOwnSectionAndLeaveTheirDateBucket() throws {
+        let context = try makeContext()
+        let now = date(2026, 9, 14)
+        let today = makeMeeting(now, title: "today", in: context)
+        let pinnedOld = makeMeeting(date(2026, 6, 2), title: "old but pinned", in: context)
+        pinnedOld.isPinned = true
+        let pinnedToday = makeMeeting(now, title: "today, pinned", in: context)
+        pinnedToday.isPinned = true
+
+        let sections = MeetingListView.groupSections(for: [today, pinnedOld, pinnedToday], now: now, calendar: calendar)
+
+        XCTAssertEqual(sections.first?.0, MeetingListView.pinnedSectionTitle)
+        XCTAssertEqual(sections.first?.1.map(\.title), ["today, pinned", "old but pinned"], "newest pinned first")
+        XCTAssertEqual(sections.dropFirst().first?.0, "Today")
+        XCTAssertEqual(sections.dropFirst().first?.1.map(\.title), ["today"], "a pinned meeting is not listed twice")
+        XCTAssertFalse(sections.contains { $0.0 == "June 2026" }, "its month section is not created for it")
+    }
+
+    func testNoPinnedSectionWhenNothingIsPinned() throws {
+        let context = try makeContext()
+        let now = date(2026, 9, 14)
+        let sections = MeetingListView.groupSections(for: [makeMeeting(now, in: context)], now: now, calendar: calendar)
+        XCTAssertEqual(sections.map(\.0), ["Today"])
+    }
+
+    // MARK: - Pin prompt
+
+    func testPinPromptAsksOnceAndNeverForInterviews() {
+        XCTAssertTrue(MeetingPinPrompt.shouldAsk(isInterview: false, hasSeen: false))
+        XCTAssertFalse(MeetingPinPrompt.shouldAsk(isInterview: false, hasSeen: true))
+        XCTAssertFalse(MeetingPinPrompt.shouldAsk(isInterview: true, hasSeen: false))
+    }
 }

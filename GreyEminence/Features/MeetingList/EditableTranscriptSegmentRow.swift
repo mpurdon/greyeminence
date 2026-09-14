@@ -19,6 +19,8 @@ struct EditableTranscriptSegmentRow: View {
     /// Play (or stop) the recorded audio behind this segment. Only offered
     /// for completed meetings whose audio is on disk to be read.
     var onPlayAudio: (() -> Void)?
+    /// Save this segment's audio as a file; same track choice as playback.
+    var onSaveAudio: (() -> Void)?
     var isPlayingAudio: Bool = false
     /// Why the last play attempt for this segment failed, shown in the
     /// button's tooltip so a missing file explains itself.
@@ -292,6 +294,13 @@ struct EditableTranscriptSegmentRow: View {
 
         Button("Split Into New Meeting") {
             onSplitMeeting?()
+        }
+
+        if let onSaveAudio {
+            Divider()
+            Button("Save Audio Clip\u{2026}") {
+                onSaveAudio()
+            }
         }
 
         Divider()

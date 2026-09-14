@@ -74,7 +74,7 @@ struct GreyEminenceApp: App {
         // exactly what V1→V2 is. Migration stages still exist in the plan
         // type for documentation and for future non-additive changes that
         // genuinely need custom handlers.
-        let schema = Schema(versionedSchema: SchemaV21.self)
+        let schema = Schema(versionedSchema: SchemaV22.self)
         let config = ModelConfiguration(
             "GreyEminence",
             schema: schema,

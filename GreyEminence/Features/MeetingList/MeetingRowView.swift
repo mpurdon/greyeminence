@@ -31,6 +31,14 @@ struct MeetingRowView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
+                    if meeting.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(45))
+                            .accessibilityLabel("Pinned")
+                    }
+
                     Text(meeting.title)
                         .fontWeight(.medium)
                         .lineLimit(1)

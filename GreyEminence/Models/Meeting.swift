@@ -101,6 +101,10 @@ final class Meeting {
     /// removed from the meeting simply stops matching.
     var absentAttendeeIDs: [UUID] = []
 
+    /// Kept in a "Pinned" section at the top of the meeting list, and never
+    /// aged into the archive while set.
+    var isPinned: Bool = false
+
     /// Everyone who was actually there.
     var presentAttendees: [Contact] {
         guard !absentAttendeeIDs.isEmpty else { return attendees }

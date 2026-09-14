@@ -24,6 +24,15 @@ enum FeatureHighlightCatalog {
     /// set its `version` to that release's MARKETING_VERSION.
     static let all: [FeatureHighlight] = [
         FeatureHighlight(
+            id: "pinned-meetings-highlight",
+            version: "0.47.0",
+            title: "Pin the meetings you keep going back to",
+            summary: "Right-click a meeting and choose Pin. It moves to a Pinned section at the top of the list and stays out of the archive however old it gets. Right-click a transcript line and Save Audio Clip\u{2026} writes that moment to an .m4a \u{2014} the same audio the play button plays, from the same track.",
+            systemImage: "pin.fill",
+            tint: .yellow,
+            destination: nil
+        ),
+        FeatureHighlight(
             id: "speaker-separation",
             version: "0.32.0",
             title: "Transcripts tell people apart",

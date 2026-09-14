@@ -546,6 +546,7 @@ struct TranscriptPanelView: View {
                         filteredSpeaker = (filteredSpeaker == speaker) ? nil : speaker
                     },
                     onPlayAudio: { SegmentAudioPlayer.shared.toggle(segment, in: meeting) },
+                    onSaveAudio: { SegmentAudioPlayer.shared.export(segment, in: meeting) },
                     isPlayingAudio: SegmentAudioPlayer.shared.playingSegmentID == segment.id,
                     playbackFailure: SegmentAudioPlayer.shared.failure?.segmentID == segment.id
                         ? SegmentAudioPlayer.shared.failure?.message : nil
