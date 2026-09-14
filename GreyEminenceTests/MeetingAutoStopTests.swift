@@ -82,13 +82,13 @@ final class MeetingAutoStopTests: XCTestCase {
 
     // MARK: - Stopping
 
-    func testRecordingStopsSixtySecondsAfterTheCallAppReleasesTheMic() {
+    func testRecordingStopsTwentySecondsAfterTheCallAppReleasesTheMic() {
         arm()
         detector.noteStart(holders: [teams(on: yeti)])
         poll([teams(on: yeti)], for: 600)
         XCTAssertEqual(stopRequests, 0)
 
-        poll([], for: 55)
+        poll([], for: 15)
         XCTAssertEqual(stopRequests, 0, "still inside the stop debounce")
         poll([], for: 10)
         XCTAssertEqual(stopRequests, 1)
@@ -100,7 +100,7 @@ final class MeetingAutoStopTests: XCTestCase {
         arm()
         detector.noteStart(holders: [discord(on: yeti), teams(on: yeti)])
         poll([discord(on: yeti), teams(on: yeti)], for: 300)
-        poll([discord(on: yeti)], for: 65)
+        poll([discord(on: yeti)], for: 25)
         XCTAssertEqual(stopRequests, 1)
     }
 
@@ -137,9 +137,9 @@ final class MeetingAutoStopTests: XCTestCase {
     func testABriefDropoutDoesNotStopTheRecording() {
         arm()
         detector.noteStart(holders: [teams(on: yeti)])
-        poll([], for: 40)
+        poll([], for: 15)
         poll([teams(on: yeti)], for: 10)
-        poll([], for: 40)
+        poll([], for: 15)
         XCTAssertEqual(stopRequests, 0, "the debounce restarts when the app comes back")
     }
 
@@ -157,7 +157,7 @@ final class MeetingAutoStopTests: XCTestCase {
         detector.noteStart(holders: [holder(nil, device: yeti, pid: 42)])
         poll([holder(nil, device: yeti, pid: 42)], for: 60)
         XCTAssertEqual(stopRequests, 0)
-        poll([holder(nil, device: yeti, pid: 43)], for: 65)
+        poll([holder(nil, device: yeti, pid: 43)], for: 25)
         XCTAssertEqual(stopRequests, 1, "a different unnamed process is not the same call")
     }
 

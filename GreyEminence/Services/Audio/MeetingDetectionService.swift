@@ -110,7 +110,12 @@ final class MeetingDetectionService {
     private(set) var currentHolders: [MicHolder] = []
 
     private let startDebounce: TimeInterval = 10
-    private let stopDebounce: TimeInterval = 60
+    /// How long the tracked app must be off the microphone before the
+    /// recording ends. 60 s while the rule was "nobody on the mic"; with one
+    /// app tracked, 20 s rides out a Teams reconnect or device switch (the
+    /// built-in→Yeti hop shows no gap at all) and a test call on 2026-09-14
+    /// was stopped by hand 53 s after hang-up because nothing had happened.
+    private let stopDebounce: TimeInterval = 20
     private let pollInterval: TimeInterval = 5
 
     private var timer: Timer?

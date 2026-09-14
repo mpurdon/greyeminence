@@ -95,7 +95,7 @@ struct GeneralSettingsView: View {
 
             Section {
                 Toggle("Auto-start recording when meeting app detected", isOn: $autoStart)
-                Text("Also stops a recording — started by you or automatically — a minute after the call app it was recording releases the microphone.")
+                Text("Also stops a recording — started by you or automatically — 20 seconds after the call app it was recording releases the microphone.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
