@@ -131,10 +131,27 @@ actor ScreenShareCaptureService {
     private var lastCaptureAt: Date?
     private var lastReportedCandidateIDs: [CGWindowID] = []
     /// Windows that showed the share-ended placeholder, keyed to the title
-    /// they carried at the time. Auto-detect skips them until the window
-    /// closes or its title changes (either means Teams reused or refreshed
-    /// it — re-evaluate). Manual selection always overrides.
-    private var ignoredWindows: [CGWindowID: String] = [:]
+    /// they carried at the time. Auto-detect skips them for at least
+    /// `placeholderCooldown`, then until the window closes or its title
+    /// changes (either means Teams reused or refreshed it — re-evaluate).
+    /// Manual selection always overrides.
+    private var ignoredWindows: [CGWindowID: PlaceholderIgnore] = [:]
+    /// Titles that showed the placeholder, by when. Teams tears the pop-out
+    /// down and puts it back between polls, so an ignore keyed on the window
+    /// alone was pruned the moment the window blinked out and the next poll
+    /// adopted its replacement — 15 sessions in 50 s on 2026-09-14, every
+    /// one a placeholder frame, the UI flipping capturing/watching all the
+    /// while. The title outlives the window.
+    private var endedTitles: [String: Date] = [:]
+
+    struct PlaceholderIgnore: Equatable, Sendable {
+        let title: String
+        let at: Date
+    }
+
+    /// How long a window or title that showed the placeholder stays out of
+    /// auto-detect no matter what the window server does with the window.
+    static let placeholderCooldown: TimeInterval = 60
 
     // MARK: Lifecycle
 
@@ -148,6 +165,7 @@ actor ScreenShareCaptureService {
         self.manualWindowID = nil
         self.keptCount = 0
         self.ignoredWindows = [:]
+        self.endedTitles = [:]
 
         let (stream, continuation) = AsyncStream.makeStream(of: ScreenCaptureEvent.self)
         self.continuation = continuation
@@ -175,7 +193,9 @@ actor ScreenShareCaptureService {
         manualWindowID = windowID
         if let windowID {
             // The user insisting on a window beats the placeholder ignore.
-            ignoredWindows.removeValue(forKey: windowID)
+            if let ignore = ignoredWindows.removeValue(forKey: windowID) {
+                endedTitles.removeValue(forKey: ignore.title)
+            }
         }
         LogManager.send(
             windowID.map { "Manual window selected (id \($0))" } ?? "Returned to auto-detect",
@@ -270,18 +290,16 @@ actor ScreenShareCaptureService {
         )
         reportCandidatesIfChanged(candidates)
 
-        // Drop placeholder ignores whose window closed or changed title —
-        // either way it's no longer the screen we blacklisted.
-        ignoredWindows = ignoredWindows.filter { id, titleAtIgnore in
-            candidates.contains { $0.id == id && $0.title == titleAtIgnore }
-        }
+        let now = Date()
+        ignoredWindows = Self.liveIgnores(ignoredWindows, candidates: candidates, now: now)
+        endedTitles = endedTitles.filter { now.timeIntervalSince($0.value) < Self.placeholderCooldown }
 
         let selected: WindowCandidate?
         if let manualID = manualWindowID {
             selected = candidates.first { $0.id == manualID }
         } else if config.autoDetect {
             selected = candidates
-                .filter { $0.score >= 100 && ignoredWindows[$0.id] == nil }
+                .filter { $0.score >= 100 && !Self.isSuppressed($0, ignoredWindows: ignoredWindows, endedTitles: endedTitles) }
                 .max { $0.score < $1.score }
         } else {
             selected = nil
@@ -301,6 +319,34 @@ actor ScreenShareCaptureService {
                 endSession(sessionID, reason: .windowGone)
             }
         }
+    }
+
+    /// Which placeholder ignores still apply. Inside the cooldown, all of
+    /// them — the window blinking out of the list is exactly the case the
+    /// cooldown exists for. After it, only those whose window is still there
+    /// under the same title; a closed or retitled window is no longer the
+    /// screen that was blacklisted.
+    static func liveIgnores(
+        _ ignores: [CGWindowID: PlaceholderIgnore],
+        candidates: [WindowCandidate],
+        now: Date,
+        cooldown: TimeInterval = placeholderCooldown
+    ) -> [CGWindowID: PlaceholderIgnore] {
+        ignores.filter { id, ignore in
+            if now.timeIntervalSince(ignore.at) < cooldown { return true }
+            return candidates.contains { $0.id == id && $0.title == ignore.title }
+        }
+    }
+
+    /// A candidate auto-detect must leave alone: its window showed the
+    /// placeholder, or a window with its title did within the cooldown
+    /// (`endedTitles` is already pruned to the cooldown by the caller).
+    static func isSuppressed(
+        _ candidate: WindowCandidate,
+        ignoredWindows: [CGWindowID: PlaceholderIgnore],
+        endedTitles: [String: Date]
+    ) -> Bool {
+        ignoredWindows[candidate.id] != nil || endedTitles[candidate.title] != nil
     }
 
     private func handleDiscoveryFailure(_ error: Error) {
@@ -329,7 +375,7 @@ actor ScreenShareCaptureService {
             windowTitle: candidate.title,
             appBundleID: candidate.bundleID
         ))
-        LogManager.send("Share session started: \"\(candidate.title)\" (\(candidate.appName))", category: .screen, meetingID: meetingID)
+        LogManager.send("Share session started: \"\(candidate.title)\" (\(candidate.appName), window \(candidate.id))", category: .screen, meetingID: meetingID)
     }
 
     private func endSession(_ sessionID: UUID, reason: SessionEndReason) {
@@ -549,9 +595,11 @@ actor ScreenShareCaptureService {
             ocrText: ocrText,
             phrases: currentProfile?.shareEndedPhrases ?? ScreenFrameTriage.shareEndedPhrases
         ) {
-            ignoredWindows[windowID] = currentWindowTitle
+            let now = Date()
+            ignoredWindows[windowID] = PlaceholderIgnore(title: currentWindowTitle, at: now)
+            endedTitles[currentWindowTitle] = now
             continuation?.yield(.frameDropped(sessionID: sessionID))
-            LogManager.send("Share-ended placeholder detected (\"\(currentWindowTitle)\") — frame dropped, session closed", category: .screen, meetingID: meetingID)
+            LogManager.send("Share-ended placeholder detected (\"\(currentWindowTitle)\", window \(windowID)) — frame dropped, session closed, not re-adopting this window or title for \(Int(Self.placeholderCooldown))s", category: .screen, meetingID: meetingID)
             endSession(sessionID, reason: .shareEnded)
             return
         }
