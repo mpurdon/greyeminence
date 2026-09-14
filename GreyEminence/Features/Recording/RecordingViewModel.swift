@@ -452,6 +452,9 @@ final class RecordingViewModel {
             meetingDetector.onConfirmationExpired = { [weak self] in
                 self?.clearCallPrompt()
             }
+            meetingDetector.onSourceDeviceChanged = { [weak self] holder in
+                self?.followCallMicrophone(of: holder)
+            }
             // Capture only `self` weakly: CallPromptService is a process-
             // lifetime singleton, and capturing the context provider here
             // would pin a live ModelContext for the whole run.
@@ -470,6 +473,30 @@ final class RecordingViewModel {
             meetingDetector.enable(currentlyRecording: state != .idle)
         } else {
             meetingDetector.disable()
+        }
+    }
+
+    /// The call app moved to another microphone mid-recording; move the mic
+    /// capture with it. Teams opens the built-in mic and switches to the
+    /// chosen one 5–15 s later, and a recording started inside that window
+    /// used to hear the room through the laptop for the whole call (12:31 and
+    /// 14:00 on 2026-09-14).
+    private func followCallMicrophone(of holder: MeetingDetectionService.MicHolder) {
+        guard MeetingDetectionService.followsCallMicrophone,
+              state == .recording || state == .paused,
+              let device = holder.inputDevice,
+              device.uid != callInputDevice?.uid else { return }
+        let who = holder.appName ?? holder.bundleID ?? "the call"
+        Task {
+            let moved = await micCapture.switchDevice(to: device.uid, reason: "\(who) moved to it")
+            await MainActor.run {
+                if moved {
+                    self.callInputDevice = device
+                    self.log.log("Now recording from \(device.name) — following \(who)", category: .audio)
+                } else {
+                    self.log.log("Could not follow \(who) to \(device.name) — still on the previous microphone", category: .audio, level: .warning)
+                }
+            }
         }
     }
 
@@ -494,7 +521,6 @@ final class RecordingViewModel {
             return
         }
 
-        meetingDetector.noteStart(autoDetected ? .auto : .manual)
         autoDetectedRecordingStart = autoDetected
         // However the recording began, the question is answered.
         clearCallPrompt()
@@ -505,6 +531,10 @@ final class RecordingViewModel {
         let holders = meetingDetector.isPolling
             ? meetingDetector.currentHolders
             : meetingDetector.snapshotHolders()
+
+        // Bind the recording to the call it is of, however it was started,
+        // so it ends when that app hangs up.
+        meetingDetector.noteStart(holders: holders)
 
         // Record from the call's own microphone. Teams, Discord and the rest
         // pick their input independently of the system default, and a
@@ -531,7 +561,7 @@ final class RecordingViewModel {
 
             // Which app is this call in? Best-effort provenance — a solo
             // recording legitimately has no other app holding the mic.
-            if let source = holders.first {
+            if let source = MeetingDetectionService.sourceHolder(for: holders) {
                 meeting.sourceAppBundleID = source.bundleID
                 meeting.sourceAppName = source.appName
                 log.log("Recording source app: \(source.appName ?? source.bundleID ?? "unknown")", category: .audio)

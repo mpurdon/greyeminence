@@ -25,9 +25,14 @@ actor AudioFileWriter {
     /// Cached format used to start the first chunk. Needed so `checkpoint` can
     /// open the next chunk without the caller re-specifying the format.
     private var startedFormat: AVAudioFormat?
-    /// Set only when the device's own format was refused by the encoder and
-    /// buffers have to be resampled on the way to disk.
+    /// Set when buffers cannot go straight to the file: the device's own
+    /// format was refused by the encoder, or the capture moved to another
+    /// microphone mid-recording and the new device speaks a different
+    /// format. Either way the file stays in the format it was opened with.
     private var converter: AVAudioConverter?
+    /// The format buffers currently arrive in. A buffer in any other format
+    /// re-derives `converter`; see `adoptInputFormat`.
+    private var acceptedInputFormat: AVAudioFormat?
     /// Reused across writes; see `convertIfNeeded`.
     private var conversionBuffer: AVAudioPCMBuffer?
     /// Rolling count of write failures. Callers use this to detect a persistent
@@ -81,6 +86,7 @@ actor AudioFileWriter {
             )
         }
         startedFormat = writeFormat
+        acceptedInputFormat = inputFormat
         // If we're resuming an interrupted recording, the base URL and/or
         // its part siblings may already exist on disk from the prior session.
         // Writing into the base URL via AVAudioFile(forWriting:) would truncate
@@ -136,6 +142,9 @@ actor AudioFileWriter {
             throw AudioFileWriterError.notStarted
         }
         do {
+            if let accepted = acceptedInputFormat, buffer.format != accepted {
+                try adoptInputFormat(buffer.format)
+            }
             try audioFile.write(from: try convertIfNeeded(buffer))
             consecutiveWriteFailures = 0
         } catch {
@@ -146,8 +155,40 @@ actor AudioFileWriter {
         }
     }
 
+    /// The capture switched microphones under us — Teams moved from the
+    /// built-in mic to the Yeti, or the Yeti was unplugged — and buffers now
+    /// arrive in a different format. AVAudioFile refuses a buffer that does
+    /// not match the file, so from here on they are converted into the format
+    /// the chunk was opened with. One file, one format, no gap.
+    private func adoptInputFormat(_ format: AVAudioFormat) throws {
+        guard let target = startedFormat else { throw AudioFileWriterError.notStarted }
+        if format == target {
+            converter = nil
+        } else {
+            guard let made = AVAudioConverter(from: format, to: target) else {
+                throw AudioFileWriterError.encoderPreflightFailed(
+                    "no converter from \(Self.describe(format)) to \(Self.describe(target))"
+                )
+            }
+            made.channelMap = Self.channelMap(from: format.channelCount, to: target.channelCount)
+            converter = made
+        }
+        LogManager.send(
+            "Audio now arriving as \(Self.describe(format)) (was \(Self.describe(acceptedInputFormat ?? format))) — writing on as \(Self.describe(target))",
+            category: .audio
+        )
+        acceptedInputFormat = format
+    }
+
+    /// Output channel → input channel. A mono microphone replacing a stereo
+    /// one fills both file channels rather than leaving the right side
+    /// silent; extra input channels beyond the file's are dropped.
+    nonisolated static func channelMap(from input: AVAudioChannelCount, to output: AVAudioChannelCount) -> [NSNumber] {
+        (0..<Int(output)).map { NSNumber(value: min($0, Int(input) - 1)) }
+    }
+
     /// Resample into the format the encoder accepted, when the device's own
-    /// format was refused.
+    /// format was refused or has changed since the file was opened.
     private func convertIfNeeded(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
         guard let converter, let target = startedFormat else { return buffer }
 

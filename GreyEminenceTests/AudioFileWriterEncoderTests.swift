@@ -109,29 +109,57 @@ final class AudioFileWriterEncoderTests: XCTestCase {
         XCTAssertGreaterThan(readable.length, 0)
     }
 
-    // MARK: - Failure counter
+    // MARK: - Format change mid-recording
 
-    func test_writeFailure_counter_increments_on_invalid_buffer() async throws {
+    /// The capture moved to another microphone (Teams from the built-in mic
+    /// to the Yeti) and buffers now arrive stereo into a file opened mono.
+    /// They are converted, not refused — a refused buffer is lost audio.
+    func test_bufferInANewFormat_isConvertedIntoTheOpenFile() async throws {
         let base = tempDir.appendingPathComponent("mic.m4a")
         let writer = AudioFileWriter(outputURL: base)
-        let fmt = try makeFormat(sampleRate: 48000, channels: 1)
-        try await writer.start(inputFormat: fmt)
+        let mono = try makeFormat(sampleRate: 48000, channels: 1)
+        try await writer.start(inputFormat: mono)
 
-        // Wrong-format buffer (stereo source into mono writer).
-        let wrongFmt = try makeFormat(sampleRate: 48000, channels: 2)
-        let wrong = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: wrongFmt, frameCapacity: 1024))
-        wrong.frameLength = 1024
+        let first = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: mono, frameCapacity: 4800))
+        first.frameLength = 4800
+        try await writer.write(first)
 
-        do {
-            try await writer.write(wrong)
-            XCTFail("Expected write to throw on format mismatch")
-        } catch {
-            // Expected
-        }
+        let stereo = try makeFormat(sampleRate: 48000, channels: 2)
+        let second = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: stereo, frameCapacity: 4800))
+        second.frameLength = 4800
+        try await writer.write(second)
 
-        let consecutive = await writer.consecutiveWriteFailures
-        let total = await writer.totalWriteFailures
-        XCTAssertEqual(consecutive, 1)
-        XCTAssertEqual(total, 1)
+        // And back again, as when the Yeti is unplugged.
+        try await writer.write(first)
+        await writer.stop()
+
+        let failures = await writer.totalWriteFailures
+        XCTAssertEqual(failures, 0)
+        let readable = try AVAudioFile(forReading: base)
+        XCTAssertEqual(readable.fileFormat.channelCount, 1, "the file keeps the format it was opened with")
+        XCTAssertGreaterThan(readable.length, 12000, "all three buffers landed — two alone would be 9600 frames; AAC trims the tail packet")
+    }
+
+    func test_aSampleRateChange_isResampledIntoTheOpenFile() async throws {
+        let base = tempDir.appendingPathComponent("mic.m4a")
+        let writer = AudioFileWriter(outputURL: base)
+        let fmt48 = try makeFormat(sampleRate: 48000, channels: 1)
+        try await writer.start(inputFormat: fmt48)
+
+        let fmt44 = try makeFormat(sampleRate: 44100, channels: 1)
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: fmt44, frameCapacity: 4410))
+        buffer.frameLength = 4410
+        try await writer.write(buffer)
+        await writer.stop()
+
+        let readable = try AVAudioFile(forReading: base)
+        XCTAssertEqual(readable.fileFormat.sampleRate, 48000)
+        XCTAssertGreaterThan(readable.length, 0)
+    }
+
+    func test_channelMap_duplicatesMonoIntoStereo_andDropsExtraChannels() {
+        XCTAssertEqual(AudioFileWriter.channelMap(from: 1, to: 2), [0, 0])
+        XCTAssertEqual(AudioFileWriter.channelMap(from: 2, to: 1), [0])
+        XCTAssertEqual(AudioFileWriter.channelMap(from: 2, to: 2), [0, 1])
     }
 }
