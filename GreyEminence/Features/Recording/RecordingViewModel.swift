@@ -1499,10 +1499,10 @@ final class RecordingViewModel {
             log.log("Mic permission not granted — recording will have no mic audio", category: .audio, level: .warning)
         }
 
-        if let free = Self.freeDiskBytesForRecordings(), free < 500_000_000 {
-            let mb = Double(free) / 1_048_576
-            errorMessage = "Low disk space (\(String(format: "%.0f", mb)) MB free). A long recording may fail to save. Consider freeing space before continuing."
-            log.log("Low disk space at recording start: \(Int(mb)) MB free", category: .audio, level: .warning)
+        let freeDisk = DiskSpace.freeBytes()
+        if let warning = DiskSpace.warning(freeBytes: freeDisk) {
+            errorMessage = warning
+            log.log("Low disk space at recording start: \(DiskSpace.describe(freeDisk ?? 0)) free", category: .audio, level: .warning)
         }
 
         // Wire vocabulary manager into coordinator
@@ -2209,12 +2209,6 @@ final class RecordingViewModel {
         case .notDetermined: return "not determined"
         @unknown default: return "unknown"
         }
-    }
-
-    nonisolated static func freeDiskBytesForRecordings() -> Int64? {
-        let url = StorageManager.shared.recordingsURL
-        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        return values?.volumeAvailableCapacityForImportantUsage
     }
 
     private nonisolated func calculateRMS(_ buffer: AVAudioPCMBuffer) -> Float {

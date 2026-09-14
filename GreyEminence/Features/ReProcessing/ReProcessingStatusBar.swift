@@ -84,7 +84,7 @@ struct ReProcessingStatusBar: View {
                     .font(.caption.weight(.medium))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text(detailText(for: job))
+                Text(job.detailText)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -105,13 +105,5 @@ struct ReProcessingStatusBar: View {
                     .truncationMode(.middle)
             }
         }
-    }
-
-    private func detailText(for job: ReProcessingQueue.RunningJob) -> String {
-        if job.phase == .transcribing, job.chunksTotal > 0 {
-            let pct = Int((job.progressFraction ?? 0) * 100)
-            return "\(job.phase.stepDescription) — \(job.chunksDone)/\(job.chunksTotal) chunks (\(pct)%)"
-        }
-        return job.phase.stepDescription
     }
 }

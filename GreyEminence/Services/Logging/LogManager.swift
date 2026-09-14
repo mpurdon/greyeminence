@@ -52,7 +52,48 @@ final class LogManager {
         return base.appendingPathComponent("system.log")
     }()
 
-    private init() {}
+    /// `system.log` had reached 735 MB by 2026-09-14 — every Bedrock payload
+    /// is dumped into it — with nothing ever trimming it. Rotated at launch
+    /// and every `rotationCheckInterval` lines: `system.log` → `system.1.log`
+    /// → … → `system.\(generations).log`, oldest dropped. Per-meeting logs
+    /// are small and untouched.
+    nonisolated static let rotationMaxBytes: UInt64 = 50_000_000
+    nonisolated static let rotationGenerations = 3
+    private static let rotationCheckInterval = 500
+    private var linesSinceRotationCheck = 0
+
+    private init() {
+        Self.rotateIfNeeded(systemLogURL)
+    }
+
+    /// Rotates `url` when it has outgrown `maxBytes`. Pure file-system work,
+    /// nonisolated so it can be tested against a temp directory.
+    @discardableResult
+    nonisolated static func rotateIfNeeded(
+        _ url: URL,
+        maxBytes: UInt64 = rotationMaxBytes,
+        generations: Int = rotationGenerations
+    ) -> Bool {
+        let fileManager = FileManager.default
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+              let size = attributes[.size] as? UInt64, size >= maxBytes else { return false }
+        for index in stride(from: generations, through: 1, by: -1) {
+            let target = rotatedURL(url, generation: index)
+            try? fileManager.removeItem(at: target)
+            let source = index == 1 ? url : rotatedURL(url, generation: index - 1)
+            if fileManager.fileExists(atPath: source.path) {
+                try? fileManager.moveItem(at: source, to: target)
+            }
+        }
+        return true
+    }
+
+    /// `system.log` → `system.1.log`, `system.2.log`, …
+    nonisolated static func rotatedURL(_ url: URL, generation: Int) -> URL {
+        let ext = url.pathExtension
+        let stem = url.deletingPathExtension().lastPathComponent
+        return url.deletingLastPathComponent().appendingPathComponent("\(stem).\(generation).\(ext)")
+    }
 
     func log(
         _ message: String,
@@ -73,6 +114,11 @@ final class LogManager {
         let line = formatLine(message: message, category: category, level: level, detail: detail)
         if let meetingID {
             appendToMeetingLog(meetingID: meetingID, line: line)
+        }
+        linesSinceRotationCheck += 1
+        if linesSinceRotationCheck >= Self.rotationCheckInterval {
+            linesSinceRotationCheck = 0
+            Self.rotateIfNeeded(systemLogURL)
         }
         appendToFile(url: systemLogURL, line: line)
     }

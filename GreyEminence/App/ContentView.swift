@@ -166,6 +166,15 @@ struct ContentView: View {
             recordingViewModel.configureAutoDetection(enabled: autoStartRecording) { [modelContext] in
                 modelContext
             }
+            // Disk pressure is the one thing that makes every later step
+            // slow — purged caches, recompiles, failing writes — so say so
+            // at launch, not after the first symptom.
+            let freeDisk = DiskSpace.freeBytes()
+            LogManager.shared.log("Free disk space: \(freeDisk.map(DiskSpace.describe) ?? "unknown")", category: .general)
+            if let warning = DiskSpace.warning(freeBytes: freeDisk) {
+                recordingViewModel.errorMessage = warning
+                LogManager.shared.log(warning, category: .general, level: .warning)
+            }
             Task(priority: .background) { @MainActor [modelContext] in
                 let report = await TransientActivityCoordinator.shared.runAsync("Running startup maintenance…") {
                     await MaintenanceService.runStartupMaintenance(modelContext: modelContext) { done, total, name in

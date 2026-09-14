@@ -31,4 +31,37 @@ final class ReProcessingQueuePolicyTests: XCTestCase {
         XCTAssertNil(defaults.object(forKey: ReProcessingQueue.runsDuringRecordingKey))
         XCTAssertTrue(ReProcessingQueue.runsDuringRecording || UserDefaults.standard.object(forKey: ReProcessingQueue.runsDuringRecordingKey) != nil)
     }
+
+    // MARK: - Status bar detail
+
+    private func job(_ phase: ReProcessingState, done: Int = 0, total: Int = 0, warmingUp: Bool = false) -> ReProcessingQueue.RunningJob {
+        var job = ReProcessingQueue.RunningJob(id: UUID(), title: "t", phase: phase)
+        job.chunksDone = done
+        job.chunksTotal = total
+        job.isWarmingUp = warmingUp
+        return job
+    }
+
+    /// A 12-minute Neural Engine compile before the first chunk looked like a
+    /// hang on 2026-09-14, and the cancel that followed looked ignored.
+    func testWarmUpIsNamedWhileNoChunkHasFinished() {
+        XCTAssertTrue(job(.transcribing, total: 18, warmingUp: true).detailText.contains("Neural Engine"))
+        XCTAssertTrue(job(.cancelling, warmingUp: true).detailText.contains("can't be interrupted"))
+    }
+
+    func testWarmUpNoteGivesWayToChunkProgress() {
+        let text = job(.transcribing, done: 3, total: 18, warmingUp: true).detailText
+        XCTAssertTrue(text.contains("3/18 chunks (16%)"), text)
+        XCTAssertFalse(text.contains("Neural Engine"))
+    }
+
+    func testOtherPhasesUseTheirStepDescription() {
+        XCTAssertEqual(job(.analyzing).detailText, ReProcessingState.analyzing.stepDescription)
+        XCTAssertEqual(job(.cancelling).detailText, ReProcessingState.cancelling.stepDescription)
+        XCTAssertEqual(job(.transcribing).detailText, ReProcessingState.transcribing.stepDescription, "inside the grace period, nothing special")
+    }
+
+    func testWarmUpGraceIsLongerThanAWarmFirstChunk() {
+        XCTAssertGreaterThanOrEqual(ReProcessingQueue.warmUpGrace, 10)
+    }
 }
