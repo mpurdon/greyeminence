@@ -10,13 +10,16 @@ final class MeetingAutoStopTests: XCTestCase {
     private let yeti = MeetingDetectionService.InputDevice(uid: "LogiGamingAudio:Yeti", name: "Yeti Stereo Microphone")
     private let builtIn = MeetingDetectionService.InputDevice(uid: "BuiltInMicrophoneDevice", name: "MacBook Pro Microphone")
 
+    // Built by `arm()` inside each test, not in `setUp`: XCTest's `setUp` is
+    // not MainActor-isolated on CI's toolchain and cannot touch these.
     private var detector: MeetingDetectionService!
     private var clock: Date!
     private var stopRequests = 0
     private var deviceChanges: [MeetingDetectionService.MicHolder] = []
 
-    override func setUp() {
-        super.setUp()
+    /// A detector with auto-detection on, no Core Audio poll, and a clock
+    /// the test advances by hand.
+    private func arm() {
         clock = Date(timeIntervalSince1970: 1_000_000)
         stopRequests = 0
         deviceChanges = []
@@ -25,12 +28,6 @@ final class MeetingAutoStopTests: XCTestCase {
         detector.onStopRequested = { [unowned self] in self.stopRequests += 1 }
         detector.onSourceDeviceChanged = { [unowned self] in self.deviceChanges.append($0) }
         detector.enable(currentlyRecording: false)
-    }
-
-    override func tearDown() {
-        detector.disable()
-        detector = nil
-        super.tearDown()
     }
 
     private func holder(
@@ -62,12 +59,14 @@ final class MeetingAutoStopTests: XCTestCase {
     // MARK: - Binding
 
     func testAManualRecordingDuringACallIsBoundToThatCall() {
+        arm()
         detector.noteStart(holders: [teams(on: yeti)])
         XCTAssertEqual(detector.mode, .tracking)
         XCTAssertEqual(detector.trackedHolder, teams(on: yeti))
     }
 
     func testASoloRecordingTracksNothing() {
+        arm()
         detector.noteStart(holders: [])
         XCTAssertEqual(detector.mode, .passive)
         XCTAssertNil(detector.trackedHolder)
@@ -76,6 +75,7 @@ final class MeetingAutoStopTests: XCTestCase {
     /// Discord parked in a channel while a Teams call runs: the recording is
     /// of the Teams call, so that is what it is bound to.
     func testTheCallWinsOverAnIdleAppForBinding() {
+        arm()
         detector.noteStart(holders: [discord(on: yeti), teams(on: yeti)])
         XCTAssertEqual(detector.trackedHolder?.bundleID, "com.microsoft.teams2.modulehost")
     }
@@ -83,6 +83,7 @@ final class MeetingAutoStopTests: XCTestCase {
     // MARK: - Stopping
 
     func testRecordingStopsSixtySecondsAfterTheCallAppReleasesTheMic() {
+        arm()
         detector.noteStart(holders: [teams(on: yeti)])
         poll([teams(on: yeti)], for: 600)
         XCTAssertEqual(stopRequests, 0)
@@ -96,6 +97,7 @@ final class MeetingAutoStopTests: XCTestCase {
     /// The failure mode this replaces: a Teams call that ends while Discord
     /// still sits in a voice channel used to keep the recording alive forever.
     func testAnotherAppStillOnTheMicDoesNotKeepTheRecordingAlive() {
+        arm()
         detector.noteStart(holders: [discord(on: yeti), teams(on: yeti)])
         poll([discord(on: yeti), teams(on: yeti)], for: 300)
         poll([discord(on: yeti)], for: 65)
@@ -105,6 +107,7 @@ final class MeetingAutoStopTests: XCTestCase {
     /// Teams opens the built-in microphone first and moves to the chosen one
     /// a few seconds later. Same app, same call — follow it, don't stop.
     func testTheCallSwitchingMicrophonesIsFollowedNotEnded() {
+        arm()
         detector.noteStart(holders: [teams(on: builtIn)])
         poll([teams(on: yeti)], for: 120)
         XCTAssertEqual(stopRequests, 0)
@@ -115,6 +118,7 @@ final class MeetingAutoStopTests: XCTestCase {
     /// A poll that reports the app without a device (Core Audio has nothing
     /// to say this tick) keeps the last known microphone.
     func testATransientlyMissingDeviceKeepsTheLastKnownOne() {
+        arm()
         detector.noteStart(holders: [teams(on: yeti)])
         poll([teams(on: nil)], for: 10)
         XCTAssertEqual(detector.trackedHolder?.inputDevice, yeti)
@@ -124,12 +128,14 @@ final class MeetingAutoStopTests: XCTestCase {
     /// Discord idling on the built-in mic is not the call; its device is
     /// not what the recorder should follow.
     func testAnotherAppsDeviceChangeIsIgnored() {
+        arm()
         detector.noteStart(holders: [teams(on: yeti), discord(on: yeti)])
         poll([teams(on: yeti), discord(on: builtIn)], for: 10)
         XCTAssertTrue(deviceChanges.isEmpty)
     }
 
     func testABriefDropoutDoesNotStopTheRecording() {
+        arm()
         detector.noteStart(holders: [teams(on: yeti)])
         poll([], for: 40)
         poll([teams(on: yeti)], for: 10)
@@ -139,6 +145,7 @@ final class MeetingAutoStopTests: XCTestCase {
 
     /// The app may be relaunched between polls; bundle identity is what binds.
     func testTheSameAppUnderANewPidStillCounts() {
+        arm()
         detector.noteStart(holders: [teams(on: yeti)])
         let relaunched = holder("com.microsoft.teams2.modulehost", device: yeti, pid: 999)
         poll([relaunched], for: 120)
@@ -146,6 +153,7 @@ final class MeetingAutoStopTests: XCTestCase {
     }
 
     func testAnUnnamedProcessIsTrackedByPid() {
+        arm()
         detector.noteStart(holders: [holder(nil, device: yeti, pid: 42)])
         poll([holder(nil, device: yeti, pid: 42)], for: 60)
         XCTAssertEqual(stopRequests, 0)
@@ -156,6 +164,7 @@ final class MeetingAutoStopTests: XCTestCase {
     /// Nothing was on the mic when a solo recording began; an app that comes
     /// and goes during it is not this recording's call.
     func testASoloRecordingNeverAutoStops() {
+        arm()
         detector.noteStart(holders: [])
         poll([teams(on: yeti)], for: 60)
         poll([], for: 120)
@@ -166,6 +175,7 @@ final class MeetingAutoStopTests: XCTestCase {
     // MARK: - Re-arming
 
     func testStoppingClearsTheBindingAndReArms() {
+        arm()
         detector.noteStart(holders: [teams(on: yeti)])
         detector.noteStop(.auto)
         XCTAssertEqual(detector.mode, .armedForStart)
