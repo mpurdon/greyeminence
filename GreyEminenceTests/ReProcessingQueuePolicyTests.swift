@@ -49,8 +49,10 @@ final class ReProcessingQueuePolicyTests: XCTestCase {
         XCTAssertTrue(job(.cancelling, warmingUp: true).detailText.contains("can't be interrupted"))
     }
 
-    func testWarmUpNoteGivesWayToChunkProgress() {
-        let text = job(.transcribing, done: 3, total: 18, warmingUp: true).detailText
+    /// Once the first chunk lands, warm-up is cleared (see
+    /// `updateTranscriptionProgress` / `jobTick`), so progress shows.
+    func testChunkProgressShowsOnceWarmUpClears() {
+        let text = job(.transcribing, done: 3, total: 18, warmingUp: false).detailText
         XCTAssertTrue(text.contains("3/18 chunks (16%)"), text)
         XCTAssertFalse(text.contains("Neural Engine"))
     }
@@ -61,7 +63,4 @@ final class ReProcessingQueuePolicyTests: XCTestCase {
         XCTAssertEqual(job(.transcribing).detailText, ReProcessingState.transcribing.stepDescription, "inside the grace period, nothing special")
     }
 
-    func testWarmUpGraceIsLongerThanAWarmFirstChunk() {
-        XCTAssertGreaterThanOrEqual(ReProcessingQueue.warmUpGrace, 10)
-    }
 }

@@ -169,11 +169,9 @@ final class SegmentAudioPlayer {
             ? String(format: "%dh%02dm%02ds", minutes / 60, minutes % 60, seconds)
             : String(format: "%dm%02ds", minutes, seconds)
         let raw = "\(meetingTitle) \u{2014} \(stamp) \(speaker)"
-        let cleaned = raw
-            .replacingOccurrences(of: ":", with: ".")
-            .replacingOccurrences(of: "/", with: "-")
-            .trimmingCharacters(in: .whitespaces)
-        return String(cleaned.prefix(200)) + ".m4a"
+        // ":" → "." so the default "3:42 PM" title reads as "3.42 PM"; the
+        // rest of the illegal set is dropped by the shared sanitiser.
+        return raw.sanitizedForFilename(replacements: [":": "."]) + ".m4a"
     }
 
     enum ExportError: LocalizedError {

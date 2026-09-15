@@ -21,13 +21,17 @@ final class ReProcessingQueue {
         var phase: ReProcessingState
         var chunksDone: Int = 0
         var chunksTotal: Int = 0
-        /// Set once transcription has gone `warmUpGrace` without finishing
-        /// a chunk. Whisper's first inference specialises the encoder for
-        /// the Neural Engine when the cache is cold — after an app update, or
+        /// When the transcription phase began, or nil in any other phase.
+        /// The job watchdog derives `isWarmingUp` from this rather than a
+        /// second timer. `cancel()` only flips `phase`, so this survives it.
+        var transcribingSince: Date?
+        /// True once transcription has gone `warmUpGrace` without finishing a
+        /// chunk. Whisper's first inference specialises the encoder for the
+        /// Neural Engine when the cache is cold — after an app update, or
         /// after macOS purged Library/Caches under disk pressure — and that
-        /// takes 10+ minutes with no progress to report. Without a word
-        /// about it the bar looks hung, and a cancel looks ignored, because
-        /// the compile is a synchronous XPC call nothing can interrupt.
+        /// takes 10+ minutes with no progress to report. Without a word about
+        /// it the bar looks hung, and a cancel looks ignored, because the
+        /// compile is a synchronous XPC call nothing can interrupt.
         var isWarmingUp = false
 
         var progressFraction: Double? {
@@ -38,12 +42,12 @@ final class ReProcessingQueue {
         /// The second line of the status bar.
         var detailText: String {
             switch phase {
-            case .transcribing where isWarmingUp && chunksDone == 0:
+            case .transcribing where isWarmingUp:
                 return "Preparing Whisper for the Neural Engine — the first run after an update or a cache purge takes 10+ minutes"
             case .transcribing where chunksTotal > 0:
                 let pct = Int((progressFraction ?? 0) * 100)
                 return "\(phase.stepDescription) — \(chunksDone)/\(chunksTotal) chunks (\(pct)%)"
-            case .cancelling where isWarmingUp && chunksDone == 0:
+            case .cancelling where isWarmingUp:
                 return "Cancelling — stops as soon as the Neural Engine finishes preparing Whisper; that step can't be interrupted"
             default:
                 return phase.stepDescription
@@ -55,7 +59,6 @@ final class ReProcessingQueue {
     /// status bar says the Neural Engine is compiling. Decoding the first
     /// 10 s chunk from a warm cache takes about two seconds.
     static let warmUpGrace: TimeInterval = 20
-    private var warmUpTask: Task<Void, Never>?
 
     struct CompletionRecord: Equatable {
         let title: String
@@ -281,13 +284,14 @@ final class ReProcessingQueue {
         guard mayRunNow() else { return }
         guard !pending.isEmpty else { return }
 
-        guard Self.hasEnoughDiskSpaceForReProcess() else {
+        let freeBytes = DiskSpace.freeBytes()
+        guard freeBytes.map({ $0 >= DiskSpace.criticalWatermark }) ?? true else {
             LogManager.send("ReProcessingQueue: skipping tick — insufficient disk space (<\(DiskSpace.describe(DiskSpace.criticalWatermark)) free)", category: .transcription, level: .warning)
             return
         }
         // Not blocking, but worth a line next to the job it may slow down:
         // this is the range where macOS purges the Neural Engine cache.
-        if let warning = DiskSpace.warning(freeBytes: DiskSpace.freeBytes()) {
+        if let warning = DiskSpace.warning(freeBytes: freeBytes) {
             LogManager.send("ReProcessingQueue: \(warning)", category: .transcription, level: .warning)
         }
 
@@ -310,7 +314,7 @@ final class ReProcessingQueue {
         let watchdog = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(5))
-                await self?.yieldIfLiveRecordingIsStrained()
+                await self?.jobTick()
             }
         }
         await task.value
@@ -329,16 +333,6 @@ final class ReProcessingQueue {
             persistPending()
             LogManager.send("ReProcessingQueue: dropped a stale re-queue of a meeting that already finished", category: .transcription)
         }
-    }
-
-    /// Re-processing holds a ~1.5 GB WhisperKit model in memory and writes
-    /// new AAC chunks and embeddings. Skip the tick rather than start a job
-    /// that'll fail halfway through with a cryptic disk error.
-    nonisolated static func hasEnoughDiskSpaceForReProcess() -> Bool {
-        guard let available = DiskSpace.freeBytes() else {
-            return true // can't tell — don't block
-        }
-        return available >= DiskSpace.criticalWatermark
     }
 
     private func processJob(meetingID: UUID) async {
@@ -576,23 +570,29 @@ final class ReProcessingQueue {
             current?.chunksDone = 0
             current?.chunksTotal = 0
             current?.isWarmingUp = false
-            warmUpTask?.cancel()
-            if phase == .transcribing {
-                warmUpTask = Task { [weak self] in
-                    try? await Task.sleep(for: .seconds(Self.warmUpGrace))
-                    guard !Task.isCancelled, let self, var job = self.current,
-                          job.phase == .transcribing, job.chunksDone == 0 else { return }
-                    job.isWarmingUp = true
-                    self.current = job
-                    LogManager.send(
-                        "Whisper has not finished its first chunk after \(Int(Self.warmUpGrace))s — the Neural Engine is compiling the model. That happens after an app update or when macOS purged Library/Caches (low disk space); it is a one-off of 10+ minutes and cannot be interrupted, not even by cancel.",
-                        category: .transcription,
-                        level: .warning
-                    )
-                }
-            }
+            current?.transcribingSince = (phase == .transcribing) ? Date() : nil
         }
         markState(meeting: meeting, state: phase, in: context)
+    }
+
+    /// Runs every 5 s alongside the job (see the watchdog in `runJob`). Yields
+    /// to a strained live recording, and raises `isWarmingUp` once
+    /// transcription has sat at zero chunks for `warmUpGrace` — one periodic
+    /// evaluator rather than a second per-job timer.
+    private func jobTick() {
+        yieldIfLiveRecordingIsStrained()
+        guard var job = current, job.phase == .transcribing, let since = job.transcribingSince else { return }
+        let warming = job.chunksDone == 0 && Date().timeIntervalSince(since) >= Self.warmUpGrace
+        guard warming != job.isWarmingUp else { return }
+        job.isWarmingUp = warming
+        current = job
+        if warming {
+            LogManager.send(
+                "Whisper has not finished its first chunk after \(Int(Self.warmUpGrace))s — the Neural Engine is compiling the model. That happens after an app update or when macOS purged Library/Caches (low disk space); it is a one-off of 10+ minutes and cannot be interrupted, not even by cancel.",
+                category: .transcription,
+                level: .warning
+            )
+        }
     }
 
     private func updateTranscriptionProgress(_ progress: HighQualityTranscriber.Progress) {
@@ -600,12 +600,9 @@ final class ReProcessingQueue {
         if job.chunksDone != progress.chunksDone || job.chunksTotal != progress.chunksTotal {
             job.chunksDone = progress.chunksDone
             job.chunksTotal = progress.chunksTotal
-            if progress.chunksDone > 0 {
-                if job.isWarmingUp {
-                    LogManager.send("Neural Engine model preparation finished — transcription is under way", category: .transcription)
-                }
+            if progress.chunksDone > 0, job.isWarmingUp {
+                LogManager.send("Neural Engine model preparation finished — transcription is under way", category: .transcription)
                 job.isWarmingUp = false
-                warmUpTask?.cancel()
             }
             current = job
         }

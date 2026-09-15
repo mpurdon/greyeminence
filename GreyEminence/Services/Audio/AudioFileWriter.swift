@@ -72,12 +72,7 @@ actor AudioFileWriter {
                     "\(Self.describe(inputFormat)) and fallback \(Self.describe(fallback)) both rejected: \(error.localizedDescription)"
                 )
             }
-            guard let made = AVAudioConverter(from: inputFormat, to: fallback) else {
-                throw AudioFileWriterError.encoderPreflightFailed(
-                    "\(Self.describe(inputFormat)) rejected and no converter to \(Self.describe(fallback))"
-                )
-            }
-            converter = made
+            converter = try Self.makeConverter(from: inputFormat, to: fallback)
             writeFormat = fallback
             LogManager.send(
                 "Audio encoder rejected \(Self.describe(inputFormat)) — recording via \(Self.describe(fallback)) instead",
@@ -162,22 +157,26 @@ actor AudioFileWriter {
     /// the chunk was opened with. One file, one format, no gap.
     private func adoptInputFormat(_ format: AVAudioFormat) throws {
         guard let target = startedFormat else { throw AudioFileWriterError.notStarted }
-        if format == target {
-            converter = nil
-        } else {
-            guard let made = AVAudioConverter(from: format, to: target) else {
-                throw AudioFileWriterError.encoderPreflightFailed(
-                    "no converter from \(Self.describe(format)) to \(Self.describe(target))"
-                )
-            }
-            made.channelMap = Self.channelMap(from: format.channelCount, to: target.channelCount)
-            converter = made
-        }
+        converter = (format == target) ? nil : try Self.makeConverter(from: format, to: target)
         LogManager.send(
             "Audio now arriving as \(Self.describe(format)) (was \(Self.describe(acceptedInputFormat ?? format))) — writing on as \(Self.describe(target))",
             category: .audio
         )
         acceptedInputFormat = format
+    }
+
+    /// The one place an `AVAudioConverter` is built for the writer, so the
+    /// channel map applies whether the mismatch came from the encoder
+    /// fallback in `start` or a mid-recording device switch in
+    /// `adoptInputFormat`. A matching channel count makes the map a no-op.
+    nonisolated static func makeConverter(from input: AVAudioFormat, to target: AVAudioFormat) throws -> AVAudioConverter {
+        guard let made = AVAudioConverter(from: input, to: target) else {
+            throw AudioFileWriterError.encoderPreflightFailed(
+                "no converter from \(describe(input)) to \(describe(target))"
+            )
+        }
+        made.channelMap = channelMap(from: input.channelCount, to: target.channelCount)
+        return made
     }
 
     /// Output channel → input channel. A mono microphone replacing a stereo

@@ -124,6 +124,13 @@ final class Meeting {
         }
     }
 
+    /// Whether this meeting has aged into the archive: a normal meeting older
+    /// than the recent-list cutoff. Interviews have their own list and pinned
+    /// meetings never age out. One rule, shared by the list and the archive.
+    func isArchived(before cutoff: Date) -> Bool {
+        !isInterviewMeeting && !isPinned && date < cutoff
+    }
+
     init(
         title: String = "New Meeting",
         date: Date = .now,

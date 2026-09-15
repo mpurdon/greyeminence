@@ -29,7 +29,7 @@ struct ArchiveView: View {
 
     private var archivedMeetings: [Meeting] {
         let cutoff = cutoffDate
-        return allMeetings.filter { !$0.isInterviewMeeting && !$0.isPinned && $0.date < cutoff }
+        return allMeetings.filter { $0.isArchived(before: cutoff) }
     }
 
     private var availableYears: [Int] {

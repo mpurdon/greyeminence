@@ -39,6 +39,9 @@ final class MeetingDetectionService {
         /// reports a real one. A call app that has the Yeti open reports the
         /// Yeti here, which is how the recorder ends up on the same device.
         var inputDevice: InputDevice? = nil
+
+        /// Best available name for this holder, for logs and UI.
+        var displayName: String { appName ?? bundleID ?? "pid \(pid)" }
     }
 
     /// A real input device another process has open.
@@ -67,10 +70,7 @@ final class MeetingDetectionService {
     /// apps listening at once are almost always on the same microphone.
     /// nil means nothing useful was learned and the Settings choice applies.
     static func captureDevice(for holders: [MicHolder]) -> InputDevice? {
-        if let device = startDecision(for: holders).holder?.inputDevice {
-            return device
-        }
-        return holders.lazy.compactMap(\.inputDevice).first
+        sourceHolder(for: holders)?.inputDevice ?? holders.lazy.compactMap(\.inputDevice).first
     }
 
     /// The app a recording made now is *of*: the call the start policy would
@@ -115,7 +115,7 @@ final class MeetingDetectionService {
     /// app tracked, 20 s rides out a Teams reconnect or device switch (the
     /// built-in→Yeti hop shows no gap at all) and a test call on 2026-09-14
     /// was stopped by hand 53 s after hang-up because nothing had happened.
-    private let stopDebounce: TimeInterval = 20
+    static let stopDebounce: TimeInterval = 20
     private let pollInterval: TimeInterval = 5
 
     private var timer: Timer?
@@ -279,12 +279,13 @@ final class MeetingDetectionService {
             return
         }
         clearSince = nil
-        if inUseSince == nil { inUseSince = now() }
+        let at = now()
+        if inUseSince == nil { inUseSince = at }
         guard let since = inUseSince else { return }
         let debounce = decision.debounce ?? startDebounce
-        guard now().timeIntervalSince(since) >= debounce else { return }
+        guard at.timeIntervalSince(since) >= debounce else { return }
 
-        let who = holder.appName ?? holder.bundleID ?? "another app"
+        let who = holder.displayName
         switch decision {
         case .start:
             LogManager.send("Auto-detected meeting start (\(who))", category: .audio)
@@ -366,11 +367,12 @@ final class MeetingDetectionService {
             }
             return
         }
-        if clearSince == nil { clearSince = now() }
+        let at = now()
+        if clearSince == nil { clearSince = at }
         guard let since = clearSince else { return }
-        if now().timeIntervalSince(since) >= stopDebounce {
+        if at.timeIntervalSince(since) >= Self.stopDebounce {
             LogManager.send(
-                "Auto-detected meeting end (\(Self.describe(tracked, withDevice: false)) off the microphone for \(Int(stopDebounce))s)",
+                "Auto-detected meeting end (\(Self.describe(tracked, withDevice: false)) off the microphone for \(Int(Self.stopDebounce))s)",
                 category: .audio
             )
             onStopRequested?()
@@ -378,9 +380,8 @@ final class MeetingDetectionService {
     }
 
     private static func describe(_ holder: MicHolder, withDevice: Bool = true) -> String {
-        let who = holder.appName ?? holder.bundleID ?? "pid \(holder.pid)"
-        guard withDevice, let device = holder.inputDevice else { return who }
-        return "\(who) on \(device.name)"
+        guard withDevice, let device = holder.inputDevice else { return holder.displayName }
+        return "\(holder.displayName) on \(device.name)"
     }
 
     private func queryMicInUse() -> Bool {

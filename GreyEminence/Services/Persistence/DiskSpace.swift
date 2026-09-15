@@ -15,14 +15,20 @@ enum DiskSpace {
     /// Below this, re-processing does not start at all.
     static let criticalWatermark: Int64 = 1_000_000_000
 
-    nonisolated static func freeBytes(at url: URL = StorageManager.shared.recordingsURL) -> Int64? {
-        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+    nonisolated static func freeBytes() -> Int64? {
+        let values = try? StorageManager.shared.recordingsURL
+            .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         return values?.volumeAvailableCapacityForImportantUsage
+    }
+
+    /// The warning for the current free space, or nil when there is enough.
+    nonisolated static func currentWarning() -> String? {
+        warning(freeBytes: freeBytes())
     }
 
     /// The user-facing warning for `freeBytes`, or nil when there is nothing
     /// to say. Pure so the threshold and wording are tested.
-    static func warning(freeBytes: Int64?, lowWatermark: Int64 = lowWatermark) -> String? {
+    static func warning(freeBytes: Int64?) -> String? {
         guard let freeBytes, freeBytes < lowWatermark else { return nil }
         return "Low disk space — \(describe(freeBytes)) free. macOS purges the app's caches under pressure, which makes the next re-transcription recompile Whisper for the Neural Engine (10+ minutes), and a long recording may not fit. Free up space."
     }

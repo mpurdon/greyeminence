@@ -544,27 +544,29 @@ final class ScreenFrameTriageTests: XCTestCase {
     /// Teams tears the placeholder pop-out down and puts it back between
     /// polls. The ignore must survive the window's absence, or the next poll
     /// adopts the replacement and the cycle repeats every few seconds.
-    func testPlaceholderIgnoreSurvivesTheWindowVanishingDuringCooldown() {
+    private func sighting(_ id: CGWindowID, title: String, at: Date) -> ScreenShareCaptureService.PlaceholderIgnore {
+        .init(id: id, title: title, at: at)
+    }
+
+    func testPlaceholderSightingSurvivesTheWindowVanishingDuringCooldown() {
         let t0 = Date(timeIntervalSince1970: 1_000_000)
-        let ignores: [CGWindowID: ScreenShareCaptureService.PlaceholderIgnore] = [
-            42: .init(title: "Shared content | Daily | Microsoft Teams", at: t0)
-        ]
-        let live = ScreenShareCaptureService.liveIgnores(ignores, candidates: [], now: t0.addingTimeInterval(30), cooldown: 60)
+        let sightings = [sighting(42, title: "Shared content | Daily | Microsoft Teams", at: t0)]
+        let live = ScreenShareCaptureService.liveSightings(sightings, candidates: [], now: t0.addingTimeInterval(30), cooldown: 60)
         XCTAssertEqual(live.count, 1)
     }
 
-    func testPlaceholderIgnoreIsDroppedAfterCooldownOnceTheWindowIsGone() {
+    func testPlaceholderSightingIsDroppedAfterCooldownOnceTheWindowIsGone() {
         let t0 = Date(timeIntervalSince1970: 1_000_000)
         let title = "Shared content | Daily | Microsoft Teams"
-        let ignores: [CGWindowID: ScreenShareCaptureService.PlaceholderIgnore] = [42: .init(title: title, at: t0)]
+        let sightings = [sighting(42, title: title, at: t0)]
         let later = t0.addingTimeInterval(61)
-        XCTAssertTrue(ScreenShareCaptureService.liveIgnores(ignores, candidates: [], now: later, cooldown: 60).isEmpty)
+        XCTAssertTrue(ScreenShareCaptureService.liveSightings(sightings, candidates: [], now: later, cooldown: 60).isEmpty)
         XCTAssertEqual(
-            ScreenShareCaptureService.liveIgnores(ignores, candidates: [candidate(42, title: title)], now: later, cooldown: 60).count,
+            ScreenShareCaptureService.liveSightings(sightings, candidates: [candidate(42, title: title)], now: later, cooldown: 60).count,
             1, "still there under the same title — still the placeholder"
         )
         XCTAssertTrue(
-            ScreenShareCaptureService.liveIgnores(ignores, candidates: [candidate(42, title: "Shared content | Other")], now: later, cooldown: 60).isEmpty,
+            ScreenShareCaptureService.liveSightings(sightings, candidates: [candidate(42, title: "Shared content | Other")], now: later, cooldown: 60).isEmpty,
             "retitled — re-evaluate"
         )
     }
@@ -572,9 +574,9 @@ final class ScreenFrameTriageTests: XCTestCase {
     /// The replacement window has a fresh ID; the title is what carries over.
     func testAReplacementWindowWithTheSameTitleIsSuppressed() {
         let title = "Shared content | Daily | Microsoft Teams"
-        let replacement = candidate(43, title: title)
-        XCTAssertTrue(ScreenShareCaptureService.isSuppressed(replacement, ignoredWindows: [:], endedTitles: [title: Date()]))
-        XCTAssertFalse(ScreenShareCaptureService.isSuppressed(candidate(43, title: "Shared content | Other"), ignoredWindows: [:], endedTitles: [title: Date()]))
-        XCTAssertTrue(ScreenShareCaptureService.isSuppressed(candidate(42, title: "anything"), ignoredWindows: [42: .init(title: "x", at: Date())], endedTitles: [:]))
+        let sightings = [sighting(42, title: title, at: Date())]
+        XCTAssertTrue(ScreenShareCaptureService.isSuppressed(candidate(43, title: title), by: sightings), "new id, same title")
+        XCTAssertFalse(ScreenShareCaptureService.isSuppressed(candidate(43, title: "Shared content | Other"), by: sightings))
+        XCTAssertTrue(ScreenShareCaptureService.isSuppressed(candidate(42, title: "anything"), by: sightings), "same id")
     }
 }

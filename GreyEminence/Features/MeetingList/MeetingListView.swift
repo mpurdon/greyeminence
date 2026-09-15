@@ -22,12 +22,12 @@ struct MeetingListView: View {
     /// pinning is for.
     private var visibleMeetings: [Meeting] {
         let cutoff = cutoffDate
-        return meetings.filter { !$0.isInterviewMeeting && ($0.isPinned || $0.date >= cutoff) }
+        return meetings.filter { !$0.isInterviewMeeting && !$0.isArchived(before: cutoff) }
     }
 
     private var archivedCount: Int {
         let cutoff = cutoffDate
-        return meetings.filter { !$0.isInterviewMeeting && !$0.isPinned && $0.date < cutoff }.count
+        return meetings.filter { $0.isArchived(before: cutoff) }.count
     }
 
     private var groupedMeetings: [(String, [Meeting])] {

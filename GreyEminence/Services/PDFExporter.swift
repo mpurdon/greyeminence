@@ -108,10 +108,6 @@ enum PDFExporter {
     }
 
     private static func sanitize(_ name: String) -> String {
-        let illegal = CharacterSet(charactersIn: "/:\\?\"<>|*")
-        return name.unicodeScalars
-            .filter { !illegal.contains($0) }
-            .map(String.init)
-            .joined()
+        name.sanitizedForFilename()
     }
 }

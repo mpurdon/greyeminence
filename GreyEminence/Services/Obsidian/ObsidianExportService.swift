@@ -242,11 +242,7 @@ enum ObsidianExportService {
     }
 
     private static func sanitizeFilename(_ name: String) -> String {
-        let illegal = CharacterSet(charactersIn: "/:\\?\"<>|*")
-        return name.unicodeScalars
-            .filter { !illegal.contains($0) }
-            .map { String($0) }
-            .joined()
+        name.sanitizedForFilename()
     }
 
     private static func formatDate(_ date: Date) -> String {

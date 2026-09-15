@@ -490,18 +490,24 @@ final class RecordingViewModel {
               state == .recording || state == .paused,
               let device = holder.inputDevice,
               device.uid != callInputDevice?.uid else { return }
-        let who = holder.appName ?? holder.bundleID ?? "the call"
+        let who = holder.displayName
         Task {
-            let moved = await micCapture.switchDevice(to: device.uid, reason: "\(who) moved to it")
-            await MainActor.run {
-                if moved {
-                    self.callInputDevice = device
-                    self.log.log("Now recording from \(device.name) — following \(who)", category: .audio)
-                } else {
-                    self.log.log("Could not follow \(who) to \(device.name) — still on the previous microphone", category: .audio, level: .warning)
-                }
+            if await micCapture.switchDevice(to: device.uid, reason: "\(who) moved to it") {
+                callInputDevice = device
+                log.log("Now recording from \(device.name) — following \(who)", category: .audio)
+            } else {
+                log.log("Could not follow \(who) to \(device.name) — still on the previous microphone", category: .audio, level: .warning)
             }
         }
+    }
+
+    /// Show the low-disk banner and log a line if space is short. One place,
+    /// called at launch and at record start — the only two moments a user is
+    /// watching. The background re-processing queue warns itself in the log.
+    func surfaceDiskSpaceWarning(context: String) {
+        guard let warning = DiskSpace.currentWarning() else { return }
+        errorMessage = warning
+        log.log("Low disk space at \(context): \(warning)", category: .audio, level: .warning)
     }
 
     func startRecording(in modelContext: ModelContext, autoDetected: Bool = false, resuming existing: Meeting? = nil) {
@@ -568,7 +574,7 @@ final class RecordingViewModel {
             if let source = MeetingDetectionService.sourceHolder(for: holders) {
                 meeting.sourceAppBundleID = source.bundleID
                 meeting.sourceAppName = source.appName
-                log.log("Recording source app: \(source.appName ?? source.bundleID ?? "unknown")", category: .audio)
+                log.log("Recording source app: \(source.displayName)", category: .audio)
             }
 
             // Calendar linking runs after the recording is live (see
@@ -1510,11 +1516,7 @@ final class RecordingViewModel {
             log.log("Mic permission not granted — recording will have no mic audio", category: .audio, level: .warning)
         }
 
-        let freeDisk = DiskSpace.freeBytes()
-        if let warning = DiskSpace.warning(freeBytes: freeDisk) {
-            errorMessage = warning
-            log.log("Low disk space at recording start: \(DiskSpace.describe(freeDisk ?? 0)) free", category: .audio, level: .warning)
-        }
+        surfaceDiskSpaceWarning(context: "recording start")
 
         // Wire vocabulary manager into coordinator
         coordinator.vocabularyManager = vocabularyManager
