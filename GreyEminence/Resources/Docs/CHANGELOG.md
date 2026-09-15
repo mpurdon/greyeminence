@@ -4,6 +4,79 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.47.2 — 2026-09-14
+
+**Changelog caught up**
+- This changelog now covers the recording, screen-share, disk-space and
+  pinning work from 0.45.0 through 0.47.1, which had shipped without notes.
+
+## 0.47.1 — 2026-09-14
+
+**Internal cleanup after the last few releases**
+- No change you can see: the code behind the recent recording, screen-share
+  and re-transcription work was tidied up — duplicated logic merged, a
+  couple of redundant background timers removed — so the next changes to it
+  are safer. Everything behaves exactly as it did in 0.47.0.
+
+## 0.47.0 — 2026-09-14
+
+**Pin the meetings you keep going back to, and save a line's audio**
+- Right-click a meeting and choose Pin. It moves to a Pinned section at the
+  top of the list and stays there however old it gets, instead of ageing
+  into the archive with everything else. Pin or unpin any meeting from its
+  right-click menu; the first recording you finish after this update asks
+  once whether you'd like to pin it.
+- Right-click a line in the transcript and choose Save Audio Clip… to write
+  just that moment to an .m4a file — the same audio the play button plays,
+  from the same track (the speaker's own mic, the system audio, or both).
+
+## 0.46.0 — 2026-09-14
+
+**Re-transcription says what it's waiting on, and warns before the disk bites**
+- The first re-transcription after an update — or after macOS clears the
+  app's caches to free space — has to rebuild Whisper for the Neural Engine,
+  which takes ten minutes or more with nothing to show for it. The progress
+  bar used to sit there looking frozen, and cancelling looked ignored. It
+  now says it's preparing the model, and that the step can't be interrupted.
+- A low-disk warning appears at launch and when you start recording, well
+  before a write actually fails. The old threshold only spoke up at the very
+  last moment — too late to stop macOS from purging the caches that make
+  re-transcription slow. It now explains why low space matters.
+- The internal log rotates instead of growing without limit; it had reached
+  700 MB.
+
+## 0.45.2 — 2026-09-14
+
+**Auto-stop happens sooner after a call ends**
+- A recording now stops 20 seconds after the call app releases the
+  microphone, rather than a full minute. Long enough to ride out a
+  reconnect, short enough that the recording ends when the call does.
+
+## 0.45.1 — 2026-09-14
+
+**The screen-share watcher no longer flickers when a share ends**
+- When a Teams presenter stopped sharing, the app kept re-finding the
+  "Content sharing has ended" placeholder, capturing it, closing the
+  session, and starting over every few seconds — the capture indicator
+  blinking on and off the whole time. A window that showed the placeholder
+  is now left alone for a minute, even as Teams tears it down and puts it
+  back, so the flicker is gone.
+
+## 0.45.0 — 2026-09-14
+
+**Recordings end when the call does, and follow the call's microphone**
+- Every recording — whether it started on its own or you pressed record — is
+  now tied to the app whose call it is, and stops on its own when that app
+  hangs up. Before, only auto-started recordings stopped by themselves; a
+  recording you started by hand mid-call would run until you stopped it,
+  which is how a meeting once kept recording half an hour past its end.
+  Another app sitting on the microphone (Discord idling in a voice channel)
+  no longer keeps a finished call's recording alive.
+- Teams opens the built-in microphone first and switches to your real one a
+  few seconds later. The recording now follows that switch instead of
+  capturing the whole call through the laptop mic, with no gap where the
+  microphone changes over.
+
 ## 0.32.5 — 2026-09-03
 
 **A new speaker's first words no longer go to the previous speaker**
