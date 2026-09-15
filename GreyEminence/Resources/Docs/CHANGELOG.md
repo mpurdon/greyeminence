@@ -4,6 +4,14 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.47.3 — 2026-09-15
+
+**Changelog fully caught up**
+- Backfilled the entries for 0.33.0 through 0.44.0 — the Claude 5 move,
+  call-microphone recording and segment playback, the mis-heard-word fixes,
+  the far-side-audio fix, speaker-bleed handling, Prep-card task tick-off,
+  and concurrent re-transcription — which had shipped without notes.
+
 ## 0.47.2 — 2026-09-14
 
 **Changelog caught up**
@@ -76,6 +84,99 @@ full detail; older ones are summarized. The version number tracks
   few seconds later. The recording now follows that switch instead of
   capturing the whole call through the laptop mic, with no gap where the
   microphone changes over.
+
+## 0.44.0 — 2026-09-13
+
+**Faster catch-up after back-to-back meetings**
+- The high-accuracy re-transcription can now run while you're recording your
+  next meeting, at low priority, so a run of back-to-back calls no longer
+  leaves a queue to grind through afterwards. It starts a minute and a half
+  in and steps aside for the rest of a recording if the live transcript
+  starts to fall behind. On by default in Settings ▸ Audio.
+- A meeting is no longer occasionally re-transcribed twice, and a
+  re-transcription that gets interrupted now resumes where it left off
+  rather than starting over.
+
+## 0.43.0 — 2026-09-11
+
+**Tick off carried-over tasks from the Meeting Prep card**
+- The open items on the Prep card are now the live tasks themselves: click
+  the circle to mark one done, or right-click for Done / Won't Do / Pending.
+  A completed item stays on the card struck through so you can see what
+  you've covered mid-call, and drops off at the next occurrence.
+- Prep also stops resurfacing tasks you'd marked "won't do" — it had kept
+  nagging about them every time the meeting came round.
+
+## 0.42.0 — 2026-09-11
+
+**Telling speaker bleed from your own voice**
+- When someone on the far side comes through your speakers and into your
+  microphone, re-transcription now recognises it by how quiet it is against
+  your own voice, and either removes the echoed line or credits it to the
+  right person instead of to you. Your own lines are untouched. Reversible,
+  like the other speaker fixes.
+
+## 0.41.0 — 2026-09-10
+
+**Stop losing the far side of long meetings, and more**
+- The far side of a meeting could go missing partway through: on busy
+  recordings the audio fell behind as the live transcript grew and the
+  backlog was thrown away when you stopped. A survey of past meetings found
+  nearly half of the affected ones had lost a chunk of the remote voice.
+  That path is rebuilt — the audio keeps up now, and whatever was buffered
+  is written out before the recording closes.
+- The transcript can be filtered to a single speaker — from a toolbar menu,
+  by clicking a speaker's badge, or from an unidentified-voice chip.
+- Invitees can be marked "did not attend": they stay listed but drop out of
+  the AI summary, task assignment, voice matching and exported attendee
+  lists.
+- Custom vocabulary terms now carry a kind (person, company, project…) and a
+  weight, which the word-correction pass uses to favour the names you care
+  about and set aside the ones you rarely mention.
+
+## 0.37.1 — 2026-09-09
+
+**Keep the good transcript instead of a near-empty re-transcription**
+- The context hint added in 0.37.0 turned out to make the high-accuracy
+  model cut off almost immediately, returning a handful of lines for an
+  hour-long meeting. It's switched off until it can be proven safe, and
+  re-transcription now keeps the original transcript (and flags the run as
+  failed) whenever a new pass comes back suspiciously short, rather than
+  replacing good text with a near-empty result.
+
+## 0.37.0 — 2026-09-08
+
+**Fixing mis-heard words**
+- Re-transcription now gives the high-accuracy model the meeting's title,
+  attendees, custom vocabulary and prior topics as context, so names and
+  jargon come through as themselves more often, and then runs a separate AI
+  pass that repairs remaining mis-hearings against that same context.
+- Lines the recogniser was unsure about are marked, and a corrected line
+  keeps its original text on hover (under a sparkle icon) so you can always
+  see what changed. Nothing runs on your existing meetings unless you ask,
+  from the new "Fix Mis-hearings" button on the transcript.
+
+## 0.36.0 — 2026-09-08
+
+**Record from the call's microphone, and play back any line**
+- Recordings now capture from the microphone the call app is actually using.
+  Until now, if a call used your Yeti while the system default was the
+  built-in mic, the recording caught the built-in one and your voice sounded
+  distant. There's an off switch in Settings ▸ Audio.
+- Every line in a completed meeting's transcript has a play button that
+  plays the recorded audio behind it — the speaker's own track by default,
+  or right-click to pick microphone, system audio, or both.
+- Screenshots pulled into reports are matched to the conversation around the
+  moment they were captured, so the figure that lands beside a point is more
+  often the relevant one.
+
+## 0.33.0 — 2026-09-03
+
+**Moved to the Claude 5 models**
+- The AI features now use the current Claude generation (Opus 5, Sonnet 5,
+  Haiku 4.5) in place of the retired Claude 4 models; your model choice in
+  Settings carries over. Cost estimates use current prices, and the system
+  prompt is cached between calls to cut token cost.
 
 ## 0.32.5 — 2026-09-03
 
