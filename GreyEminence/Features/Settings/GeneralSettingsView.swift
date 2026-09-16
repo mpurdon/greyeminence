@@ -15,9 +15,15 @@ struct GeneralSettingsView: View {
     /// 0 = unlimited (default). >0 means delete audio for any completed
     /// meeting older than that many days. Transcripts always stay.
     @AppStorage("recordingRetentionDays") private var recordingRetentionDays = 0
+    @AppStorage(TaskTriageSettings.enabledKey) private var aiTaskTidyEnabled = false
+    @AppStorage(TaskTriageSettings.lastResultKey) private var lastTidyResult = ""
     @Query(sort: \Contact.name) private var contacts: [Contact]
     @Query private var allMeetings: [Meeting]
+    @Query(filter: #Predicate<ActionItem> { !$0.isCompleted && $0.dismissedAt == nil })
+    private var pendingActionItems: [ActionItem]
     @State private var lastRetentionResult: String?
+    @State private var isTidying = false
+    @State private var tidyError: String?
 
     init(updater: SPUUpdater?) {
         self.updater = updater
@@ -145,6 +151,40 @@ struct GeneralSettingsView: View {
                 Text("Action items older than this are flagged as stalled in the Tasks view.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Divider()
+
+                Toggle("Tidy tasks automatically with AI", isOn: $aiTaskTidyEnabled)
+                    .newFeatureBadge("ai-task-tidy", alignment: .topLeading)
+                    .onChange(of: aiTaskTidyEnabled) { _, _ in
+                        FeatureDiscovery.shared.markSeen("ai-task-tidy")
+                    }
+                Text("Once a day at launch, when new tasks have appeared, your AI model rates every open task High, Medium or Low, merges duplicates, and drops items that aren't really tasks. Dropped and merged items are marked Won't Do with the reason, so you can restore them from the Won't Do section; each one is also listed in the Activity Log. The same pass is behind the Tidy with AI button in Tasks.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack {
+                    Button {
+                        tidyNow()
+                    } label: {
+                        if isTidying {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text("Tidy now")
+                        }
+                    }
+                    .controlSize(.small)
+                    .disabled(isTidying || pendingActionItems.isEmpty)
+                    if let tidyError {
+                        Text(tidyError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    } else if !lastTidyResult.isEmpty {
+                        Text("Last run: \(lastTidyResult)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             } header: {
                 Label("Tasks", systemImage: "checkmark.circle")
                     .font(.subheadline.weight(.semibold))
@@ -175,6 +215,25 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// Every open task, whoever it is assigned to — the automatic pass has
+    /// the same scope, so "Tidy now" previews exactly what it would do.
+    private func tidyNow() {
+        guard !isTidying else { return }
+        isTidying = true
+        tidyError = nil
+        let scope = pendingActionItems
+        Task { @MainActor in
+            defer { isTidying = false }
+            do {
+                _ = try await TransientActivityCoordinator.shared.runAsync("Tidying tasks with AI…") {
+                    try await TaskTriageService.run(pending: scope, in: modelContext)
+                }
+            } catch {
+                tidyError = error.localizedDescription
+            }
+        }
     }
 
     private func runRetentionNow() {

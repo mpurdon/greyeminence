@@ -196,6 +196,9 @@ struct ContentView: View {
                 if recovered > 0 {
                     TransientActivityCoordinator.shared.flash("Recovered \(recovered) screen-share frame(s)")
                 }
+                // Opt-in, once a day, and only when there are open tasks no
+                // pass has rated yet — see TaskTriageSettings.isAutoRunDue.
+                await TaskTriageService.runAutomaticPassIfDue(in: modelContext)
             }
         }
         .onChange(of: autoStartRecording) { _, enabled in
@@ -720,6 +723,7 @@ enum TaskFilter: String, CaseIterable, Identifiable {
 }
 
 enum TaskSort: String, CaseIterable, Identifiable {
+    case priority = "Priority"
     case created = "Date Created"
     case dueDate = "Due Date"
     case meetingDate = "Meeting Date"
@@ -757,6 +761,8 @@ struct AllTasksView: View {
 
     @State private var detailTask: ActionItem?
     @State private var showBulkDismissConfirmation = false
+    @State private var isTidying = false
+    @State private var tidyError: String?
 
     private var filter: TaskFilter {
         TaskFilter(rawValue: filterRaw) ?? .mine
@@ -819,6 +825,17 @@ struct AllTasksView: View {
     private func compare(_ a: ActionItem, _ b: ActionItem) -> Bool {
         let ascending = sortDirection == .ascending
         switch sort {
+        case .priority:
+            // Unrated items sink to the bottom regardless of direction;
+            // within a rating, newest first.
+            switch (a.priority, b.priority) {
+            case (.some, .none): return true
+            case (.none, .some): return false
+            case (.none, .none): return a.createdAt > b.createdAt
+            case let (.some(x), .some(y)):
+                if x == y { return a.createdAt > b.createdAt }
+                return ascending ? x.rank > y.rank : x.rank < y.rank
+            }
         case .created:
             return ascending ? a.createdAt < b.createdAt : a.createdAt > b.createdAt
         case .dueDate:
@@ -865,6 +882,27 @@ struct AllTasksView: View {
     private var nonStalledPending: [ActionItem] {
         let stalledIDs = Set(stalledItems.map(\.id))
         return visiblePending.filter { !stalledIDs.contains($0.id) }
+    }
+
+    /// One AI pass over the open tasks the current filter shows: rate,
+    /// merge duplicates, drop non-tasks. Applied immediately — the outcome
+    /// lands in the status bar and every deletion in the activity log.
+    private func tidyWithAI() {
+        guard !isTidying else { return }
+        isTidying = true
+        FeatureDiscovery.shared.markSeen("ai-task-tidy")
+        let scope = pendingItems.filter(isVisible)
+        Task { @MainActor in
+            defer { isTidying = false }
+            do {
+                let report = try await TransientActivityCoordinator.shared.runAsync("Tidying tasks with AI…") {
+                    try await TaskTriageService.run(pending: scope, in: modelContext)
+                }
+                TransientActivityCoordinator.shared.flash("Tasks tidied: \(report.summary)")
+            } catch {
+                tidyError = error.localizedDescription
+            }
+        }
     }
 
     private func bulkDismissStalled() {
@@ -958,6 +996,21 @@ struct AllTasksView: View {
                 .disabled(myContactIDString.isEmpty)
             }
             ToolbarItem(placement: .primaryAction) {
+                Button {
+                    tidyWithAI()
+                } label: {
+                    if isTidying {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label("Tidy with AI", systemImage: "sparkles")
+                    }
+                }
+                .disabled(isTidying || pendingItems.isEmpty)
+                .help("Rank open tasks by importance, merge duplicates and remove anything that isn't a task — applied right away")
+                .newFeatureBadge("ai-task-tidy")
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Section("Sort by") {
                         Picker("Sort", selection: $sortRaw) {
@@ -1006,6 +1059,14 @@ struct AllTasksView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Affects the current \(filter.rawValue) filter. Items can be restored from the Won't Do section.")
+        }
+        .alert("Couldn't tidy tasks", isPresented: Binding(
+            get: { tidyError != nil },
+            set: { if !$0 { tidyError = nil } }
+        )) {
+            Button("OK") { tidyError = nil }
+        } message: {
+            Text(tidyError ?? "")
         }
         .overlay {
             if visiblePending.isEmpty && visibleCompleted.isEmpty {
@@ -1081,8 +1142,20 @@ struct ActionItemRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                // Why the AI tidy-up pass put this in Won't Do — the reader
+                // deciding whether to restore it needs the reason on the row.
+                if item.isDismissed, let note = item.dismissalNote {
+                    Label(note, systemImage: "sparkles")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let priority = item.priority, !item.isCompleted, !item.isDismissed {
+                TaskPriorityBadge(priority: priority)
+            }
 
             if onShowDetails != nil {
                 Button {
@@ -1124,6 +1197,7 @@ struct ActionItemRow: View {
             if item.isDismissed {
                 Button("Restore (mark Pending)") {
                     item.dismissedAt = nil
+                    item.dismissalNote = nil
                     persist("restoreFromDismissed")
                 }
             } else if !item.isCompleted {
@@ -1152,3 +1226,26 @@ struct ActionItemRow: View {
     }
 }
 
+/// Compact importance marker from the AI tidy-up pass. Low is shown too —
+/// an unrated item and a low one should not look the same.
+struct TaskPriorityBadge: View {
+    let priority: ActionItemPriority
+
+    private var tint: Color {
+        switch priority {
+        case .high: .red
+        case .medium: .orange
+        case .low: .gray
+        }
+    }
+
+    var body: some View {
+        Text(priority.displayName)
+            .font(.caption2.weight(.medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(tint.opacity(0.15), in: Capsule())
+            .foregroundStyle(tint)
+            .help("Importance rated by the AI tidy-up pass")
+    }
+}

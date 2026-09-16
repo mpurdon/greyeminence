@@ -14,6 +14,8 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
     case reportFigureAnchors  = "report.figureAnchors"
     case transcriptCorrectionSystem = "transcript.correctionSystem"
     case transcriptCorrection = "transcript.correction"
+    case taskTriageSystem     = "tasks.triageSystem"
+    case taskTriage           = "tasks.triage"
 
     var id: String { rawValue }
 
@@ -30,6 +32,8 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
         case .reportFigureAnchors: "Report — Figure Anchoring"
         case .transcriptCorrectionSystem: "Transcript — Correction System Prompt"
         case .transcriptCorrection: "Transcript — Mis-hearing Correction"
+        case .taskTriageSystem: "Tasks — Tidy-up System Prompt"
+        case .taskTriage:     "Tasks — Tidy-up"
         }
     }
 
@@ -59,6 +63,10 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
             []
         case .transcriptCorrection:
             ["context", "lines"]
+        case .taskTriageSystem:
+            []
+        case .taskTriage:
+            ["today", "pendingTasks", "completedTasks"]
         }
     }
 }

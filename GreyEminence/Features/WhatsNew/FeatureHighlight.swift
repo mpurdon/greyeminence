@@ -24,6 +24,15 @@ enum FeatureHighlightCatalog {
     /// set its `version` to that release's MARKETING_VERSION.
     static let all: [FeatureHighlight] = [
         FeatureHighlight(
+            id: "ai-task-tidy",
+            version: "0.48.0",
+            title: "Let AI tidy your task list",
+            summary: "Tasks pulled from transcripts pile up: the same request phrased three ways, discussion points that were never tasks. Tidy with AI in the Tasks view rates every open task High, Medium or Low, merges duplicates and drops what isn\u{2019}t a task \u{2014} right away. Nothing is deleted: dropped and merged items go to Won\u{2019}t Do with the reason, one click from restored. To have it run on its own once a day, turn on Tidy tasks automatically in Settings \u{2192} General. It\u{2019}s off until you do.",
+            systemImage: "sparkles",
+            tint: .orange,
+            destination: .tasks
+        ),
+        FeatureHighlight(
             id: "pinned-meetings-highlight",
             version: "0.47.0",
             title: "Pin the meetings you keep going back to",

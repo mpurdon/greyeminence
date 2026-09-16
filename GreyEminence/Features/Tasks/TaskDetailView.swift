@@ -61,6 +61,9 @@ struct TaskDetailView: View {
                     .textSelection(.enabled)
             }
             HStack(spacing: 12) {
+                if let priority = task.priority, !task.isCompleted, !task.isDismissed {
+                    TaskPriorityBadge(priority: priority)
+                }
                 if let assignee = task.displayAssignee {
                     Label(assignee, systemImage: "person.crop.circle")
                         .font(.caption)
@@ -78,6 +81,11 @@ struct TaskDetailView: View {
                 Label("Created \(task.createdAt.formatted(date: .abbreviated, time: .omitted))", systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+            }
+            if task.isDismissed, let note = task.dismissalNote {
+                Label("Won't Do — \(note)", systemImage: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

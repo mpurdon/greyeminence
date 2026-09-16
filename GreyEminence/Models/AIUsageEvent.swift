@@ -21,6 +21,8 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
     case embedding
     case interview
     case prep
+    /// Ranking, de-duplicating and pruning the task list.
+    case taskTriage
     case other
 
     var displayName: String {
@@ -37,6 +39,7 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .embedding: "Search index"
         case .interview: "Interview"
         case .prep: "Meeting prep"
+        case .taskTriage: "Task tidy-up"
         case .other: "Other"
         }
     }
@@ -47,7 +50,7 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .transcriptFinal, .reanalysis, .transcriptCorrection: .finalAnalysis
         case .frameAnalysis, .sessionSynthesis: .screenShare
         case .reportFigureAnchors: .reports
-        case .ask, .embedding, .interview, .prep, .other: .other
+        case .ask, .embedding, .interview, .prep, .taskTriage, .other: .other
         }
     }
 }

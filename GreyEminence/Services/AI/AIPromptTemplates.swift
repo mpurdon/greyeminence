@@ -141,6 +141,8 @@ enum AIPromptTemplates {
         case .reportFigureAnchors: defaultFigureAnchorPrompt
         case .transcriptCorrectionSystem: defaultTranscriptCorrectionSystemPrompt
         case .transcriptCorrection: defaultTranscriptCorrectionPrompt
+        case .taskTriageSystem: defaultTaskTriageSystemPrompt
+        case .taskTriage: defaultTaskTriagePrompt
         }
     }
 
@@ -669,5 +671,89 @@ enum AIPromptTemplates {
         "A view of", "The user is".
         - Use only what the description and excerpt state. Invent nothing.
         - Use only the S and F identifiers given above.
+        """
+
+    // MARK: - Task tidy-up
+
+    static var taskTriageSystemPrompt: String {
+        PromptStore.shared.get(.taskTriageSystem, default: defaultTaskTriageSystemPrompt)
+    }
+
+    static func taskTriagePrompt(today: String, pendingTasks: String, completedTasks: String) -> String {
+        let template = PromptStore.shared.get(.taskTriage, default: defaultTaskTriagePrompt)
+        return PromptStore.render(template, values: [
+            "today": today,
+            "pendingTasks": pendingTasks,
+            "completedTasks": completedTasks,
+        ])
+    }
+
+    static let defaultTaskTriageSystemPrompt = """
+        You keep one person's task list honest. The tasks were extracted \
+        automatically from meeting transcripts, so the list accumulates \
+        near-duplicates, things that were never really tasks, and items \
+        nobody could act on. You rate each task's importance, fold \
+        duplicates together, and drop what does not belong. You MUST respond \
+        with ONLY valid JSON matching the schema in the user message — no \
+        prose, no markdown, no explanation before or after.
+        """
+
+    private static let defaultTaskTriagePrompt: String = """
+        Today is {{today}}. Below is a person's open task list, extracted \
+        from meeting transcripts. Each task has an identifier, its text, who \
+        it is assigned to, the meeting it came from, and its age.
+
+        OPEN TASKS
+        {{pendingTasks}}
+
+        RECENTLY COMPLETED (for reference — do not rate these)
+        {{completedTasks}}
+
+        Decide, for every open task, exactly one of:
+        - "keep" with a "priority" of "high", "medium" or "low".
+        - "duplicate" with "of" naming the open task it repeats (or the \
+        completed task it was already done as). The named task is kept; this \
+        one is folded into it.
+        - "remove" with a short "reason" — the item is not a task.
+
+        Return JSON of exactly this shape:
+        {"decisions":[{"id":"T1","action":"keep","priority":"high"},{"id":"T2","action":"duplicate","of":"T1"},{"id":"T3","action":"remove","reason":"not a task"}]}
+
+        Rating importance:
+        - High: a commitment someone else is waiting on, a deadline that is \
+        near or has passed, or something that blocks other work — a customer \
+        deliverable, a decision a team is blocked on, a promise made to a \
+        named person.
+        - Medium: real work with no one waiting on it right now — follow-ups, \
+        reviews, things to draft or look into.
+        - Low: nice-to-haves, vague intentions, "we should at some point".
+        - Age matters both ways: an old high-stakes task is still high; an \
+        old vague one is low.
+
+        Folding duplicates:
+        - Two tasks are duplicates when doing one would do the other — the \
+        same deliverable phrased differently, or the same request repeated \
+        in a later meeting. Different meetings are the usual source.
+        - Keep the more specific wording (the one naming the person, the \
+        artifact, the date). If they are equally specific, keep the newer.
+        - Two tasks about the same subject that ask for different things \
+        are NOT duplicates. "Send the deck to Priya" and "Get Priya's \
+        feedback on the deck" are two tasks.
+        - "of" must name a task that is itself kept, or a completed task. \
+        Never chain duplicates.
+
+        Removing:
+        - Remove what is not a task: a topic of discussion, a fact, a \
+        question with no work behind it, a fragment with no verb, an agenda \
+        line, something the transcript shows was said hypothetically.
+        - Remove tasks that cannot be acted on because they have no \
+        content — "follow up", "look into it", "the thing from Tuesday" \
+        with nothing else to go on.
+        - Do NOT remove a task merely because it is old, unassigned, small, \
+        or assigned to someone other than the list's owner. When in doubt, \
+        keep it and rate it low.
+
+        Use only the T and C identifiers given above. Every open task must \
+        appear exactly once.
         """
 }

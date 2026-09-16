@@ -4,6 +4,28 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.48.0 — 2026-09-16
+
+**AI task tidy-up**
+- New **Tidy with AI** button in the Tasks view. One pass rates every open
+  task High, Medium or Low, merges duplicates into the better-worded one
+  (carrying over the owner and due date), closes tasks that repeat
+  something already done, and drops items that were never tasks. It
+  applies straight away, but nothing is deleted: dropped and merged items
+  are marked Won't Do with the reason ("Duplicate of …", "not a task") shown
+  on the row, and Restore puts them back. Each one is also listed in the
+  Activity Log.
+- Priority shows as a badge on each task and in Task Details, and the
+  Tasks view can sort by it.
+- **Settings → General → Tasks** gains *Tidy tasks automatically with AI*,
+  off by default. When on, the pass runs at launch once a day, and only
+  when tasks the pass hasn't seen have appeared. *Tidy now* runs it on
+  demand and shows the last result.
+- Safety cap: a pass that wants to drop more than 60% of the list keeps
+  its ratings but holds the dismissals back, and says so.
+- The pass is a new line in AI Usage ("Task tidy-up") and its prompts are
+  editable under Developer → Prompts.
+
 ## 0.47.3 — 2026-09-15
 
 **Changelog fully caught up**
