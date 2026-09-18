@@ -19,6 +19,14 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, @preconcurrenc
         LogManager.send(message, category: .update, level: level, detail: detail)
     }
 
+    /// Every gate event hops to the main actor: Sparkle calls back on any
+    /// thread and the gate is main-actor state.
+    nonisolated private static func gate(_ event: @escaping @MainActor (StartupUpdateGate) -> Void) {
+        Task { @MainActor in
+            event(StartupUpdateGate.shared)
+        }
+    }
+
     nonisolated private static func describe(_ error: Error) -> String {
         let ns = error as NSError
         var parts: [String] = []
@@ -74,10 +82,14 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, @preconcurrenc
         // replaced a dev build mid-field-test and the app went on logging
         // as though the changes had never been made.
         Self.log("updaterMayCheckForUpdates -> false (Debug build)")
+        Self.gate { $0.checkSkipped() }
         return false
         #else
+        // No "Checking…" flash here: at launch the status bar already shows
+        // the gate's own "Checking for updates…" spinner, and a flash would
+        // replace it with a completed-looking line while the fetch is still
+        // in flight.
         Self.log("updaterMayCheckForUpdates -> true")
-        Self.announce("Checking for updates…")
         return true
         #endif
     }
@@ -95,11 +107,13 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, @preconcurrenc
     nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
         Self.log("Found valid update — \(Self.describe(item))")
         Self.announce("Update available: \(item.displayVersionString)")
+        Self.gate { $0.updateFound() }
     }
 
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
         Self.log("No update available")
         Self.announce("Up to date")
+        Self.gate { $0.noUpdateFound() }
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
@@ -124,6 +138,24 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, @preconcurrenc
 
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         Self.log("Updater aborted — \(Self.describe(error))", level: .error)
+        Self.gate { $0.installFailed() }
+    }
+
+    nonisolated func updater(_ updater: SPUUpdater, userDidMake choice: SPUUserUpdateChoice, forUpdate updateItem: SUAppcastItem, state: SPUUserUpdateState) {
+        switch choice {
+        case .install:
+            Self.log("User chose to install — \(Self.describe(updateItem))")
+            Self.gate { $0.userChoseInstall() }
+        case .skip:
+            Self.log("User skipped update — \(Self.describe(updateItem))")
+            Self.gate { $0.userDeclinedUpdate() }
+        case .dismiss:
+            Self.log("User dismissed update — \(Self.describe(updateItem))")
+            Self.gate { $0.userDeclinedUpdate() }
+        @unknown default:
+            Self.log("User made an unknown update choice (\(choice.rawValue))", level: .warning)
+            Self.gate { $0.userDeclinedUpdate() }
+        }
     }
 
     nonisolated func updater(_ updater: SPUUpdater, failedToDownloadUpdate item: SUAppcastItem, error: Error) {
@@ -133,6 +165,7 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, @preconcurrenc
     nonisolated func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
         if let error {
             Self.log("Update cycle finished with error (check=\(updateCheck.rawValue)) — \(Self.describe(error))", level: .error)
+            Self.gate { $0.checkFailed() }
         } else {
             Self.log("Update cycle finished cleanly (check=\(updateCheck.rawValue))")
         }
@@ -143,6 +176,7 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate, @preconcurrenc
     func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem, andInState state: SPUUserUpdateState) -> Bool {
         if isRecordingActive() {
             Self.log("UserDriver: deferring scheduled update — recording in progress | \(Self.describe(update))")
+            Self.gate { $0.updateDeferred() }
             return false
         }
         Self.log("UserDriver: showing scheduled update — \(Self.describe(update)) | userInitiated=\(state.userInitiated)")

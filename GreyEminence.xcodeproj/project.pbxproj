@@ -107,6 +107,7 @@
 		49D7D5CE08150541FA514868 /* ScreenShareWindowPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B3112D43D81089D1533776 /* ScreenShareWindowPickerSheet.swift */; };
 		49FCD36190697213AD1011F6 /* InterviewSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34D542711A3AD07755FA9B69 /* InterviewSettingsView.swift */; };
 		4A68EC33839FE5093B329490 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B83B40FCCFC9C150D3A4578 /* KeychainHelper.swift */; };
+		4A80BB8D6842438B9902118C /* StartupUpdateGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55A58388C5922795756EAD5 /* StartupUpdateGate.swift */; };
 		4B2EF779DCD9865FDCCF6D77 /* CommitmentTrackingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066FDCBC8824BB15CDDC73B0 /* CommitmentTrackingService.swift */; };
 		4C7D63F4867FBB2326CA7C45 /* SpeakerIdentificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5058CFFB4F50C8857F2D40D /* SpeakerIdentificationTests.swift */; };
 		4D7D9F0A39B21E31F9EB1607 /* TaskTriageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74AAE11819AFE7A239B0B6B8 /* TaskTriageService.swift */; };
@@ -175,6 +176,7 @@
 		7CEC57C8475969BBAA9C3003 /* PhaseTimerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C52E08ABD3095131A87B65D /* PhaseTimerService.swift */; };
 		7D9A806167723D4CF60E689E /* TestEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 389AE4B943F5A6EF5C00519D /* TestEnvironment.swift */; };
 		7E1823E29DFDFD8A58B894D6 /* InterviewSectionScoreCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467A2217512A73AC48F65308 /* InterviewSectionScoreCard.swift */; };
+		7E6AE9A0319E1782D263AF8A /* StartupUpdateGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747CB16929B483F52B8A73A6 /* StartupUpdateGateTests.swift */; };
 		7ECA8C58F4255BD8241F9D4E /* HighQualityTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F471A4457C433C3E6F503D /* HighQualityTranscriber.swift */; };
 		7F635C78864C77293458EC6B /* Department.swift in Sources */ = {isa = PBXBuildFile; fileRef = 463CA7B7E7481F99C5ED9D93 /* Department.swift */; };
 		7F925FCB3D39587E17E0E4F2 /* ShareSessionSynthesisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60817904396164066D87A911 /* ShareSessionSynthesisTests.swift */; };
@@ -509,6 +511,7 @@
 		70257A902BD08277E2E98305 /* AskCitations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskCitations.swift; sourceTree = "<group>"; };
 		7114D4A801E58ADF1C4676F6 /* AudioLevelMeterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelMeterTests.swift; sourceTree = "<group>"; };
 		72F471A4457C433C3E6F503D /* HighQualityTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighQualityTranscriber.swift; sourceTree = "<group>"; };
+		747CB16929B483F52B8A73A6 /* StartupUpdateGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupUpdateGateTests.swift; sourceTree = "<group>"; };
 		74A9A340B566AD4ABDBB929D /* SystemAudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAudioCaptureService.swift; sourceTree = "<group>"; };
 		74AAE11819AFE7A239B0B6B8 /* TaskTriageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskTriageService.swift; sourceTree = "<group>"; };
 		7535BE024C18AC135ACCEC9F /* MarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownView.swift; sourceTree = "<group>"; };
@@ -659,6 +662,7 @@
 		D3C88BFE844B872FBE04A11C /* ScreenFrameTriage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenFrameTriage.swift; sourceTree = "<group>"; };
 		D3CBE3F8E500B09BEA0B880F /* AdaptiveConcurrencyLimiter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveConcurrencyLimiter.swift; sourceTree = "<group>"; };
 		D428A15C8C43C10363821E49 /* ReportExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportExportSheet.swift; sourceTree = "<group>"; };
+		D55A58388C5922795756EAD5 /* StartupUpdateGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupUpdateGate.swift; sourceTree = "<group>"; };
 		D628D6D9F9CA270605365A14 /* FollowUpQuestionsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowUpQuestionsSection.swift; sourceTree = "<group>"; };
 		DBAB1E4C042E177AB57AA5C0 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		DC104B981D262F388FA1544D /* TemplateLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateLibraryView.swift; sourceTree = "<group>"; };
@@ -853,6 +857,7 @@
 			isa = PBXGroup;
 			children = (
 				02203A251A6442629C7C3EA5 /* SparkleUpdaterDelegate.swift */,
+				D55A58388C5922795756EAD5 /* StartupUpdateGate.swift */,
 			);
 			path = Updates;
 			sourceTree = "<group>";
@@ -966,6 +971,7 @@
 				B5058CFFB4F50C8857F2D40D /* SpeakerIdentificationTests.swift */,
 				E0739E66BD7B4018A01B4D83 /* SpeakerRepairTests.swift */,
 				EF016F2C1CC30A730B1A0E5E /* StartupActivityTests.swift */,
+				747CB16929B483F52B8A73A6 /* StartupUpdateGateTests.swift */,
 				80A717B7D00035B80DA03D31 /* StoreBackupServiceTests.swift */,
 				1E7EC96EE649F0E43B17039E /* TaskTriageTests.swift */,
 				ACD13CBF8483BC48BC008542 /* TopicMapTests.swift */,
@@ -1749,6 +1755,7 @@
 				13F68BDE4034A53058D7E57D /* SpeakerIdentityService.swift in Sources */,
 				0E3A6CD7D1C1A6E7F6FA7757 /* SpeakerRepairService.swift in Sources */,
 				487BD675B1D14E5FDE9AE4D7 /* StalledNotificationService.swift in Sources */,
+				4A80BB8D6842438B9902118C /* StartupUpdateGate.swift in Sources */,
 				A6084800D0732B67F76DA306 /* StorageManager.swift in Sources */,
 				9A3302CA1DB463F3A3CB185C /* StoreBackupService.swift in Sources */,
 				FAF507B483908D2C3227910D /* SystemAudioCaptureService.swift in Sources */,
@@ -1840,6 +1847,7 @@
 				4C7D63F4867FBB2326CA7C45 /* SpeakerIdentificationTests.swift in Sources */,
 				CF342BDDB808D559C6174F77 /* SpeakerRepairTests.swift in Sources */,
 				2086A94A9E6CC889D547825A /* StartupActivityTests.swift in Sources */,
+				7E6AE9A0319E1782D263AF8A /* StartupUpdateGateTests.swift in Sources */,
 				9AD1A6B7364F61A0019DE2CB /* StoreBackupServiceTests.swift in Sources */,
 				81FB75BB42B4F6992E03ADD7 /* TaskTriageTests.swift in Sources */,
 				046A05CC7579B2253099D51D /* TopicMapTests.swift in Sources */,
@@ -1947,7 +1955,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.48.0;
+				MARKETING_VERSION = 0.49.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1971,7 +1979,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.48.0;
+				MARKETING_VERSION = 0.49.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

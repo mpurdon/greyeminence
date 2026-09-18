@@ -148,57 +148,18 @@ struct ContentView: View {
             // services directly with their own contexts instead.
             guard !TestEnvironment.isRunningTests else { return }
 
-            // Both fetch from SwiftData on the main actor, so they are worth
-            // naming: silence during them is indistinguishable from a hang.
-            TransientActivityCoordinator.shared.run("Checking for an interrupted recording…") {
-                checkForInterruptedRecording()
-            }
-            TransientActivityCoordinator.shared.run("Checking interviews…") {
-                recoverOrphanedInterviews()
-            }
-            // Prompt for profile if not configured (with slight delay so window settles)
-            if myContactIDString.isEmpty {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                    showProfileSetup = true
+            Task { @MainActor in
+                // Updates first. The appcast check fired when the updater
+                // started; everything below waits for its answer so an
+                // "Install and Relaunch" lands on an idle app, not on a
+                // recording auto-detection just started or a maintenance
+                // pass mid-write. Capped inside the gate, so an offline
+                // launch proceeds after the timeout.
+                let outcome = await TransientActivityCoordinator.shared.runAsync("Checking for updates…") {
+                    await StartupUpdateGate.shared.waitForDecision()
                 }
-            }
-            presentWhatsNewIfNeeded()
-            recordingViewModel.configureAutoDetection(enabled: autoStartRecording) { [modelContext] in
-                modelContext
-            }
-            // Disk pressure is the one thing that makes every later step
-            // slow — purged caches, recompiles, failing writes — so say so
-            // at launch, not after the first symptom.
-            LogManager.shared.log("Free disk space: \(DiskSpace.freeBytes().map(DiskSpace.describe) ?? "unknown")", category: .general)
-            recordingViewModel.surfaceDiskSpaceWarning(context: "launch")
-            Task(priority: .background) { @MainActor [modelContext] in
-                let report = await TransientActivityCoordinator.shared.runAsync("Running startup maintenance…") {
-                    await MaintenanceService.runStartupMaintenance(modelContext: modelContext) { done, total, name in
-                        // Name the step and show how far along it is: a bar
-                        // that says only "running" for a minute is
-                        // indistinguishable from one that has hung.
-                        let coordinator = TransientActivityCoordinator.shared
-                        if !name.isEmpty { coordinator.retitle("Startup maintenance — \(name.lowercased())") }
-                        coordinator.setProgress(completed: done, total: total)
-                    }
-                }
-                if !report.skipped {
-                    TransientActivityCoordinator.shared.flash("Maintenance complete")
-                }
-                // Unthrottled (unlike maintenance): rows lost to a schema
-                // downgrade should come back on the very next launch, and
-                // the no-op case costs one fetch + a directory check.
-                let recovered = await TransientActivityCoordinator.shared.runAsync(
-                    "Checking screen-share frames…"
-                ) {
-                    await ScreenFrameRecoveryService.recoverAtLaunch(modelContext: modelContext)
-                }
-                if recovered > 0 {
-                    TransientActivityCoordinator.shared.flash("Recovered \(recovered) screen-share frame(s)")
-                }
-                // Opt-in, once a day, and only when there are open tasks no
-                // pass has rated yet — see TaskTriageSettings.isAutoRunDue.
-                await TaskTriageService.runAutomaticPassIfDue(in: modelContext)
+                LogManager.shared.log("Startup update gate released: \(outcome)", category: .update)
+                runLaunchSequence()
             }
         }
         .onChange(of: autoStartRecording) { _, enabled in
@@ -342,6 +303,64 @@ struct ContentView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             guard !showProfileSetup else { return }
             whatsNew = WhatsNewPresentation(highlights: pending)
+        }
+    }
+
+    /// Everything launch does once the update check has answered — see
+    /// `StartupUpdateGate`. Order matters: the interrupted-recording check
+    /// runs before auto-detection can start a new one.
+    private func runLaunchSequence() {
+        // Both fetch from SwiftData on the main actor, so they are worth
+        // naming: silence during them is indistinguishable from a hang.
+        TransientActivityCoordinator.shared.run("Checking for an interrupted recording…") {
+            checkForInterruptedRecording()
+        }
+        TransientActivityCoordinator.shared.run("Checking interviews…") {
+            recoverOrphanedInterviews()
+        }
+        // Prompt for profile if not configured (with slight delay so window settles)
+        if myContactIDString.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                showProfileSetup = true
+            }
+        }
+        presentWhatsNewIfNeeded()
+        recordingViewModel.configureAutoDetection(enabled: autoStartRecording) { [modelContext] in
+            modelContext
+        }
+        // Disk pressure is the one thing that makes every later step
+        // slow — purged caches, recompiles, failing writes — so say so
+        // at launch, not after the first symptom.
+        LogManager.shared.log("Free disk space: \(DiskSpace.freeBytes().map(DiskSpace.describe) ?? "unknown")", category: .general)
+        recordingViewModel.surfaceDiskSpaceWarning(context: "launch")
+        Task(priority: .background) { @MainActor [modelContext] in
+            let report = await TransientActivityCoordinator.shared.runAsync("Running startup maintenance…") {
+                await MaintenanceService.runStartupMaintenance(modelContext: modelContext) { done, total, name in
+                    // Name the step and show how far along it is: a bar
+                    // that says only "running" for a minute is
+                    // indistinguishable from one that has hung.
+                    let coordinator = TransientActivityCoordinator.shared
+                    if !name.isEmpty { coordinator.retitle("Startup maintenance — \(name.lowercased())") }
+                    coordinator.setProgress(completed: done, total: total)
+                }
+            }
+            if !report.skipped {
+                TransientActivityCoordinator.shared.flash("Maintenance complete")
+            }
+            // Unthrottled (unlike maintenance): rows lost to a schema
+            // downgrade should come back on the very next launch, and
+            // the no-op case costs one fetch + a directory check.
+            let recovered = await TransientActivityCoordinator.shared.runAsync(
+                "Checking screen-share frames…"
+            ) {
+                await ScreenFrameRecoveryService.recoverAtLaunch(modelContext: modelContext)
+            }
+            if recovered > 0 {
+                TransientActivityCoordinator.shared.flash("Recovered \(recovered) screen-share frame(s)")
+            }
+            // Opt-in, once a day, and only when there are open tasks no
+            // pass has rated yet — see TaskTriageSettings.isAutoRunDue.
+            await TaskTriageService.runAutomaticPassIfDue(in: modelContext)
         }
     }
 

@@ -4,6 +4,20 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.49.0 — 2026-09-18
+
+**Updates come first at launch**
+- The app already checked for an update on every launch, but nothing
+  waited for the answer — maintenance, recording auto-detection and the
+  AI task tidy-up all started underneath, and an "Install and Relaunch"
+  could land on top of a recording that had just begun. Launch now waits
+  for the update check ("Checking for updates…" in the status bar) before
+  any of that starts. If you choose Install, nothing else runs — the new
+  version picks up after the relaunch. Skip or Remind Me Later continues
+  as normal.
+- Capped so a launch never stalls: 10 seconds for the check when offline
+  or GitHub is slow, two minutes for an update alert left unanswered.
+
 ## 0.48.0 — 2026-09-16
 
 **AI task tidy-up**
