@@ -39,7 +39,7 @@ struct AskSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Button("Change in AI settings") {
-                            navigation.pane = .ai
+                            navigation.showAI(.search)
                         }
                         .buttonStyle(.link)
                         .font(.caption)

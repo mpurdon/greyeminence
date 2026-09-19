@@ -4,6 +4,13 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.50.1 — 2026-09-19
+
+**AI settings in tabs**
+- The AI pane is split into Account, Meeting Analysis, Screen Frames and
+  Search tabs instead of one long scroll. "Change in AI settings" links
+  from Ask and Screen Share open the matching tab.
+
 ## 0.50.0 — 2026-09-19
 
 **AI settings in one pane; a master account with per-feature overrides**

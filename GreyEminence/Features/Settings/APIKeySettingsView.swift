@@ -21,6 +21,10 @@ struct APIKeySettingsView: View {
     /// Every `~/.aws` profile, classified — shared by the per-feature
     /// account pickers below so the file is read once per refresh.
     @State private var describedProfiles: [AWSCredentialLoader.ProfileInfo] = []
+    @State private var tab: AISettingsTab = .account
+    private var navigation = SettingsNavigation.shared
+
+    init() {}
 
     private enum ValidationResult {
         case success
@@ -30,52 +34,42 @@ struct APIKeySettingsView: View {
     private var isAnthropic: Bool { selectedProvider == "anthropic" }
 
     var body: some View {
-        Form {
-            Section {
-                Picker("Provider", selection: $selectedProvider) {
-                    Text("Anthropic API").tag("anthropic")
-                    Text("AWS Bedrock").tag("bedrock")
+        VStack(spacing: 0) {
+            Picker("Section", selection: $tab) {
+                ForEach(AISettingsTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
                 }
-                .onChange(of: selectedProvider) {
-                    validationResult = nil
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+
+            Form {
+                switch tab {
+                case .account:
+                    providerSection
+                    if isAnthropic {
+                        anthropicSection
+                    } else {
+                        bedrockSection
+                    }
+                case .meetingAnalysis:
+                    modelSection
+                case .screenFrames:
+                    FrameAnalysisModelSection(profiles: describedProfiles, isBedrock: !isAnthropic)
+                case .search:
+                    EmbeddingModelSection(profiles: describedProfiles) {
+                        refreshAWSProfiles()
+                    }
                 }
-                // This picker IS the live setting, not a tab — switching it
-                // here immediately switches every AI feature in the app.
-                // Without this callout, a validated key on one provider
-                // coexists invisibly with a broken active provider.
-                Label {
-                    Text("All AI features are using **\(isAnthropic ? "Anthropic API" : "AWS Bedrock")** right now. Changing this picker switches the whole app immediately — validating a provider only tests that provider.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } icon: {
-                    Image(systemName: "info.circle")
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Label("Provider", systemImage: "cloud")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .textCase(nil)
             }
-
-            if isAnthropic {
-                anthropicSection
-            } else {
-                bedrockSection
-            }
-
-            modelSection
-
-            // Every model and account the app calls, in one pane. The
-            // features' own behaviour (capture interval, snippet count,
-            // index rebuild) stays with the feature; what is chosen here is
-            // which model answers and whose account pays.
-            FrameAnalysisModelSection(profiles: describedProfiles, isBedrock: !isAnthropic)
-            EmbeddingModelSection(profiles: describedProfiles) {
-                refreshAWSProfiles()
-            }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
+        // Links from other panes name a tab; the picker mirrors it both ways.
+        .onAppear { tab = navigation.aiTab }
+        .onChange(of: navigation.aiTab) { _, new in tab = new }
+        .onChange(of: tab) { _, new in navigation.aiTab = new }
         .onAppear {
             loadAPIKey()
             refreshAWSProfiles()
@@ -88,6 +82,37 @@ struct APIKeySettingsView: View {
         } message: {
             Text(keychainSaveError ?? "")
                 + Text("\n\nThe API key is held in memory for this session but will not persist after you quit.")
+        }
+    }
+
+    // MARK: - Provider
+
+    private var providerSection: some View {
+        Section {
+            Picker("Provider", selection: $selectedProvider) {
+                Text("Anthropic API").tag("anthropic")
+                Text("AWS Bedrock").tag("bedrock")
+            }
+            .onChange(of: selectedProvider) {
+                validationResult = nil
+            }
+            // This picker IS the live setting, not a tab — switching it
+            // here immediately switches every AI feature in the app.
+            // Without this callout, a validated key on one provider
+            // coexists invisibly with a broken active provider.
+            Label {
+                Text("All AI features are using **\(isAnthropic ? "Anthropic API" : "AWS Bedrock")** right now. Changing this picker switches the whole app immediately — validating a provider only tests that provider.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } icon: {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Label("Provider", systemImage: "cloud")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .textCase(nil)
         }
     }
 

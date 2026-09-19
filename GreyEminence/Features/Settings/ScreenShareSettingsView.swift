@@ -104,7 +104,7 @@ struct ScreenShareSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("Model and account are in AI settings") {
-                    navigation.pane = .ai
+                    navigation.showAI(.screenFrames)
                 }
                 .buttonStyle(.link)
                 .font(.caption)
