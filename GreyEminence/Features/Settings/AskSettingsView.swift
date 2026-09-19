@@ -12,6 +12,8 @@ struct AskSettingsView: View {
     private var reindex = EmbeddingReindexController.shared
     private var navigation = SettingsNavigation.shared
 
+    init() {}
+
     private var provider: EmbeddingProvider {
         EmbeddingProvider(rawValue: embeddingProviderRaw) ?? .nlEmbedding
     }

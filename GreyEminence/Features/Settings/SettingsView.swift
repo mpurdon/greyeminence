@@ -82,6 +82,12 @@ struct SettingsView: View {
     private var navigation = SettingsNavigation.shared
     @State private var selectedPane: SettingsPane = .general
 
+    // Explicit: a private stored property makes the synthesized memberwise
+    // initializer private on CI's older toolchain.
+    init(updater: SPUUpdater? = nil) {
+        self.updater = updater
+    }
+
     var body: some View {
         // Manual HStack instead of a nested NavigationSplitView: macOS
         // auto-collapses inner split views in some layouts, which made

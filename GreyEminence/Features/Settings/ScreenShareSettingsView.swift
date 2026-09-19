@@ -10,6 +10,8 @@ struct ScreenShareSettingsView: View {
     @AppStorage(ScreenShareSettings.maxAnalyzedFramesKey) private var maxAnalyzedFrames = ScreenShareSettings.defaultMaxAnalyzedFrames
     private var navigation = SettingsNavigation.shared
 
+    init() {}
+
     @State private var audioManager = AudioSessionManager()
     @State private var framesBytesOnDisk: Int64?
     @State private var showPurgeConfirmation = false
