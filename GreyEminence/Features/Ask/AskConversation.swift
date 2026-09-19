@@ -83,6 +83,10 @@ struct AskTurn: Codable, Identifiable {
     /// How many meetings that restriction left. Shown alongside the names so a
     /// narrow search is visible rather than mysterious.
     var personFilterMeetingCount: Int = 0
+    /// Set when retrieval ran below full strength — the query could not be
+    /// embedded, so only the keyword pass ranked. Shown under the question so
+    /// a thin answer is explained by the cause, not by the index.
+    var retrievalNote: String?
     var createdAt: Date = .now
 }
 

@@ -4,6 +4,20 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.49.1 — 2026-09-19
+
+**Ask keeps working on keywords when the embedding model is unreachable**
+- An expired AWS session used to surface in Ask as "Nothing matched within
+  last 7 days. Try widening the date range." — the question couldn't be
+  embedded, and the whole search was abandoned. Search is hybrid (vector +
+  keyword) and the keyword half needs no network, so it now runs alone in
+  that case and the answer is grounded in exact-wording matches.
+- The turn says so: an orange line under the question reads "Keyword
+  matches only — the question couldn't be embedded (profile …, reason)".
+  When keywords find nothing either, the error names the credential
+  failure and says to refresh the AWS session, instead of blaming the date
+  range.
+
 ## 0.49.0 — 2026-09-18
 
 **Updates come first at launch**

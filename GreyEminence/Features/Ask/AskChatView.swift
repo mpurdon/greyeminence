@@ -188,6 +188,14 @@ struct AskChatView: View {
                     .multilineTextAlignment(.trailing)
                     .help("Searched the meetings they attended plus anywhere they're named, and ranked on the rest of your question")
                 }
+                if let note = turn.retrievalNote {
+                    Label(note, systemImage: "exclamationmark.triangle")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.trailing)
+                        .help("Vector search needs the embedding model; only exact and near-exact wording could be matched for this question")
+                }
             }
             .frame(maxWidth: 520, alignment: .trailing)
         }

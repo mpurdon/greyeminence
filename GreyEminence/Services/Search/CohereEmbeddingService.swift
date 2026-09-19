@@ -34,6 +34,18 @@ final class CohereEmbeddingService: EmbeddingService, @unchecked Sendable {
     let resolvedProfile: String
     private let transport: BedrockEmbeddingTransport
 
+    /// Last batch failure, so Ask can say "credentials rejected for profile
+    /// gitf" instead of "nothing matched". Lock-guarded: batches run
+    /// concurrently and the class is `@unchecked Sendable`.
+    private let failureLock = NSLock()
+    private var _lastFailure: String?
+    var lastFailureDescription: String? {
+        failureLock.withLock { _lastFailure }
+    }
+    private func recordFailure(_ description: String?) {
+        failureLock.withLock { _lastFailure = description }
+    }
+
     init(region: String? = nil, profile: String? = nil) {
         let account = BedrockEmbeddingAccount.resolved(region: region, profile: profile)
         self.resolvedRegion = account.region
@@ -107,15 +119,19 @@ final class CohereEmbeddingService: EmbeddingService, @unchecked Sendable {
                     category: .ai,
                     level: .warning
                 )
+                recordFailure("Cohere returned \(vectors.count) vectors for \(batch.count) texts")
                 return []
             }
+            recordFailure(nil)
             return zip(batch.map(\.0), vectors).map { ($0, $1) }
         } catch {
+            let description = "profile \(resolvedProfile), \(resolvedRegion): \(error.localizedDescription)"
             LogManager.send(
-                "Cohere embedding failed (profile \(resolvedProfile), \(resolvedRegion), \(batch.count) texts): \(error.localizedDescription)",
+                "Cohere embedding failed (\(description), \(batch.count) texts)",
                 category: .ai,
                 level: .warning
             )
+            recordFailure(description)
             return []
         }
     }

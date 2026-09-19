@@ -246,7 +246,7 @@ final class AskViewModel {
         // Derived artifacts (questions, tasks, summaries) stay excluded — short,
         // generic AI-generated text crowded out the actual conversation. Screen
         // observations are different: they're the ONLY record of what was shown.
-        let found = await search.search(
+        let outcome = await search.searchReporting(
             people?.strippedQuery ?? searchQuery,
             topK: 40,
             dateRange: conversation(conversationID)?.dateFilter.range(),
@@ -254,6 +254,18 @@ final class AskViewModel {
             personScope: people?.scope
         )
         guard !Task.isCancelled else { return }
+        let found = outcome.results
+
+        // A credential failure must read as one. Before this, an expired
+        // AWS session surfaced as "Nothing matched within last 7 days".
+        var embeddingFailure: String?
+        if case .keywordOnly(let reason)? = outcome.degradation {
+            embeddingFailure = reason
+            updateTurn(turnID, in: conversationID) {
+                $0.retrievalNote = "Keyword matches only — the question couldn't be embedded"
+                    + (reason.map { " (\($0))" } ?? "")
+            }
+        }
 
         guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return }
         let retrieved = conversations[conversationIndex].absorb(found, turnID: turnID)
@@ -276,13 +288,16 @@ final class AskViewModel {
 
         guard !prompted.isEmpty else {
             let filter = conversations[conversationIndex].dateFilter
-            failTurn(
-                turnID,
-                in: conversationID,
-                message: filter == .anyTime
-                    ? "Nothing in the index matched that. If meetings are missing, run \"Reindex all meetings\" in Settings → Ask."
-                    : "Nothing matched within \(filter.label.lowercased()). Try widening the date range."
-            )
+            let message: String
+            if let embeddingFailure {
+                message = "The question couldn't be embedded — \(embeddingFailure). "
+                    + "Keyword search found nothing either. If this is an expired AWS session, refresh it and try again."
+            } else if filter == .anyTime {
+                message = "Nothing in the index matched that. If meetings are missing, run \"Reindex all meetings\" in Settings → Ask."
+            } else {
+                message = "Nothing matched within \(filter.label.lowercased()). Try widening the date range."
+            }
+            failTurn(turnID, in: conversationID, message: message)
             return
         }
 

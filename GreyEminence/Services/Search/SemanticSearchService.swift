@@ -13,8 +13,10 @@ struct SearchResult: Identifiable {
 
 @MainActor
 final class SemanticSearchService {
-    let store: EmbeddingStore
     let service: EmbeddingService
+    /// Candidate records for a model identifier — the store in the app, a
+    /// fixture in tests.
+    private let records: (String) -> [EmbeddingRecord]
 
     /// Weight on the dense (vector) score in the hybrid blend. The lexical
     /// (BM25) score takes (1 - vectorWeight). 0.5 balances exact-keyword
@@ -34,8 +36,13 @@ final class SemanticSearchService {
     var mentionBoost: Float = 0.15
 
     init(store: EmbeddingStore, service: EmbeddingService) {
-        self.store = store
         self.service = service
+        self.records = { store.allRecords(for: $0) }
+    }
+
+    init(records: @escaping (String) -> [EmbeddingRecord], service: EmbeddingService) {
+        self.service = service
+        self.records = records
     }
 
     /// Narrows the candidate set to material connected to a particular person,
@@ -75,6 +82,19 @@ final class SemanticSearchService {
         }
     }
 
+    /// What a search had to do without. Surfaces on the Ask turn so a
+    /// credential problem reads as a credential problem, not as "nothing
+    /// matched".
+    enum Degradation: Equatable, Sendable {
+        /// The query could not be embedded; only the keyword pass ran.
+        case keywordOnly(reason: String?)
+    }
+
+    struct Outcome: Sendable {
+        let results: [SearchResult]
+        let degradation: Degradation?
+    }
+
     func search(
         _ query: String,
         topK: Int = 25,
@@ -82,13 +102,41 @@ final class SemanticSearchService {
         kinds: Set<EmbeddingRecord.SourceKind>? = nil,
         personScope: PersonScope? = nil
     ) async -> [SearchResult] {
+        await searchReporting(query, topK: topK, dateRange: dateRange, kinds: kinds, personScope: personScope).results
+    }
+
+    /// `search`, plus whether it ran at full strength.
+    ///
+    /// The index is hybrid — cosine over stored vectors blended with BM25
+    /// over stored text — and the text half needs no network. When the
+    /// query embedding fails (an expired AWS session is the usual cause) the
+    /// keyword pass still runs alone: a distinctive phrase is found either
+    /// way, and the user is told the ranking was keyword-only.
+    func searchReporting(
+        _ query: String,
+        topK: Int = 25,
+        dateRange: ClosedRange<Date>? = nil,
+        kinds: Set<EmbeddingRecord.SourceKind>? = nil,
+        personScope: PersonScope? = nil
+    ) async -> Outcome {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-        guard let queryVec = await service.embedQuery(trimmed) else { return [] }
+        guard !trimmed.isEmpty else { return Outcome(results: [], degradation: nil) }
+
+        let queryVec = await service.embedQuery(trimmed)
+        var degradation: Degradation?
+        if queryVec == nil {
+            let reason = service.lastFailureDescription
+            degradation = .keywordOnly(reason: reason)
+            LogManager.send(
+                "Search: query embedding unavailable (\(reason ?? "no reason recorded")) — keyword-only pass",
+                category: .general,
+                level: .warning
+            )
+        }
 
         let mentionRegex = personScope?.mentionRegex
         var candidates: [(record: EmbeddingRecord, namesPerson: Bool)] = []
-        for rec in store.allRecords(for: service.modelIdentifier) {
+        for rec in records(service.modelIdentifier) {
             if let kinds, !kinds.contains(rec.sourceKind) { continue }
             if let range = dateRange, !range.contains(rec.meetingDate) { continue }
             guard personScope != nil else {
@@ -105,14 +153,18 @@ final class SemanticSearchService {
             candidates.append((rec, namesPerson))
         }
         let records = candidates.map(\.record)
-        guard !records.isEmpty else { return [] }
+        guard !records.isEmpty else { return Outcome(results: [], degradation: degradation) }
 
-        // Dense (vector) pass — cosine over each candidate.
+        // Dense (vector) pass — cosine over each candidate. Skipped entirely
+        // when there is no query vector; the blend below then runs on the
+        // keyword axis alone.
         var vecScores: [Float] = Array(repeating: 0, count: records.count)
-        for (i, rec) in records.enumerated() {
-            let recVec = rec.vectorArray
-            guard recVec.count == queryVec.count else { continue }
-            vecScores[i] = Self.cosineSimilarity(recVec, queryVec)
+        if let queryVec {
+            for (i, rec) in records.enumerated() {
+                let recVec = rec.vectorArray
+                guard recVec.count == queryVec.count else { continue }
+                vecScores[i] = Self.cosineSimilarity(recVec, queryVec)
+            }
         }
 
         // Lexical (BM25) pass — query-time tokenization of each candidate's
@@ -127,7 +179,7 @@ final class SemanticSearchService {
         // raw BM25 scale (unbounded) doesn't dominate cosine (already [-1,1]).
         let normVec = Self.minMaxNormalize(vecScores)
         let normLex = Self.minMaxNormalize(lexScores)
-        let alpha = max(0, min(1, vectorWeight))
+        let alpha: Float = queryVec == nil ? 0 : max(0, min(1, vectorWeight))
 
         let boost = personScope == nil ? 0 : mentionBoost
         let scored: [SearchResult] = records.enumerated().map { (i, rec) in
@@ -145,7 +197,17 @@ final class SemanticSearchService {
             )
         }
 
-        return Array(scored.sorted { $0.score > $1.score }.prefix(topK))
+        // Keyword-only: a candidate with no query term in it has no evidence
+        // at all, and min-max would otherwise promote the least-irrelevant of
+        // them to a full score.
+        let ranked = scored
+            .enumerated()
+            .filter { queryVec != nil || lexScores[$0.offset] > 0 }
+            .map(\.element)
+        return Outcome(
+            results: Array(ranked.sorted { $0.score > $1.score }.prefix(topK)),
+            degradation: degradation
+        )
     }
 
     nonisolated fileprivate static func mentions(_ text: String, regex: NSRegularExpression?) -> Bool {

@@ -255,6 +255,7 @@
 		B3D94C0FABCF7BCB4A419276 /* ContactDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D71B4ACDF2860C265D2E456 /* ContactDetailView.swift */; };
 		B50AB43E02D45885E9F37471 /* ScreenSharePlayerSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33167BAC3C14482D1260E956 /* ScreenSharePlayerSection.swift */; };
 		B527A90F4385E47FCF291659 /* MeetingAppRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B282509D0F5966349AA9A3 /* MeetingAppRegistry.swift */; };
+		B5649070BF0DFEA6480785A5 /* SearchDegradationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0743B03F515611DD182CD0AA /* SearchDegradationTests.swift */; };
 		B61817A61C272312B58CEB5B /* MicLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCF870910A70FECDA4849F93 /* MicLevelMonitor.swift */; };
 		B655B835D2BD129DD99A4CDD /* SpeakerIdentification.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF9E0AAA6698237410B9DE87 /* SpeakerIdentification.swift */; };
 		B7EC2976E54189E66D97AF29 /* CalendarAttendeeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C90E4A998AC4D102675200A /* CalendarAttendeeTests.swift */; };
@@ -372,6 +373,7 @@
 		049811664B96F6AC7CB5CB6D /* ReportAnchoringTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportAnchoringTests.swift; sourceTree = "<group>"; };
 		06649713AEC967601987522A /* GreyEminence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GreyEminence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		066FDCBC8824BB15CDDC73B0 /* CommitmentTrackingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitmentTrackingService.swift; sourceTree = "<group>"; };
+		0743B03F515611DD182CD0AA /* SearchDegradationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchDegradationTests.swift; sourceTree = "<group>"; };
 		07C2F2D5D37B973CB7660588 /* AddCandidateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddCandidateSheet.swift; sourceTree = "<group>"; };
 		0967272565AFAF7A394DB16E /* FluidAsrService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FluidAsrService.swift; sourceTree = "<group>"; };
 		0B86BEE74BFC9E0E417DCF5A /* Candidate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Candidate.swift; sourceTree = "<group>"; };
@@ -964,6 +966,7 @@
 				84BE139A07FD21E9FBF0F67A /* ScreenFrameRecoveryTests.swift */,
 				199251835C03D8D4DE324718 /* ScreenFrameTriageTests.swift */,
 				692600F636D6F7C93283E1CE /* ScreenObservationFormatterTests.swift */,
+				0743B03F515611DD182CD0AA /* SearchDegradationTests.swift */,
 				39C4E1DC6F2E5883DB9A3870 /* SegmentAudioClipTests.swift */,
 				1AF685FD0BE24859B7412A47 /* SegmentAudioLocatorTests.swift */,
 				60817904396164066D87A911 /* ShareSessionSynthesisTests.swift */,
@@ -1840,6 +1843,7 @@
 				5C3A920173838447D37D2817 /* ScreenFrameRecoveryTests.swift in Sources */,
 				5946FEAE24C6182169F2A757 /* ScreenFrameTriageTests.swift in Sources */,
 				199719622E4B455A217B5E96 /* ScreenObservationFormatterTests.swift in Sources */,
+				B5649070BF0DFEA6480785A5 /* SearchDegradationTests.swift in Sources */,
 				3858DA17C7E206388CB27CBF /* SegmentAudioClipTests.swift in Sources */,
 				4E34664AE5D3D05A2B72DD76 /* SegmentAudioLocatorTests.swift in Sources */,
 				7F925FCB3D39587E17E0E4F2 /* ShareSessionSynthesisTests.swift in Sources */,
@@ -1955,7 +1959,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.49.0;
+				MARKETING_VERSION = 0.49.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -1979,7 +1983,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.49.0;
+				MARKETING_VERSION = 0.49.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

@@ -4,6 +4,10 @@ import Foundation
 protocol EmbeddingService: Sendable {
     var modelIdentifier: String { get }
     var isAvailable: Bool { get }
+    /// Why the most recent `embed` returned nil, for surfaces that need to
+    /// tell the user rather than log. Nil when the last call succeeded or
+    /// the provider doesn't track it.
+    var lastFailureDescription: String? { get }
     func embed(_ text: String, as purpose: EmbeddingPurpose) async -> [Float]?
 
     /// How many `embed` calls may be in flight at once. On-device embedding
@@ -22,6 +26,8 @@ extension EmbeddingService {
 
     /// Convenience for the common cases, so call sites read as what they are.
     func embedDocument(_ text: String) async -> [Float]? { await embed(text, as: .document) }
+    var lastFailureDescription: String? { nil }
+
     func embedQuery(_ text: String) async -> [Float]? { await embed(text, as: .query) }
 
     func embedAll(_ texts: [String], as purpose: EmbeddingPurpose) async -> [[Float]?] {
