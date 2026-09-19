@@ -155,15 +155,16 @@ final class ReindexSafetyTests: XCTestCase {
 /// Embeddings can run on a different AWS account than the analysis does — a
 /// role scoped to the Anthropic models can't invoke Titan at all, and a second
 /// account is often the answer. These pin the fallback chain, because getting
-/// it wrong silently authenticates against the wrong account.
+/// it wrong silently authenticates against the wrong account. The choice is
+/// stored through `AIAccountSettings` (slot `.embeddings`) since 0.50.
 final class TitanAccountResolutionTests: XCTestCase {
-    private let profileKey = BedrockEmbeddingAccount.profileKey
-    private let regionKey = BedrockEmbeddingAccount.regionKey
+    private let choiceKey = AIAccountSettings.choiceKey(.embeddings)
+    private let regionKey = AIAccountSettings.regionKey(.embeddings)
     private var saved: [String: Any?] = [:]
 
     override func setUp() {
         super.setUp()
-        for key in [profileKey, regionKey, "awsProfile", "awsRegion"] {
+        for key in [choiceKey, regionKey, "awsProfile", "awsRegion"] {
             saved[key] = UserDefaults.standard.object(forKey: key)
             UserDefaults.standard.removeObject(forKey: key)
         }
@@ -181,8 +182,8 @@ final class TitanAccountResolutionTests: XCTestCase {
     func testEmbeddingAccountOverridesTheAnalysisAccount() {
         UserDefaults.standard.set("analysis-role", forKey: "awsProfile")
         UserDefaults.standard.set("us-east-2", forKey: "awsRegion")
-        UserDefaults.standard.set("embeddings-role", forKey: profileKey)
-        UserDefaults.standard.set("us-west-2", forKey: regionKey)
+        AIAccountSettings.setChoice(.profile("embeddings-role"), for: .embeddings)
+        AIAccountSettings.setRegionOverride("us-west-2", for: .embeddings)
 
         let service = TitanEmbeddingService()
         XCTAssertEqual(service.resolvedProfile, "embeddings-role")
@@ -198,11 +199,11 @@ final class TitanAccountResolutionTests: XCTestCase {
         XCTAssertEqual(service.resolvedRegion, "us-east-2")
     }
 
-    func testBlankIsTreatedAsUnsetRatherThanAsAProfileNamed() {
-        // The picker's "Same as AI settings" option stores "". An empty string
-        // reaching SigV4 as a profile name would authenticate as nobody.
+    func testMalformedStoredChoiceIsTreatedAsMaster() {
+        // A stored value that doesn't parse must not reach SigV4 as a
+        // profile name — that would authenticate as nobody.
         UserDefaults.standard.set("analysis-role", forKey: "awsProfile")
-        UserDefaults.standard.set("   ", forKey: profileKey)
+        UserDefaults.standard.set("profile:", forKey: choiceKey)
 
         XCTAssertEqual(TitanEmbeddingService().resolvedProfile, "analysis-role")
     }
@@ -214,7 +215,7 @@ final class TitanAccountResolutionTests: XCTestCase {
     }
 
     func testExplicitArgumentsWinOverEveryStoredSetting() {
-        UserDefaults.standard.set("stored", forKey: profileKey)
+        AIAccountSettings.setChoice(.profile("stored"), for: .embeddings)
         let service = TitanEmbeddingService(region: "eu-west-1", profile: "explicit")
         XCTAssertEqual(service.resolvedProfile, "explicit")
         XCTAssertEqual(service.resolvedRegion, "eu-west-1")

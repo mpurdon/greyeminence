@@ -24,6 +24,15 @@ enum FeatureHighlightCatalog {
     /// set its `version` to that release's MARKETING_VERSION.
     static let all: [FeatureHighlight] = [
         FeatureHighlight(
+            id: "ai-settings-consolidated",
+            version: "0.50.0",
+            title: "Every AI model and account, in one place",
+            summary: "Settings \u{2192} AI now holds all of it: the meeting-analysis model, the screen-frame model, and the search-embedding method \u{2014} each with its own AWS account picker. Pick the main account, follow another feature, or name a profile. Ask and Screen Share keep their behaviour settings and link back here. The embedding account you had chosen carries over.",
+            systemImage: "brain",
+            tint: .purple,
+            destination: .settings
+        ),
+        FeatureHighlight(
             id: "ai-task-tidy",
             version: "0.48.0",
             title: "Let AI tidy your task list",

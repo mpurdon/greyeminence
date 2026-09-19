@@ -79,6 +79,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     var updater: SPUUpdater?
+    private var navigation = SettingsNavigation.shared
     @State private var selectedPane: SettingsPane = .general
 
     var body: some View {
@@ -104,6 +105,12 @@ struct SettingsView: View {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        // Panes navigate through the shared object; the list selection
+        // mirrors it both ways so a click and a "Change in AI settings"
+        // link land in the same place.
+        .onAppear { selectedPane = navigation.pane }
+        .onChange(of: navigation.pane) { _, pane in selectedPane = pane }
+        .onChange(of: selectedPane) { _, pane in navigation.pane = pane }
     }
 
     @ViewBuilder

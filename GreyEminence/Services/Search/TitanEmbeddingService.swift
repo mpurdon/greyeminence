@@ -39,8 +39,6 @@ final class TitanEmbeddingService: EmbeddingService, @unchecked Sendable {
     let resolvedProfile: String
     private let transport: BedrockEmbeddingTransport
 
-    static let profileKey = BedrockEmbeddingAccount.profileKey
-    static let regionKey = BedrockEmbeddingAccount.regionKey
 
     init(region: String? = nil, profile: String? = nil) {
         let account = BedrockEmbeddingAccount.resolved(region: region, profile: profile)

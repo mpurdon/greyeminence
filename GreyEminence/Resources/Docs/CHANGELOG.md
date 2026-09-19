@@ -4,6 +4,22 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.50.0 — 2026-09-19
+
+**AI settings in one pane; a master account with per-feature overrides**
+- Settings → AI now holds every model the app calls and whose account pays
+  for it: Meeting analysis (as before), Screen-frame analysis (moved from
+  Screen Share) and Search embeddings (moved from Ask). Screen Share keeps
+  capture and analysis behaviour; Ask keeps index status, Reindex and
+  Maintenance. Both link back to AI settings where the model is chosen.
+- Each of the two secondary features has an **AWS account** picker: the
+  main AI account, the same as the other feature, or a named `~/.aws`
+  profile with its own region. A "Uses: profile · region" line shows what
+  the choice resolves to. The embedding account you had set carries over.
+- A feature pointed at a different account calls the foundation model
+  directly rather than the inference-profile ARNs from
+  trajector-settings.json, which belong to the main account.
+
 ## 0.49.2 — 2026-09-19
 
 **Embedding costs show up in AI Usage**

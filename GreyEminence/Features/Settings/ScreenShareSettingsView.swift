@@ -8,7 +8,7 @@ struct ScreenShareSettingsView: View {
     @AppStorage(ScreenShareSettings.intervalSecondsKey) private var intervalSeconds = ScreenShareSettings.defaultIntervalSeconds
     @AppStorage(ScreenShareSettings.analysisEnabledKey) private var analysisEnabled = true
     @AppStorage(ScreenShareSettings.maxAnalyzedFramesKey) private var maxAnalyzedFrames = ScreenShareSettings.defaultMaxAnalyzedFrames
-    @AppStorage(ScreenShareSettings.frameAnalysisModelKey) private var frameAnalysisModel = ScreenShareSettings.defaultFrameAnalysisModel
+    private var navigation = SettingsNavigation.shared
 
     @State private var audioManager = AudioSessionManager()
     @State private var framesBytesOnDisk: Int64?
@@ -97,20 +97,29 @@ struct ScreenShareSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Picker("Frame analysis model", selection: $frameAnalysisModel) {
-                Text("Haiku 4.5 (recommended)").tag(ScreenShareSettings.defaultFrameAnalysisModel)
-                Text("Same as main model").tag("")
-            }
-            .disabled(!captureEnabled || !analysisEnabled)
-            Text("Haiku describes frames at a fraction of the main model's cost. Meeting summaries and session recaps always use the main model.")
+            HStack(spacing: 4) {
+                Text("Frames are described by \(frameModelLabel).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Model and account are in AI settings") {
+                    navigation.pane = .ai
+                }
+                .buttonStyle(.link)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+            }
         } header: {
             Label("AI Analysis", systemImage: "brain")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .textCase(nil)
         }
+    }
+
+    private var frameModelLabel: String {
+        let model = ScreenShareSettings.frameAnalysisModel
+        let name = model.isEmpty || model == AIModelCatalog.mainModel ? "the meeting-analysis model" : "Haiku 4.5"
+        let account = AIAccountSettings.resolved(for: .frameAnalysis)
+        return account.isMaster ? name : "\(name) via \(account.profile)"
     }
 
     // MARK: - Storage & Privacy

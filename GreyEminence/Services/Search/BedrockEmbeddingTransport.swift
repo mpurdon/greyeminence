@@ -169,20 +169,12 @@ actor BedrockEmbeddingTransport {
 /// to the Anthropic models can't invoke an embedding model at all, and a
 /// second account is usually the answer. Blank follows Settings → AI.
 enum BedrockEmbeddingAccount {
-    static let profileKey = "embeddingAWSProfile"
-    static let regionKey = "embeddingAWSRegion"
-
+    /// The embedding slot's account — Settings → AI's profile unless the
+    /// slot overrides it (see `AIAccountSettings`). Explicit arguments win,
+    /// for the settings pane's "test this profile" path.
     static func resolved(region: String?, profile: String?) -> (region: String, profile: String) {
-        let defaults = UserDefaults.standard
-        let resolvedRegion = region
-            ?? nonEmpty(defaults.string(forKey: regionKey))
-            ?? nonEmpty(defaults.string(forKey: "awsRegion"))
-            ?? "us-east-1"
-        let resolvedProfile = profile
-            ?? nonEmpty(defaults.string(forKey: profileKey))
-            ?? nonEmpty(defaults.string(forKey: "awsProfile"))
-            ?? "default"
-        return (resolvedRegion, resolvedProfile)
+        let slot = AIAccountSettings.resolved(for: .embeddings)
+        return (nonEmpty(region) ?? slot.region, nonEmpty(profile) ?? slot.profile)
     }
 
     /// Which model id to invoke for `provider`.

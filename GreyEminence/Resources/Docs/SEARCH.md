@@ -5,7 +5,9 @@ bear on them, then reading those passages back to you with citations. Finding
 the right passages is the hard part, and that is what the **search method**
 controls.
 
-Everything here lives in **Settings → Ask**.
+The method, the account it runs on, and the connection test live in
+**Settings → AI → Search embeddings**, alongside every other model the app
+calls. Index status and **Reindex all meetings** are in **Settings → Ask**.
 
 ---
 
@@ -76,8 +78,11 @@ The first time, the app needs permission to read `~/.aws` at all — use
 
 The embedding account is chosen separately from the one used for meeting
 analysis, because they often differ: a role scoped to the Claude models will
-be refused when it tries to invoke an embedding model. Leave the profile blank
-to use whatever *Settings → AI* uses, or pick a different one.
+be refused when it tries to invoke an embedding model. The **AWS account**
+picker offers the **main AI account** (the profile at the top of Settings →
+AI), **same as screen-frame analysis** — so two features share one account
+without naming it twice — or any profile from `~/.aws`. The line beneath it
+shows what that resolves to right now.
 
 Selecting a profile adopts its configured region. Change it afterwards if the
 model is enabled somewhere else — a valid account pointed at the wrong region

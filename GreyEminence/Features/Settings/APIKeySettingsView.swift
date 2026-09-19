@@ -18,6 +18,9 @@ struct APIKeySettingsView: View {
     @State private var isSSOLoggingIn = false
     @State private var keychainSaveError: String?
     @State private var keyIsMemoryOnly = false
+    /// Every `~/.aws` profile, classified — shared by the per-feature
+    /// account pickers below so the file is read once per refresh.
+    @State private var describedProfiles: [AWSCredentialLoader.ProfileInfo] = []
 
     private enum ValidationResult {
         case success
@@ -62,6 +65,15 @@ struct APIKeySettingsView: View {
             }
 
             modelSection
+
+            // Every model and account the app calls, in one pane. The
+            // features' own behaviour (capture interval, snippet count,
+            // index rebuild) stays with the feature; what is chosen here is
+            // which model answers and whose account pays.
+            FrameAnalysisModelSection(profiles: describedProfiles, isBedrock: !isAnthropic)
+            EmbeddingModelSection(profiles: describedProfiles) {
+                refreshAWSProfiles()
+            }
         }
         .formStyle(.grouped)
         .onAppear {
@@ -273,11 +285,11 @@ struct APIKeySettingsView: View {
                 Text("~45 seconds")
             }
 
-            Text("Meeting intelligence uses Claude to generate summaries, action items, and follow-up questions from your meeting transcript. Model changes apply to the next recording.")
+            Text("Meeting intelligence uses Claude to generate summaries, action items, and follow-up questions from your meeting transcript. Ask answers, interview scoring, meeting prep and task tidy-up use this model and account too. Model changes apply to the next recording.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
-            Label("Usage", systemImage: "chart.bar")
+            Label("Meeting analysis", systemImage: "brain")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .textCase(nil)
@@ -332,6 +344,7 @@ struct APIKeySettingsView: View {
         let accessURL = AWSCredentialLoader.restoreAccess()
         hasAWSAccess = accessURL != nil
         availableProfiles = AWSCredentialLoader.availableProfiles()
+        describedProfiles = AWSCredentialLoader.describedProfiles()
         hasClaudeConfig = TrajectorSettings.load() != nil
 
         // Auto-populate from trajector settings if available

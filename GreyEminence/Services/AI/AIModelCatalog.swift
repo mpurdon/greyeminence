@@ -41,5 +41,6 @@ enum AIModelCatalog {
                   let current = legacyIDs[stored] else { continue }
             defaults.set(current, forKey: key)
         }
+        AIAccountSettings.migrateLegacyKeys(defaults)
     }
 }

@@ -22,8 +22,10 @@ enum AIClientFactory {
         let mainModel = AIModelCatalog.mainModel
 
         // No trajector settings at all means the main model also runs on
-        // foundation IDs, so Haiku's foundation ID is equally reachable.
-        let trajector = TrajectorSettings.load()
+        // foundation IDs, so Haiku's foundation ID is equally reachable. So
+        // is it on a non-master account, where the ARNs never apply.
+        let account = AIAccountSettings.resolved(for: .frameAnalysis)
+        let trajector = account.isMaster ? TrajectorSettings.load() : nil
         let choice = frameAnalysisModel(
             preferred: ScreenShareSettings.frameAnalysisModel,
             mainModel: mainModel,
@@ -33,7 +35,7 @@ enum AIClientFactory {
         if choice.fellBackToMainModel {
             LogManager.send("Frame analysis using main model \(mainModel): no Haiku inference profile in trajector settings", category: .screen)
         }
-        return try await makeClient(provider: provider, model: choice.model)
+        return try await makeClient(provider: provider, model: choice.model, account: account)
     }
 
     /// Resolution of which model the frame-analysis client is bound to.
@@ -61,7 +63,13 @@ enum AIClientFactory {
         return FrameAnalysisModelChoice(model: preferred, fellBackToMainModel: false)
     }
 
-    private static func makeClient(provider: AIProvider, model: String) async throws -> (any AIClient)? {
+    /// `account` is the AWS account a Bedrock client bills to — the master
+    /// from Settings → AI unless a feature slot overrides it.
+    private static func makeClient(
+        provider: AIProvider,
+        model: String,
+        account: ResolvedAIAccount = AIAccountSettings.master()
+    ) async throws -> (any AIClient)? {
         switch provider {
         case .anthropic:
             guard let apiKey = try KeychainHelper.get(AIPromptTemplates.keychainKey),
@@ -71,18 +79,20 @@ enum AIClientFactory {
             return ClaudeAPIClient(apiKey: apiKey, model: model)
 
         case .bedrock:
-            let profile = UserDefaults.standard.string(forKey: "awsProfile") ?? "default"
-            let region = UserDefaults.standard.string(forKey: "awsRegion") ?? "us-east-1"
             AWSCredentialLoader.restoreAccess()
-            let credentials = try await AWSCredentialLoader.loadCredentials(profile: profile)
-            let bedrockModel = resolveBedrockModel(for: model)
-            return BedrockAPIClient(credentials: credentials, region: region, model: bedrockModel)
+            let credentials = try await AWSCredentialLoader.loadCredentials(profile: account.profile)
+            let bedrockModel = resolveBedrockModel(for: model, useInferenceProfiles: account.isMaster)
+            return BedrockAPIClient(credentials: credentials, region: account.region, model: bedrockModel)
         }
     }
 
-    /// Resolve model: prefer inference profile ARN from trajector settings, fall back to foundation model ID
-    static func resolveBedrockModel(for anthropicModel: String) -> String {
-        let settings = TrajectorSettings.load()
+    /// Resolve model: prefer inference profile ARN from trajector settings, fall back to foundation model ID.
+    ///
+    /// The ARNs in trajector-settings.json belong to the master account; a
+    /// slot pointed at another account can't invoke them, so it calls the
+    /// foundation id instead.
+    static func resolveBedrockModel(for anthropicModel: String, useInferenceProfiles: Bool = true) -> String {
+        let settings = useInferenceProfiles ? TrajectorSettings.load() : nil
         let model = AIModelCatalog.canonical(anthropicModel)
 
         // Map the UI model choice to the corresponding inference profile ARN
