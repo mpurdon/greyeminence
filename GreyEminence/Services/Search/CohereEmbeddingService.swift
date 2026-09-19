@@ -107,8 +107,20 @@ final class CohereEmbeddingService: EmbeddingService, @unchecked Sendable {
                 input_type: purpose == .query ? "search_query" : "search_document",
                 truncate: "END"
             ))
-            let data = try await transport.invoke(modelID: BedrockEmbeddingAccount.modelID(for: .cohere, foundation: Self.modelID), body: body)
-            let vectors = try Self.decodeEmbeddings(from: data)
+            let response = try await transport.invoke(modelID: BedrockEmbeddingAccount.modelID(for: .cohere, foundation: Self.modelID), body: body)
+            let vectors = try Self.decodeEmbeddings(from: response.data)
+
+            // Cohere's body carries no token count; Bedrock's header does.
+            // One ledger row per batch, so a reindex lands as ~400 rows
+            // rather than 40,000 — and lands at all, which it never did.
+            if let tokens = response.inputTokens {
+                await AIUsageContext.attribute(.embedding) {
+                    UsageRecorder.record(
+                        modelIdentifier: modelIdentifier,
+                        usage: AIUsage(inputTokens: tokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0)
+                    )
+                }
+            }
 
             // A short batch would silently pair vectors with the wrong texts.
             // Dropping the batch loses 96 records that the per-record coverage

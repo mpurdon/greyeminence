@@ -16,6 +16,11 @@ struct AIPricing: Sendable, Equatable {
     static let sonnet = AIPricing(inputPerMTok: 2, outputPerMTok: 10)
     static let opus = AIPricing(inputPerMTok: 5, outputPerMTok: 25)
 
+    /// Bedrock embedding models, US regions, September 2026. Input only —
+    /// an embedding has no output tokens.
+    static let cohereEmbed = AIPricing(inputPerMTok: 0.10, outputPerMTok: 0)
+    static let titanEmbed = AIPricing(inputPerMTok: 0.02, outputPerMTok: 0)
+
     /// Map a stored model identifier to a price family. Identifiers usually
     /// contain the family name ("anthropic:claude-haiku-…",
     /// "bedrock:us-east-1:…sonnet…"), but Bedrock application inference
@@ -27,11 +32,15 @@ struct AIPricing: Sendable, Equatable {
         if lower.contains("haiku") { return .haiku }
         if lower.contains("sonnet") { return .sonnet }
         if lower.contains("opus") { return .opus }
+        if lower.contains("cohere.embed") { return .cohereEmbed }
+        if lower.contains("titan-embed") { return .titanEmbed }
 
         if let settings {
             if let arn = settings.haikuModel, !arn.isEmpty, identifier.contains(arn) { return .haiku }
             if let arn = settings.sonnetModel, !arn.isEmpty, identifier.contains(arn) { return .sonnet }
             if let arn = settings.opusModel, !arn.isEmpty, identifier.contains(arn) { return .opus }
+            if let arn = settings.cohereEmbedModel, !arn.isEmpty, identifier.contains(arn) { return .cohereEmbed }
+            if let arn = settings.titanEmbedModel, !arn.isEmpty, identifier.contains(arn) { return .titanEmbed }
         }
         return nil
     }

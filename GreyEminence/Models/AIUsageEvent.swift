@@ -50,7 +50,8 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .transcriptFinal, .reanalysis, .transcriptCorrection: .finalAnalysis
         case .frameAnalysis, .sessionSynthesis: .screenShare
         case .reportFigureAnchors: .reports
-        case .ask, .embedding, .interview, .prep, .taskTriage, .other: .other
+        case .embedding: .search
+        case .ask, .interview, .prep, .taskTriage, .other: .other
         }
     }
 }
@@ -67,6 +68,9 @@ enum AIUsageGroup: String, CaseIterable, Sendable {
     case screenShare
     /// Everything spent turning a meeting into a shareable report.
     case reports
+    /// Building the Ask index. Free on-device; per-token on Bedrock, and a
+    /// full reindex of a large library is the single biggest embedding bill.
+    case search
     case other
 
     var displayName: String {
@@ -75,6 +79,7 @@ enum AIUsageGroup: String, CaseIterable, Sendable {
         case .finalAnalysis: "Final analysis"
         case .screenShare: "Screen shares"
         case .reports: "Reports"
+        case .search: "Search index"
         case .other: "Everything else"
         }
     }

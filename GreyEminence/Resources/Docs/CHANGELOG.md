@@ -4,6 +4,20 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.49.2 — 2026-09-19
+
+**Embedding costs show up in AI Usage**
+- Cohere embedding calls were never recorded — only Titan's were, from the
+  first reindex in August — so the Ask index (40,000 chunks) and every
+  question's embedding were missing from the ledger. Bedrock reports the
+  billed tokens in a response header, and the app now reads it: one row
+  per batch of 96.
+- Cohere Embed v3 ($0.10/MTok) and Titan v2 ($0.02/MTok) are priced, so
+  embedding rows carry a dollar estimate instead of leaving the total
+  marked partial. A full reindex of a large library is about fifty cents.
+- Embeddings get their own rollup in AI Usage, "Search index", instead of
+  hiding in "Everything else".
+
 ## 0.49.1 — 2026-09-19
 
 **Ask keeps working on keywords when the embedding model is unreachable**

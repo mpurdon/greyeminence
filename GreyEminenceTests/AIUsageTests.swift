@@ -59,6 +59,16 @@ final class AIUsageTests: XCTestCase {
         XCTAssertEqual(AIPricing.family(forModelIdentifier: "anthropic:claude-opus-4-20250514", settings: nil), .opus)
     }
 
+    func testEmbeddingModelsArePricedInputOnly() {
+        // The identifiers the embedding services actually store.
+        XCTAssertEqual(AIPricing.family(forModelIdentifier: "bedrock:cohere.embed-english-v3:1024", settings: nil), .cohereEmbed)
+        XCTAssertEqual(AIPricing.family(forModelIdentifier: "bedrock:amazon.titan-embed-text-v2:0:1024", settings: nil), .titanEmbed)
+        XCTAssertNil(AIPricing.family(forModelIdentifier: "apple-nlembedding-sentence-en-chunked-v1", settings: nil))
+        // A 40,000-chunk reindex at ~130 tokens a chunk ≈ 5.2M tokens ≈ $0.52.
+        let reindex = AIUsage(inputTokens: 5_200_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0)
+        XCTAssertEqual(AIPricing.cohereEmbed.cost(of: reindex), 0.52, accuracy: 0.0001)
+    }
+
     func testFamilyByProfileARN() {
         let id = "bedrock:us-east-1:arn:aws:bedrock:us-east-1:123:application-inference-profile/hhh"
         XCTAssertEqual(AIPricing.family(forModelIdentifier: id, settings: trajector), .haiku)
@@ -135,7 +145,8 @@ final class AIUsageTests: XCTestCase {
         XCTAssertEqual(AIUsagePurpose.reanalysis.group, .finalAnalysis)
         XCTAssertEqual(AIUsagePurpose.frameAnalysis.group, .screenShare)
         XCTAssertEqual(AIUsagePurpose.sessionSynthesis.group, .screenShare)
-        for purpose in [AIUsagePurpose.ask, .interview, .prep, .other] {
+        XCTAssertEqual(AIUsagePurpose.embedding.group, .search)
+        for purpose in [AIUsagePurpose.ask, .interview, .prep, .taskTriage, .other] {
             XCTAssertEqual(purpose.group, .other)
         }
     }

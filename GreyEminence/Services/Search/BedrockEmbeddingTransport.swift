@@ -36,17 +36,27 @@ actor BedrockEmbeddingTransport {
         self.profile = profile
     }
 
+    /// One successful invoke: the response body plus the billed input
+    /// tokens, which Bedrock reports in a response header rather than in
+    /// the body for models (Cohere) whose body carries none.
+    struct Response: Sendable {
+        let data: Data
+        let inputTokens: Int?
+    }
+
+    static let inputTokenHeader = "x-amzn-bedrock-input-token-count"
+
     /// POST `body` to a model's invoke endpoint, retrying throttles.
-    func invoke(modelID: String, body: Data) async throws -> Data {
+    func invoke(modelID: String, body: Data) async throws -> Response {
         var lastError: Error = BedrockAPIError.invalidResponse
         for attempt in 0..<Self.maxAttempts {
             try Task.checkCancellation()
             await Self.throttleGate.waitUntilOpen()
             await Self.limiter.acquire()
             do {
-                let data = try await send(modelID: modelID, body: body, allowingRefresh: attempt == 0)
+                let response = try await send(modelID: modelID, body: body, allowingRefresh: attempt == 0)
                 await Self.limiter.release(throttled: false)
-                return data
+                return response
             } catch let error as BedrockAPIError {
                 guard case .httpError(let status, _) = error, Self.isTransient(status) else {
                     await Self.limiter.release(throttled: false)
@@ -68,7 +78,7 @@ actor BedrockEmbeddingTransport {
         throw lastError
     }
 
-    private func send(modelID: String, body: Data, allowingRefresh: Bool) async throws -> Data {
+    private func send(modelID: String, body: Data, allowingRefresh: Bool) async throws -> Response {
         let credentials = try await credentials()
         let path = "/model/\(AWSSigV4Signer.encodeSegment(modelID))/invoke"
         let host = "bedrock-runtime.\(region).amazonaws.com"
@@ -99,7 +109,8 @@ actor BedrockEmbeddingTransport {
                 body: String(data: data, encoding: .utf8) ?? "Unknown error"
             )
         }
-        return data
+        let tokens = http.value(forHTTPHeaderField: Self.inputTokenHeader).flatMap { Int($0) }
+        return Response(data: data, inputTokens: tokens)
     }
 
     /// One credential fetch even when a dozen requests start at once.
