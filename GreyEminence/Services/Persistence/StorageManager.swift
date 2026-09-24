@@ -148,6 +148,29 @@ final class StorageManager: Sendable {
         saveSidecar(clusters, to: voiceClustersURL(for: meetingID))
     }
 
+    /// The latest refinement report for a meeting. Derived, like the voice
+    /// signatures, so it survives the audio retention sweep: it is built
+    /// from the transcript, which outlives the audio.
+    func refinementReportURL(for meetingID: UUID) -> URL {
+        derivedURL.appendingPathComponent("\(meetingID.uuidString)-refinement.json")
+    }
+
+    /// Every report for a meeting, one per refined feature. A file written
+    /// when a meeting could hold only one report reads back as that report
+    /// under the legacy key.
+    func loadRefinementShelf(for meetingID: UUID) -> RefinementReportShelf {
+        let url = refinementReportURL(for: meetingID)
+        if let shelf = loadSidecar(RefinementReportShelf.self, at: url) { return shelf }
+        if let single = loadSidecar(RefinementReport.self, at: url) {
+            return RefinementReportShelf(reports: [RefinementReportShelf.legacyKey: single])
+        }
+        return RefinementReportShelf()
+    }
+
+    func saveRefinementShelf(_ shelf: RefinementReportShelf, for meetingID: UUID) {
+        saveSidecar(shelf, to: refinementReportURL(for: meetingID))
+    }
+
     /// Cached report figure-anchoring plan. A sidecar file rather than a
     /// SwiftData field: it is derived data that can always be recomputed, so
     /// storing it here buys the cache without a schema version bump.

@@ -6,7 +6,7 @@ enum AIPromptTemplates {
     /// Bumped whenever the built-in prompt text changes meaningfully. Persisted with
     /// MeetingInsight so we can tell which prompt generation produced a given result
     /// and offer "regenerate with newer prompt" UX later.
-    static let promptVersion = "meeting.v3"
+    static let promptVersion = "meeting.v5"
 
     // MARK: - Public accessors
     //
@@ -143,6 +143,9 @@ enum AIPromptTemplates {
         case .transcriptCorrection: defaultTranscriptCorrectionPrompt
         case .taskTriageSystem: defaultTaskTriageSystemPrompt
         case .taskTriage: defaultTaskTriagePrompt
+        case .refinementSystem: defaultRefinementSystemPrompt
+        case .refinementReport: defaultRefinementReportPrompt
+        case .refinementClassify: defaultRefinementClassifyPrompt
         }
     }
 
@@ -360,7 +363,8 @@ enum AIPromptTemplates {
           ],
           "action_items": [{"text": "description of action", "assignee": "person or null", "source_quote": "verbatim phrase from the transcript that triggered this item"}],
           "follow_ups": ["question that should be followed up on"],
-          "topics": ["Theme Topic", "specific-tool", "ACRONYM", "PersonName"]
+          "topics": ["Theme Topic", "specific-tool", "ACRONYM", "PersonName"],
+          "refinement": {"likelihood": 0.0, "features": ["Feature name"]}
         }
 
         Rules:
@@ -412,6 +416,19 @@ enum AIPromptTemplates {
         or named systems mentioned (e.g. "OLP", "AIDC", "Kafka", "DynamoDB", "React"). \
         Extract ALL specific named entities — these are critical for cross-meeting knowledge mapping. \
         Prefer the canonical form (e.g. "DynamoDB" not "dynamo", "AIDC" not "aidc").
+        - "refinement" is for the final analysis only — omit it during initial and rolling \
+        analysis. "likelihood" (0.0-1.0) is how likely it is that a substantial part of \
+        this meeting was spent refining a software feature: working out its intended \
+        behaviour, acceptance criteria, scope, edge cases or design before or during \
+        implementation (backlog refinement, grooming, a spec or design walkthrough, a \
+        feature kickoff). High (0.7+) only when the group actually worked through what \
+        a feature should do. Low for status updates, standups, incident reviews, 1:1s, \
+        sales or support calls, and meetings that only mention a feature in passing. \
+        "features" names each distinct feature the group refined, 2-6 words each, the one \
+        that got the most time first, at most 4 — and [] when likelihood is below 0.5. \
+        List a feature only if the group worked through what it should do; one that was \
+        merely mentioned or given a status update does not count. Two aspects of the \
+        same feature are one feature.
         - If there is not enough content to produce meaningful insights, return empty arrays and \
         [] for summary. Do not generate placeholder or filler text.
         - When updating a rolling analysis, ALWAYS preserve all previous action items, topics, \
@@ -480,6 +497,8 @@ enum AIPromptTemplates {
         Order themes first by prominence, then key terms alphabetically. Preserve canonical forms \
         (e.g. "DynamoDB" not "dynamo").
         - Correct any speaker attribution errors that are obvious from context.
+        - Assess whether this meeting refined a software feature and return the \
+        "refinement" object.
 
         ACCUMULATED INSIGHTS FROM LIVE ANALYSIS:
 
@@ -755,5 +774,214 @@ enum AIPromptTemplates {
 
         Use only the T and C identifiers given above. Every open task must \
         appear exactly once.
+        """
+
+    // MARK: - Refinement report
+
+    static var refinementSystemPrompt: String {
+        PromptStore.shared.get(.refinementSystem, default: defaultRefinementSystemPrompt)
+    }
+
+    static func refinementReportPrompt(
+        meetingTitle: String,
+        meetingDate: String,
+        participants: String,
+        screenContext: String,
+        focus: String = "",
+        transcript: String
+    ) -> String {
+        let template = PromptStore.shared.get(.refinementReport, default: defaultRefinementReportPrompt)
+        return PromptStore.render(template, values: [
+            "meetingTitle": meetingTitle,
+            "meetingDate": meetingDate,
+            "participants": participants,
+            "screenContext": screenContext,
+            "focus": focus,
+            "transcript": transcript,
+        ])
+    }
+
+    static let defaultRefinementSystemPrompt = """
+        You analyze transcripts of meetings in which people refine a software \
+        feature, and reconstruct the specification the discussion actually \
+        arrived at. You separate what was said from what you infer, and you \
+        never invent a rationale the transcript does not contain. You MUST \
+        respond with ONLY valid JSON matching the schema in the user message \
+        — no prose, no markdown, no explanation before or after.
+        """
+
+    /// Adapted from a review prompt for software-development agent sessions:
+    /// the sections and rules are the same, the evidence is a meeting
+    /// transcript instead of an engineer–agent exchange.
+    static let defaultRefinementReportPrompt: String = """
+        You are analyzing the transcript of a meeting in which the \
+        participants refined a software feature.
+
+        Your job is NOT to summarize the conversation.
+
+        Reconstruct the effective specification that emerged while the \
+        participants worked through the feature.
+
+        The original ticket/spec may be incomplete or may differ from what \
+        the meeting settled on. Pay particular attention to decisions made \
+        during the discussion that were never explicitly written into the \
+        original requirements.
+
+        MEETING
+        Title: {{meetingTitle}}
+        Date: {{meetingDate}}
+        Participants: {{participants}}
+        {{focus}}{{screenContext}}
+        TRANSCRIPT
+        Each line is [timestamp] speaker: words. The transcript is automatic: \
+        expect mis-heard words, and speaker labels that are sometimes wrong \
+        or generic ("Speaker 2"). Attribute a statement to a named person \
+        only when the transcript makes it clear; otherwise say "a \
+        participant". Cite timestamps like [12:04] for key evidence.
+
+        {{transcript}}
+
+        Produce the analysis below as JSON of exactly this shape:
+
+        {
+          "is_refinement": true,
+          "intent": "1-3 sentences",
+          "acceptance_criteria": [
+            {"text": "observable condition", "basis": "explicit | emergent | inferred", \
+        "confidence": "low | medium | high (inferred only, else null)", \
+        "evidence": "what in the transcript supports it — a short quote or paraphrase", \
+        "citations": ["mm:ss", "mm:ss-mm:ss"]}
+          ],
+          "decisions": [
+            {"decision": "...", "category": "short tag, e.g. design, validation, scope", \
+        "reason": "reason/evidence, or null", "alternatives": "alternatives considered, or null", \
+        "effect": "effect on behavior", "basis": "explicit | inferred", \
+        "citations": ["mm:ss"]}
+          ],
+          "rejected_approaches": [{"approach": "...", "reason": "why, or null", "citations": ["mm:ss"]}],
+          "constraints": [{"text": "...", "source": "where it came from, or null", "citations": ["mm:ss"]}],
+          "reviewer_notes": ["..."],
+          "open_questions": [{"question": "...", "owner": "who was to resolve it, or null", "citations": ["mm:ss"]}],
+          "spec": {
+            "intent": "...",
+            "acceptance_criteria": ["..."],
+            "decisions": ["..."],
+            "constraints": ["..."],
+            "open_questions": ["..."]
+          }
+        }
+
+        What each field holds:
+
+        intent — the outcome the participants appear to have been trying to \
+        achieve, in 1-3 sentences. Do not describe implementation details \
+        unless they are necessary to explain the intent.
+
+        acceptance_criteria — observable conditions the finished feature is \
+        expected to satisfy. Label each:
+        - explicit — directly stated by a participant or the source requirements
+        - emergent — established during the meeting through discussion, a \
+        worked example, an objection, or a decision
+        - inferred — strongly suggested by the discussion but never clearly \
+        stated. For these, explain the evidence and give a confidence.
+
+        decisions — consequential decisions such as architecture or design \
+        choices, existing utilities/patterns chosen instead of new code, data \
+        types or representations, validation behavior, authentication/\
+        authorization assumptions, error handling, API behavior, backwards \
+        compatibility, performance considerations, testing strategy, scope \
+        deliberately excluded, and refactors to make along the way. Do not \
+        invent a rationale when the transcript doesn't contain one — use null.
+
+        rejected_approaches — approaches proposed or considered and then \
+        abandoned, with why if the transcript says.
+
+        constraints — constraints that materially shaped the feature but may \
+        not have been in the original request: existing repository \
+        conventions, library limitations, API behavior, database constraints, \
+        compatibility requirements, production assumptions, deadlines, team \
+        or ownership boundaries.
+
+        reviewer_notes — imagine someone who was not in this meeting \
+        implements this feature, or reviews the resulting pull request, with \
+        only the ticket and the diff in hand. What from this meeting would \
+        help them do it correctly that they would NOT easily learn from the \
+        ticket or the code? Only items that materially affect correctness, \
+        intent, risk, or scope.
+
+        open_questions — decisions that appear unresolved, assumptions never \
+        verified, and places where the work may proceed without enough \
+        information.
+
+        spec — the effective specification: a concise restatement of what the \
+        meeting ultimately decided, short enough to place directly in a \
+        ticket or pull request. One line per bullet.
+
+        citations — on every item that has them: the transcript timestamps \
+        where the evidence is, copied from the [m:ss] stamps on the lines \
+        above. A single line as "7:52"; a stretch of discussion as \
+        "7:01-7:10". Cite the lines that actually support the item, most \
+        direct first, at most four. Use [] when the support is not in the \
+        transcript (e.g. only on the shared screen) — never invent a \
+        timestamp.
+
+        IMPORTANT RULES:
+        - Separate evidence from inference.
+        - Do not treat everything a participant suggested as a decision. A \
+        decision counts only if it changed the direction of the work or was \
+        accepted by the group.
+        - Ideas floated and then dropped are not acceptance criteria.
+        - Do not manufacture reasons that are absent from the transcript.
+        - Prefer behavioral criteria over implementation details.
+        - Surface contradictions between the original request and what the \
+        meeting settled on — as a decision, a reviewer note, or an open question.
+        - Use an empty array when a section has nothing to report. Never pad.
+        - If the meeting was not about refining a feature, set \
+        "is_refinement" to false, say what it was about in "intent", and \
+        leave every array empty.
+        """
+
+    static func refinementClassifyPrompt(meetings: String) -> String {
+        let template = PromptStore.shared.get(.refinementClassify, default: defaultRefinementClassifyPrompt)
+        return PromptStore.render(template, values: ["meetings": meetings])
+    }
+
+    static let refinementClassifySystemPrompt = """
+        You sort past meetings by whether they refined a software feature. \
+        You MUST respond with ONLY valid JSON matching the schema in the user \
+        message — no prose, no markdown, no explanation before or after.
+        """
+
+    /// The backfill's counterpart to the "refinement" field of the final
+    /// analysis, for meetings analysed before that field existed. Works from
+    /// the stored summary, not the transcript, which is what keeps checking
+    /// a whole library cheap. Keep its criteria in step with the analysis
+    /// prompt's.
+    private static let defaultRefinementClassifyPrompt: String = """
+        Below are summaries of past meetings, each with an identifier, title, \
+        date and topics.
+
+        MEETINGS
+        {{meetings}}
+
+        For every meeting, judge how likely (0.0-1.0) it is that a \
+        substantial part of it was spent refining a software feature: \
+        working out its intended behaviour, acceptance criteria, scope, edge \
+        cases or design before or during implementation (backlog refinement, \
+        grooming, a spec or design walkthrough, a feature kickoff). High \
+        (0.7+) only when the group actually worked through what a feature \
+        should do. Low for status updates, standups, incident reviews, 1:1s, \
+        sales or support calls, and meetings that only mention a feature in \
+        passing.
+
+        Name each distinct feature the group refined, 2-6 words each, the \
+        one that got the most attention first, at most 4 — and [] when the \
+        likelihood is below 0.5. A feature that was only mentioned does not \
+        count; two aspects of the same feature are one feature.
+
+        Return JSON of exactly this shape, with every meeting exactly once:
+        {"meetings":[{"id":"M1","likelihood":0.8,"features":["Bulk invoice export","Export retry policy"]},{"id":"M2","likelihood":0.1,"features":[]}]}
+
+        Use only the M identifiers given above.
         """
 }

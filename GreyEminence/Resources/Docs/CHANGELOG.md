@@ -4,6 +4,55 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.51.0 — 2026-09-23
+
+**Refinements**
+- A new **Refinements** view in the sidebar lists features worked through
+  in meetings. The final analysis now judges how likely a meeting is to be
+  a refinement and names each feature it refined (up to four, most time
+  first) — a meeting that refined three features has three rows, each with
+  its own report and ticket. Meetings analysed before this are checked in
+  the background the first time you open the view, from their stored
+  summaries (not transcripts), twenty at a time. Each row shows the
+  meeting's title, date, duration and initials for the people who actually
+  spoke; select one to read the meeting's summary before building a report.
+  Right-click any meeting
+  to **Add to** or **Remove from Refinements**; your choice beats the
+  analysis. **Open Meeting** there, in the report header, and on each
+  cited passage takes you to the meeting itself.
+- A **Possibly · Likely · Definitely** slider above the list filters by how
+  sure the analysis was (50%, 70%, 85%); meetings you added always show.
+  The list is divided by date — Today, Yesterday, This Week, then months.
+- Select one and **Build Refinement Report**. It reads the transcript (plus
+  any shared-screen recap, where a ticket on screen counts as the original
+  requirements) and reconstructs what the meeting decided. The
+  **Rationale** tab has the intent, acceptance criteria labelled EXPLICIT /
+  EMERGENT / INFERRED, decision cards with reasons and alternatives,
+  rejected approaches, constraints, notes for whoever implements or
+  reviews it, and open questions. The **Effective Spec** tab has the concise
+  spec to put in a ticket or PR. Generation carries on if you look at other
+  meetings meanwhile.
+- Every rationale item carries numbered citations, like Ask's. The evidence
+  lives in the **Sources** panel on the right (⇧⌘I): click a number and the
+  panel scrolls to the transcript lines behind it, or switch the panel to
+  **Transcript** to read the whole meeting with cited lines marked.
+- The report is kept; Regenerate runs it again, and the view says when the
+  transcript has changed since. **Export** saves a PDF of the full report or
+  just the spec, laid out as in the app, copies either as Markdown, or saves
+  a `.md` file.
+- **Create Jira Ticket** drafts a ticket from the spec (or the full report),
+  editable before it's filed, and creates it through the Jira Cloud API.
+  The ticket is linked from the report afterwards. Set up the site, email,
+  API token (kept in the Keychain) and default project under
+  **Settings → Jira**.
+- All three prompts are editable under Settings → Developer → Edit AI
+  Prompts, and the calls appear in AI Usage under Reports. The meeting
+  analysis prompt version is now `meeting.v5`.
+- When a meeting refined several features, each report is told to cover
+  only its own feature.
+- Database schemas V24 and V25 (four meeting fields, all optional or
+  defaulted; lightweight migrations).
+
 ## 0.50.1 — 2026-09-19
 
 **AI settings in tabs**

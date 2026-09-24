@@ -259,7 +259,8 @@ struct MeetingIntelligenceView: View {
                 actionItems: rawResult.actionItems.filter { !suppressedActions.contains(Self.normalizeKey($0.text)) },
                 followUps: rawResult.followUps.filter { !suppressedQuestions.contains(Self.normalizeKey($0)) },
                 topics: rawResult.topics,
-                rawResponse: rawResult.rawResponse
+                rawResponse: rawResult.rawResponse,
+                refinement: rawResult.refinement
             )
 
             // Update meeting title if generated (kept out of `title` while the
@@ -267,6 +268,7 @@ struct MeetingIntelligenceView: View {
             if let title = result.title {
                 meeting.applyGeneratedTitle(title)
             }
+            meeting.applyRefinementSignal(result.refinement)
 
             // Persist new insight (append; keep history of prior insights)
             let insight = MeetingInsight(

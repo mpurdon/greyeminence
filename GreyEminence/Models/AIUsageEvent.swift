@@ -13,6 +13,12 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
     /// when exporting a report. Text-only and cached per insight, so it
     /// should appear at most once per meeting however many times you export.
     case reportFigureAnchors
+    /// Reconstructing the specification a feature-refinement meeting
+    /// arrived at. One call per report, cached until regenerated.
+    case refinementReport
+    /// The backfill judging older meetings' summaries for the Refinements
+    /// list. New meetings are judged inside the final analysis instead.
+    case refinementDetection
     case reanalysis
     case transcriptCorrection
     case ask
@@ -33,6 +39,8 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .frameAnalysis: "Frame analysis"
         case .sessionSynthesis: "Session recaps"
         case .reportFigureAnchors: "Report figures"
+        case .refinementReport: "Refinement reports"
+        case .refinementDetection: "Refinement detection"
         case .reanalysis: "Reanalysis"
         case .transcriptCorrection: "Transcript corrections"
         case .ask: "Ask"
@@ -49,7 +57,7 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .transcriptInitial, .transcriptRolling: .transcript
         case .transcriptFinal, .reanalysis, .transcriptCorrection: .finalAnalysis
         case .frameAnalysis, .sessionSynthesis: .screenShare
-        case .reportFigureAnchors: .reports
+        case .reportFigureAnchors, .refinementReport, .refinementDetection: .reports
         case .embedding: .search
         case .ask, .interview, .prep, .taskTriage, .other: .other
         }

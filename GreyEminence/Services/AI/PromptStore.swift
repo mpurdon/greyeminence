@@ -16,6 +16,9 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
     case transcriptCorrection = "transcript.correction"
     case taskTriageSystem     = "tasks.triageSystem"
     case taskTriage           = "tasks.triage"
+    case refinementSystem     = "refinement.system"
+    case refinementReport     = "refinement.report"
+    case refinementClassify   = "refinement.classify"
 
     var id: String { rawValue }
 
@@ -34,6 +37,9 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
         case .transcriptCorrection: "Transcript — Mis-hearing Correction"
         case .taskTriageSystem: "Tasks — Tidy-up System Prompt"
         case .taskTriage:     "Tasks — Tidy-up"
+        case .refinementSystem: "Refinement Report — System Prompt"
+        case .refinementReport: "Refinement Report"
+        case .refinementClassify: "Refinements — Backfill Classifier"
         }
     }
 
@@ -67,6 +73,12 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
             []
         case .taskTriage:
             ["today", "pendingTasks", "completedTasks"]
+        case .refinementSystem:
+            []
+        case .refinementReport:
+            ["meetingTitle", "meetingDate", "participants", "focus", "screenContext", "transcript"]
+        case .refinementClassify:
+            ["meetings"]
         }
     }
 }

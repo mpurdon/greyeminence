@@ -21,6 +21,58 @@ struct AnalysisResult: Sendable {
     /// Raw text returned by the model, kept alongside the parsed result so callers
     /// can persist it for debugging / replay. Present whenever parsing succeeded.
     let rawResponse: String
+    /// Whether the meeting refined a software feature. Final pass only; nil
+    /// from live passes and whenever the model left it out.
+    var refinement: RefinementSignal? = nil
+}
+
+/// The final analysis's judgement of whether a meeting refined features —
+/// what puts it on the Refinements list, once per feature.
+struct RefinementSignal: Sendable, Equatable {
+    /// At most this many features per meeting; past that the model is
+    /// listing topics, not refinements.
+    static let maxFeatures = 4
+
+    let likelihood: Double
+    /// Most time spent first. Empty when nothing was refined.
+    let features: [String]
+
+    var feature: String? { features.first }
+
+    init(likelihood: Double, features: [String]) {
+        self.likelihood = min(max(likelihood, 0), 1)
+        var seen = Set<String>()
+        self.features = features
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0.lowercased() != "null" }
+            .filter { seen.insert($0.lowercased()).inserted }
+            .prefix(Self.maxFeatures)
+            .map { $0 }
+    }
+
+    init(likelihood: Double, feature: String?) {
+        self.init(likelihood: likelihood, features: feature.map { [$0] } ?? [])
+    }
+
+    /// Tolerant of the shapes a model actually returns: a number or numeric
+    /// string for the likelihood; a "features" array, or the single
+    /// "feature" string older prompts asked for. Anything without a readable
+    /// likelihood is no signal at all.
+    static func parse(_ value: Any?) -> RefinementSignal? {
+        guard let object = value as? [String: Any] else { return nil }
+        let likelihood: Double
+        switch object["likelihood"] {
+        case let number as NSNumber: likelihood = number.doubleValue
+        case let string as String:
+            guard let parsed = Double(string.trimmingCharacters(in: .whitespaces)) else { return nil }
+            likelihood = parsed
+        default: return nil
+        }
+        let features = (object["features"] as? [Any])?.compactMap { $0 as? String }
+            ?? (object["feature"] as? String).map { [$0] }
+            ?? []
+        return RefinementSignal(likelihood: likelihood, features: features)
+    }
 }
 
 struct ParsedActionItem: Sendable {
@@ -196,7 +248,8 @@ actor AIIntelligenceService {
             actionItems: parsed.actionItems.isEmpty ? previousActionItems : parsed.actionItems,
             followUps: parsed.followUps.isEmpty ? previousFollowUps : parsed.followUps,
             topics: parsed.topics.isEmpty ? previousTopics : parsed.topics,
-            rawResponse: parsed.rawResponse
+            rawResponse: parsed.rawResponse,
+            refinement: parsed.refinement
         )
     }
 
@@ -279,7 +332,8 @@ actor AIIntelligenceService {
             actionItems: kept,
             followUps: result.followUps,
             topics: result.topics,
-            rawResponse: result.rawResponse
+            rawResponse: result.rawResponse,
+            refinement: result.refinement
         )
     }
 
@@ -356,7 +410,8 @@ actor AIIntelligenceService {
             actionItems: actionItems,
             followUps: followUps,
             topics: topics,
-            rawResponse: raw
+            rawResponse: raw,
+            refinement: RefinementSignal.parse(json["refinement"])
         )
     }
 }

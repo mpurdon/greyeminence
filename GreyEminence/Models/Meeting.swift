@@ -105,6 +105,21 @@ final class Meeting {
     /// aged into the archive while set.
     var isPinned: Bool = false
 
+    /// How likely it is (0–1) that this meeting refined a software feature,
+    /// judged by the final analysis pass or, for meetings analysed before
+    /// that existed, by the Refinements backfill. `nil` = never assessed.
+    var refinementLikelihood: Double?
+    /// The feature being refined, as the assessment named it — the first of
+    /// `refinementFeatures` once there are several.
+    var refinementFeature: String?
+    /// Every feature the meeting refined, most time spent first. Empty on
+    /// meetings assessed before a meeting could hold more than one; the
+    /// backfill fills those in.
+    var refinementFeatures: [String] = []
+    /// The user's decision, which beats the assessment either way: `true`
+    /// added to Refinements by hand, `false` removed from it.
+    var refinementOverride: Bool?
+
     /// Everyone who was actually there.
     var presentAttendees: [Contact] {
         guard !absentAttendeeIDs.isEmpty else { return attendees }
@@ -167,6 +182,36 @@ final class Meeting {
 
     var latestInsight: MeetingInsight? {
         insights.max(by: { $0.createdAt < $1.createdAt })
+    }
+
+    /// Likelihood at or above which a meeting is listed under Refinements
+    /// without the user adding it — the "Possibly" end of the list's slider.
+    static let refinementThreshold = RefinementConfidence.possibly.minimum
+
+    var isRefinementCandidate: Bool {
+        guard !isInterviewMeeting else { return false }
+        if let refinementOverride { return refinementOverride }
+        return (refinementLikelihood ?? 0) >= Self.refinementThreshold
+    }
+
+    /// Record an analysis pass's refinement judgement. A pass that did not
+    /// return one (a user-overridden prompt, an older model) leaves the
+    /// previous judgement alone rather than erasing it.
+    func applyRefinementSignal(_ signal: RefinementSignal?) {
+        guard let signal else { return }
+        refinementLikelihood = signal.likelihood
+        if !signal.features.isEmpty {
+            refinementFeatures = signal.features
+            refinementFeature = signal.features[0]
+        }
+    }
+
+    /// One entry per feature on the Refinements list. A meeting with no
+    /// named feature (added by hand, or assessed before names existed) still
+    /// gets one, under its own title.
+    var refinementTopics: [String] {
+        if !refinementFeatures.isEmpty { return refinementFeatures }
+        return [refinementFeature ?? title]
     }
 
     /// Record an AI-generated title. Always stored in `generatedTitle`; only

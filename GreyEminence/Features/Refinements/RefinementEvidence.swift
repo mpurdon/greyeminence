@@ -1,0 +1,180 @@
+import Foundation
+
+/// Which rationale item a citation supports.
+enum RefinementItemRef: Hashable, Sendable {
+    case criterion(Int)
+    case decision(Int)
+    case rejected(Int)
+    case constraint(Int)
+    case note(Int)
+    case question(Int)
+
+    var kindLabel: String {
+        switch self {
+        case .criterion: "Criterion"
+        case .decision: "Decision"
+        case .rejected: "Rejected"
+        case .constraint: "Constraint"
+        case .note: "Reviewer note"
+        case .question: "Open question"
+        }
+    }
+}
+
+/// A moment in the meeting the report points at: one timestamp, or a span.
+struct RefinementCitation: Hashable, Sendable {
+    let start: TimeInterval
+    let end: TimeInterval?
+
+    var label: String {
+        guard let end, end > start else { return Self.format(start) }
+        return "\(Self.format(start))–\(Self.format(end))"
+    }
+
+    static func format(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    /// "7:52", "[7:52]", "1:02:07", and spans written "7:01-7:10",
+    /// "[20:36]-[21:26]" or with an en dash. The transcript the model reads
+    /// stamps lines as minutes:seconds, so minutes can exceed 59.
+    private static let pattern = try! NSRegularExpression(
+        pattern: #"\[?(\d{1,3}:\d{2}(?::\d{2})?)\]?(?:\s*[-–—]\s*\[?(\d{1,3}:\d{2}(?::\d{2})?)\]?)?"#
+    )
+
+    static func parse(in text: String) -> [RefinementCitation] {
+        let range = NSRange(text.startIndex..., in: text)
+        return pattern.matches(in: text, range: range).compactMap { match in
+            guard let startRange = Range(match.range(at: 1), in: text),
+                  let start = seconds(String(text[startRange])) else { return nil }
+            var end: TimeInterval?
+            if let endRange = Range(match.range(at: 2), in: text) {
+                end = seconds(String(text[endRange]))
+            }
+            return RefinementCitation(start: start, end: end.flatMap { $0 > start ? $0 : nil })
+        }
+    }
+
+    static func seconds(_ stamp: String) -> TimeInterval? {
+        let parts = stamp.split(separator: ":").compactMap { Int($0) }
+        switch parts.count {
+        case 2 where parts[1] < 60: return TimeInterval(parts[0] * 60 + parts[1])
+        case 3 where parts[1] < 60 && parts[2] < 60: return TimeInterval(parts[0] * 3600 + parts[1] * 60 + parts[2])
+        default: return nil
+        }
+    }
+}
+
+/// Every cited moment in a report, numbered in reading order the way Ask
+/// numbers its sources, and which items point at each.
+struct RefinementEvidenceIndex: Sendable {
+    struct Entry: Identifiable, Sendable {
+        /// The number shown on the citation chip and the evidence card.
+        let id: Int
+        let citation: RefinementCitation
+        /// Items that cite this moment, with their short text.
+        var supports: [(ref: RefinementItemRef, text: String)]
+        /// The model's own evidence line for the first supporting item —
+        /// the quote or paraphrase that used to sit under it in the report.
+        var note: String?
+    }
+
+    private(set) var entries: [Entry] = []
+    private(set) var numbersByItem: [RefinementItemRef: [Int]] = [:]
+    /// Evidence text for items that have some but name no moment (a screen
+    /// share, a general observation) — still shown, just without a passage.
+    private(set) var uncitedNotes: [(ref: RefinementItemRef, text: String, note: String)] = []
+
+    init(_ content: RefinementReportContent) {
+        for (i, item) in content.acceptanceCriteria.enumerated() {
+            add(.criterion(i), text: item.text, explicit: item.citations, evidence: item.evidence)
+        }
+        for (i, item) in content.decisions.enumerated() {
+            add(.decision(i), text: item.decision, explicit: item.citations, evidence: item.reason)
+        }
+        for (i, item) in content.rejectedApproaches.enumerated() {
+            add(.rejected(i), text: item.approach, explicit: item.citations, evidence: item.reason)
+        }
+        for (i, item) in content.constraints.enumerated() {
+            add(.constraint(i), text: item.text, explicit: item.citations, evidence: item.source)
+        }
+        for (i, note) in content.reviewerNotes.enumerated() {
+            add(.note(i), text: note, explicit: nil, evidence: note, noteIsText: true)
+        }
+        for (i, item) in content.openQuestions.enumerated() {
+            add(.question(i), text: item.question, explicit: item.citations, evidence: nil)
+        }
+    }
+
+    func numbers(for ref: RefinementItemRef) -> [Int] {
+        numbersByItem[ref] ?? []
+    }
+
+    func entry(_ number: Int) -> Entry? {
+        entries.first { $0.id == number }
+    }
+
+    private mutating func add(
+        _ ref: RefinementItemRef,
+        text: String,
+        explicit: [String]?,
+        evidence: String?,
+        noteIsText: Bool = false
+    ) {
+        var citations = (explicit ?? []).flatMap(RefinementCitation.parse(in:))
+        if let evidence { citations += RefinementCitation.parse(in: evidence) }
+        let note = noteIsText ? nil : evidence?.nonEmpty
+
+        var seen = Set<RefinementCitation>()
+        let unique = citations.filter { seen.insert($0).inserted }
+        if unique.isEmpty {
+            if let note { uncitedNotes.append((ref, text, note)) }
+            return
+        }
+
+        for citation in unique {
+            if let index = entries.firstIndex(where: { $0.citation == citation }) {
+                entries[index].supports.append((ref, text))
+                if entries[index].note == nil { entries[index].note = note }
+                numbersByItem[ref, default: []].append(entries[index].id)
+            } else {
+                let number = entries.count + 1
+                entries.append(Entry(id: number, citation: citation, supports: [(ref, text)], note: note))
+                numbersByItem[ref, default: []].append(number)
+            }
+        }
+    }
+}
+
+/// Picks the transcript lines behind a citation.
+enum RefinementPassage {
+    struct Line: Identifiable, Sendable, Equatable {
+        let id: UUID
+        let startTime: TimeInterval
+        let speaker: String
+        let text: String
+    }
+
+    /// Lines shown for a single timestamp: the one it lands in, plus what
+    /// follows within this many seconds — a quote usually runs past the
+    /// line it starts on.
+    static let followOnSeconds: TimeInterval = 20
+    static let maxLines = 8
+
+    /// `lines` must be sorted by start time.
+    static func lines(for citation: RefinementCitation, in lines: [Line]) -> [Line] {
+        guard !lines.isEmpty else { return [] }
+        // The line that contains the moment: the last one starting at or
+        // just after it (models round timestamps to the second).
+        let first = lines.lastIndex { $0.startTime <= citation.start + 1 } ?? 0
+        let limit = citation.end ?? (citation.start + followOnSeconds)
+        var result = [lines[first]]
+        var index = first + 1
+        while index < lines.count, lines[index].startTime <= limit, result.count < maxLines {
+            result.append(lines[index])
+            index += 1
+        }
+        return result
+    }
+}

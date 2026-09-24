@@ -303,9 +303,27 @@ enum SchemaV23: VersionedSchema {
     static var models: [any PersistentModel.Type] { SchemaV22.models }
 }
 
+/// SchemaV24 adds `Meeting.refinementLikelihood` / `refinementFeature` /
+/// `refinementOverride` — whether the meeting looks like a feature
+/// refinement (from the final analysis, or the backfill for older meetings)
+/// and the user's manual add/remove. Three optional attributes — lightweight
+/// migration; existing meetings get nil, which the backfill picks up.
+enum SchemaV24: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(24, 0, 0) }
+    static var models: [any PersistentModel.Type] { SchemaV23.models }
+}
+
+/// SchemaV25 adds `Meeting.refinementFeatures` — every feature a meeting
+/// refined, not just the first. One defaulted array — lightweight
+/// migration; existing meetings get [], which the backfill fills in.
+enum SchemaV25: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(25, 0, 0) }
+    static var models: [any PersistentModel.Type] { SchemaV24.models }
+}
+
 enum GreyEminenceMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self, SchemaV5.self, SchemaV6.self, SchemaV7.self, SchemaV8.self, SchemaV9.self, SchemaV10.self, SchemaV11.self, SchemaV12.self, SchemaV13.self, SchemaV14.self, SchemaV15.self, SchemaV16.self, SchemaV17.self, SchemaV18.self, SchemaV19.self, SchemaV20.self, SchemaV21.self, SchemaV22.self, SchemaV23.self]
+        [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self, SchemaV5.self, SchemaV6.self, SchemaV7.self, SchemaV8.self, SchemaV9.self, SchemaV10.self, SchemaV11.self, SchemaV12.self, SchemaV13.self, SchemaV14.self, SchemaV15.self, SchemaV16.self, SchemaV17.self, SchemaV18.self, SchemaV19.self, SchemaV20.self, SchemaV21.self, SchemaV22.self, SchemaV23.self, SchemaV24.self, SchemaV25.self]
     }
 
     static var stages: [MigrationStage] {
@@ -331,7 +349,9 @@ enum GreyEminenceMigrationPlan: SchemaMigrationPlan {
             .lightweight(fromVersion: SchemaV19.self, toVersion: SchemaV20.self),
             .lightweight(fromVersion: SchemaV20.self, toVersion: SchemaV21.self),
             .lightweight(fromVersion: SchemaV21.self, toVersion: SchemaV22.self),
-            .lightweight(fromVersion: SchemaV22.self, toVersion: SchemaV23.self)
+            .lightweight(fromVersion: SchemaV22.self, toVersion: SchemaV23.self),
+            .lightweight(fromVersion: SchemaV23.self, toVersion: SchemaV24.self),
+            .lightweight(fromVersion: SchemaV24.self, toVersion: SchemaV25.self)
         ]
     }
 }

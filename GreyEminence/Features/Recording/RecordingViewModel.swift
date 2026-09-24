@@ -1026,6 +1026,7 @@ final class RecordingViewModel {
                         if let title = result.title {
                             meeting.applyGeneratedTitle(title)
                         }
+                        meeting.applyRefinementSignal(result.refinement)
                     }
                 } catch is CancellationError {
                     // App quitting / teardown raced — not a real analysis failure.

@@ -250,6 +250,7 @@ struct ArchiveView: View {
                                 .tag(meeting)
                                 .contextMenu {
                                     MeetingPinButton(meeting: meeting)
+                                    MeetingRefinementButton(meeting: meeting)
                                     Divider()
                                     Button(role: .destructive) {
                                         deleteMeeting(meeting)

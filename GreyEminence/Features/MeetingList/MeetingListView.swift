@@ -51,10 +51,11 @@ struct MeetingListView: View {
         return pinned.isEmpty ? dated : [(pinnedSectionTitle, pinned)] + dated
     }
 
-    private static func groupDateSections(
+    /// Date sections only — also used by the Refinements list's dividers.
+    static func groupDateSections(
         for meetings: [Meeting],
         now: Date,
-        calendar: Calendar
+        calendar: Calendar = .current
     ) -> [(String, [Meeting])] {
         // Built once, and pinned to the same time zone as `calendar` so the
         // label a meeting gets always agrees with the bucket it landed in.
@@ -108,6 +109,7 @@ struct MeetingListView: View {
                             .tag(meeting)
                             .contextMenu {
                                 MeetingPinButton(meeting: meeting)
+                                MeetingRefinementButton(meeting: meeting)
                                 Divider()
                                 Button(role: .destructive) {
                                     deleteMeeting(meeting)

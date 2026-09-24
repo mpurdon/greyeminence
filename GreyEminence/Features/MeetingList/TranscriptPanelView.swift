@@ -844,6 +844,7 @@ struct TranscriptPanelView: View {
                 if let title = result.title {
                     target.applyGeneratedTitle(title)
                 }
+                target.applyRefinementSignal(result.refinement)
                 let insight = MeetingInsight(
                     summary: result.summary,
                     followUpQuestions: result.followUps,

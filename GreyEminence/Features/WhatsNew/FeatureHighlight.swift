@@ -24,6 +24,15 @@ enum FeatureHighlightCatalog {
     /// set its `version` to that release's MARKETING_VERSION.
     static let all: [FeatureHighlight] = [
         FeatureHighlight(
+            id: "refinement-report",
+            version: "0.51.0",
+            title: "Turn refinement meetings into specs",
+            summary: "The new Refinements view lists meetings where you worked through a feature \u{2014} spotted by the analysis, including older meetings \u{2014} with a Possibly / Likely / Definitely slider. Build a report to see what the meeting actually decided: a Rationale tab with acceptance criteria labelled explicit, emergent or inferred, decisions and their reasons, each cited to the transcript lines behind it, and an Effective Spec tab ready for a ticket. Export it as a PDF or Markdown, or create a Jira ticket from it once you\u{2019}ve connected Jira in Settings.",
+            systemImage: "compass.drawing",
+            tint: .teal,
+            destination: .refinements
+        ),
+        FeatureHighlight(
             id: "ai-settings-consolidated",
             version: "0.50.0",
             title: "Every AI model and account, in one place",

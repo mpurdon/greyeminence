@@ -462,6 +462,8 @@ struct TopicMapView: View {
                     meeting.applyGeneratedTitle(title)
                 }
 
+                meeting.applyRefinementSignal(result.refinement)
+
                 let insight = MeetingInsight(
                     summary: result.summary,
                     followUpQuestions: result.followUps,

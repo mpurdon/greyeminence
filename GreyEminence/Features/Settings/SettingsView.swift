@@ -13,6 +13,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     case calendar
     case interview
     case obsidian
+    case jira
     case developer
 
     var id: String { rawValue }
@@ -30,6 +31,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .calendar: "Calendar"
         case .interview: "Interview"
         case .obsidian: "Obsidian"
+        case .jira: "Jira"
         case .developer: "Developer"
         }
     }
@@ -47,6 +49,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .calendar: "calendar"
         case .interview: "person.badge.shield.checkmark"
         case .obsidian: "doc.text"
+        case .jira: "ticket"
         case .developer: "hammer"
         }
     }
@@ -64,6 +67,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .calendar: .green
         case .interview: .orange
         case .obsidian: .indigo
+        case .jira: .blue
         case .developer: .brown
         }
     }
@@ -144,6 +148,8 @@ struct SettingsView: View {
             InterviewSettingsView()
         case .obsidian:
             ObsidianSettingsView()
+        case .jira:
+            JiraSettingsView()
         case .developer:
             DeveloperSettingsView()
         }

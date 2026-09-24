@@ -7,6 +7,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
     case archive = "Archive"
     case recording = "New Recording"
     case tasks = "Tasks"
+    case refinements = "Refinements"
     case interviews = "Interviews"
     case people = "People"
     case topicMap = "Topic Map"
@@ -21,6 +22,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .archive: "archivebox"
         case .recording: "record.circle"
         case .tasks: "checkmark.circle"
+        case .refinements: "compass.drawing"
         case .interviews: "person.badge.shield.checkmark"
         case .people: "person.2"
         case .topicMap: "bubble.left.and.bubble.right"
@@ -37,6 +39,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .archive: .brown
         case .recording: .red
         case .tasks: .orange
+        case .refinements: .yellow
         case .interviews: .cyan
         case .people: .green
         case .topicMap: .purple
@@ -82,6 +85,7 @@ struct ContentView: View {
     /// post-update check and, via the focused value below, by Help → What's New.
     @State private var whatsNew: WhatsNewPresentation?
     @State private var selectedInterview: Interview?
+    @State private var selectedRefinement: RefinementTopic?
     var recordingViewModel: RecordingViewModel
     var interviewRecordingViewModel: InterviewRecordingViewModel
 
@@ -112,7 +116,7 @@ struct ContentView: View {
             ToolbarItem(placement: .navigation) {
                 DevBuildBanner()
             }
-            if selectedDestination == .meetings || selectedDestination == .archive || selectedDestination == .recording || selectedDestination == .interviews || selectedDestination == .ask {
+            if selectedDestination == .meetings || selectedDestination == .archive || selectedDestination == .recording || selectedDestination == .interviews || selectedDestination == .ask || selectedDestination == .refinements {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showInspector.toggle()
@@ -525,6 +529,18 @@ struct ContentView: View {
     /// Jump from an Ask snippet to the moment it came from: select its
     /// meeting, then scroll the transcript (or seek the screen-share player)
     /// once the detail view has mounted.
+    /// From Refinements to the meeting itself, optionally landing on a
+    /// transcript line — the same hand-off Ask's sources use.
+    private func openRefinementMeeting(_ meeting: Meeting, segmentID: UUID?) {
+        selectedMeeting = meeting
+        selectedDestination = .meetings
+        guard let segmentID else { return }
+        showInspector = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            pendingScrollSegmentID = segmentID
+        }
+    }
+
     private func openMeeting(for result: SearchResult) {
         let descriptor = FetchDescriptor<Meeting>()
         guard let meeting = (try? modelContext.fetch(descriptor))?.first(where: { $0.id == result.meetingID }) else { return }
@@ -691,6 +707,31 @@ struct ContentView: View {
             )
         case .tasks:
             AllTasksView()
+        case .refinements:
+            NavigationSplitView {
+                RefinementListView(selectedTopic: $selectedRefinement, onOpenMeeting: { openRefinementMeeting($0, segmentID: nil) })
+                    .navigationSplitViewColumnWidth(min: 260, ideal: 320)
+            } detail: {
+                if let topic = selectedRefinement {
+                    RefinementDetailView(
+                        topic: topic,
+                        onOpenMeeting: { meeting, segmentID in
+                            openRefinementMeeting(meeting, segmentID: segmentID)
+                        },
+                        onOpenJiraSettings: {
+                            SettingsNavigation.shared.pane = .jira
+                            selectedDestination = .settings
+                        }
+                    )
+                    .id(topic.id)
+                } else {
+                    ContentUnavailableView(
+                        "No Refinement Selected",
+                        systemImage: RefinementStyle.symbol,
+                        description: Text("Pick a meeting to build or read its refinement report")
+                    )
+                }
+            }
         case .people:
             PeopleView()
         case .topicMap:
