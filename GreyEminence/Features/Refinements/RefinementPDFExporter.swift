@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+/// What an export or a ticket carries: the whole report, or just the spec.
+enum RefinementExportScope: String, CaseIterable, Identifiable {
+    case specOnly = "Spec only"
+    case full = "Full report"
+    var id: String { rawValue }
+}
+
 /// Writes a refinement report to PDF using the same SwiftUI blocks the app
 /// shows, so the export looks like the screen rather than like a second,
 /// hand-maintained rendition of it.
@@ -10,11 +17,6 @@ import SwiftUI
 /// pages whole — page breaks only fall between blocks.
 @MainActor
 enum RefinementPDFExporter {
-    enum Scope {
-        case full
-        case specOnly
-    }
-
     enum ExportError: LocalizedError {
         case couldNotCreateFile
 
@@ -32,7 +34,7 @@ enum RefinementPDFExporter {
 
     static func write(
         _ report: RefinementReport,
-        scope: Scope,
+        scope: RefinementExportScope,
         feature: String,
         meeting: Meeting,
         to url: URL
@@ -43,16 +45,14 @@ enum RefinementPDFExporter {
             date: meeting.date,
             duration: meeting.formattedDuration,
             kind: scope == .full ? "Refinement report" : "Refinement spec",
-            generated: "Generated \(report.generatedAt.formatted(date: .abbreviated, time: .shortened)) · \(RefinementReportService.modelLabel(report.modelIdentifier))"
+            generated: RefinementReportLayout.generatedLine(report)
         )
 
         var blocks = [title]
         let specSpacing = RefinementReportLayout.sectionSpacing
         switch scope {
         case .full:
-            blocks += RefinementReportLayout.sectionBlocks(report.content).map {
-                RefinementBlock(id: $0.id, spacingBefore: $0.id == 0 ? 16 : $0.spacingBefore, view: $0.view)
-            }
+            blocks += RefinementReportLayout.sectionBlocks(report.content, leadingSpacing: 16)
             // The spec is what gets handed on, so it opens its own page.
             var spec = specBlocks(report.content.spec, spacingBefore: specSpacing)
             if !spec.isEmpty { spec[0].startsNewPage = true }
@@ -100,15 +100,13 @@ enum RefinementPDFExporter {
             let spacing = pages[pages.count - 1].isEmpty ? 0 : block.spacingBefore
 
             let overflows = cursor + spacing + height > contentHeight
+            var y = cursor + spacing
             if overflows || block.startsNewPage, !pages[pages.count - 1].isEmpty {
                 pages.append([])
-                cursor = 0
-                pages[pages.count - 1].append(Placement(renderer: renderer, size: size, y: 0, scale: scale))
-                cursor = height
-            } else {
-                pages[pages.count - 1].append(Placement(renderer: renderer, size: size, y: cursor + spacing, scale: scale))
-                cursor += spacing + height
+                y = 0
             }
+            pages[pages.count - 1].append(Placement(renderer: renderer, size: size, y: y, scale: scale))
+            cursor = y + height
         }
 
         var mediaBox = CGRect(origin: .zero, size: pageSize)

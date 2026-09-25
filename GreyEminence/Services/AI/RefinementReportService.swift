@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// What a feature-refinement meeting actually decided, as opposed to what
@@ -88,6 +87,30 @@ struct RefinementReportContent: Codable, Sendable, Equatable {
             decisions = c.lossyStrings(.decisions)
             constraints = c.lossyStrings(.constraints)
             openQuestions = c.lossyStrings(.openQuestions)
+        }
+
+        /// The spec's listed parts, titled once so the view and the
+        /// Markdown can't drift apart.
+        enum List: CaseIterable {
+            case criteria, decisions, constraints, questions
+
+            var title: String {
+                switch self {
+                case .criteria: "Acceptance Criteria"
+                case .decisions: "Important Decisions"
+                case .constraints: "Constraints / Non-goals"
+                case .questions: "Open Questions"
+                }
+            }
+        }
+
+        func items(_ list: List) -> [String] {
+            switch list {
+            case .criteria: acceptanceCriteria
+            case .decisions: decisions
+            case .constraints: constraints
+            case .questions: openQuestions
+            }
         }
     }
 
@@ -218,9 +241,57 @@ struct RefinementReport: Codable, Sendable, Equatable {
     /// paid for and may already have filed.
     let transcriptFingerprint: String
     var jiraIssue: JiraIssueLink?
-    /// The feature the report was focused on. Nil on reports from before a
-    /// meeting could hold several.
-    var feature: String?
+    /// Where the report is in review. Nil on reports from before statuses
+    /// existed — read as New, or Filed when a ticket was created.
+    var reviewStatus: RefinementStatus?
+
+    var status: RefinementStatus {
+        reviewStatus ?? (jiraIssue == nil ? .new : .filed)
+    }
+}
+
+/// Where a refinement is in review. A topic with no report is `.notBuilt`;
+/// building one makes it New, opening it makes it Read, and creating its
+/// Jira ticket makes it Filed. Follow-up, Approved and Rejected are the
+/// reviewer's to set, and any status can be set by hand.
+enum RefinementStatus: String, Codable, Sendable, CaseIterable, Identifiable {
+    case new, followUp, read, notBuilt, approved, filed, rejected
+
+    var id: String { rawValue }
+
+    /// Every status but `.notBuilt`, which only the absence of a report means.
+    static let settable: [RefinementStatus] = [.new, .read, .followUp, .approved, .filed, .rejected]
+
+    var label: String {
+        switch self {
+        case .notBuilt: "No Report"
+        case .new: "New"
+        case .read: "Read"
+        case .followUp: "Follow-up"
+        case .approved: "Approved"
+        case .filed: "Filed in Jira"
+        case .rejected: "Rejected"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .notBuilt: "doc"
+        case .new: "circle.fill"
+        case .read: "doc.text"
+        case .followUp: "flag.fill"
+        case .approved: "checkmark.seal.fill"
+        case .filed: "ticket.fill"
+        case .rejected: "xmark.circle.fill"
+        }
+    }
+
+    /// A status written by a newer version reads as Read rather than
+    /// costing the whole report its decode.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = RefinementStatus(rawValue: raw) ?? .read
+    }
 }
 
 struct RefinementReportService: Sendable {
@@ -280,10 +351,7 @@ struct RefinementReportService: Sendable {
 
     @MainActor
     static func transcript(for meeting: Meeting) -> String {
-        let snapshots = meeting.segments
-            .sorted { $0.startTime < $1.startTime }
-            .map { SegmentSnapshot(speaker: $0.speaker, text: $0.text, formattedTimestamp: $0.formattedTimestamp, isFinal: $0.isFinal) }
-        return AIPromptTemplates.formatSegments(snapshots)
+        AIPromptTemplates.formatSegments(TranscriptFile.from(meeting: meeting).segments)
     }
 
     func generate(_ input: Input, meetingID: UUID) async throws -> RefinementReport {
@@ -294,7 +362,9 @@ struct RefinementReportService: Sendable {
         let response = try await AIUsageContext.attribute(.refinementReport, meetingID: meetingID) {
             try await AIRetry.run(label: "refinementReport", meetingID: meetingID) { [client, system, prompt] in
                 try await withTimeout(seconds: Self.timeoutSeconds) {
-                    try await client.sendMessage(system: system, userContent: prompt, maxTokens: Self.maxTokens)
+                    try await AIRequestTimeout.$seconds.withValue(TimeInterval(Self.timeoutSeconds)) {
+                        try await client.sendMessage(system: system, userContent: prompt, maxTokens: Self.maxTokens)
+                    }
                 }
             }
         }
@@ -319,8 +389,7 @@ struct RefinementReportService: Sendable {
             generatedAt: .now,
             modelIdentifier: client.modelIdentifier,
             promptVersion: Self.promptVersion,
-            transcriptFingerprint: input.fingerprint,
-            feature: input.feature
+            transcriptFingerprint: input.fingerprint
         )
     }
 
@@ -393,27 +462,20 @@ struct RefinementReportService: Sendable {
     /// "Claude Sonnet" rather than a Bedrock inference-profile ARN, which is
     /// what the model identifier is on an org that routes through profiles.
     /// Profile ARNs hide the family, so they are matched against the
-    /// trajector-settings slots, as the usage ledger does for pricing.
+    /// trajector-settings slots — the same matching the usage ledger prices by.
     static func modelLabel(_ identifier: String, settings: TrajectorSettings? = TrajectorSettings.load()) -> String {
-        let lower = identifier.lowercased()
-        for family in ["opus", "sonnet", "haiku"] where lower.contains(family) {
-            return "Claude \(family.capitalized)"
+        switch AIPricing.family(forModelIdentifier: identifier, settings: settings) {
+        case AIPricing.opus: "Claude Opus"
+        case AIPricing.sonnet: "Claude Sonnet"
+        case AIPricing.haiku: "Claude Haiku"
+        default: identifier.contains("arn:") ? "Claude via Bedrock" : identifier
         }
-        if let settings {
-            let slots: [(String, String?)] = [("Opus", settings.opusModel), ("Sonnet", settings.sonnetModel), ("Haiku", settings.haikuModel)]
-            for (family, arn) in slots {
-                if let arn, !arn.isEmpty, identifier.contains(arn) { return "Claude \(family)" }
-            }
-        }
-        return identifier.contains("arn:") ? "Claude via Bedrock" : identifier
     }
 
     /// Stable across launches (unlike `Hasher`), so a stored report can be
     /// compared against today's transcript.
     static func fingerprint(of transcript: String) -> String {
-        SHA256.hash(data: Data(transcript.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
+        AWSSigV4Signer.sha256Hex(Data(transcript.utf8))
     }
 }
 
@@ -425,10 +487,13 @@ struct RefinementReportService: Sendable {
 enum RefinementReportMarkdown {
 
     static func full(_ content: RefinementReportContent, title: String, date: Date) -> String {
-        var out: [String] = []
-        out.append("# Refinement: \(title)")
-        out.append("_\(date.formatted(date: .long, time: .shortened))_")
+        "# Refinement: \(title)\n\n_\(date.formatted(date: .long, time: .shortened))_\n\n" + sections(content)
+    }
 
+    /// The eight sections without the document title — for a ticket, whose
+    /// summary already names the feature.
+    static func sections(_ content: RefinementReportContent) -> String {
+        var out: [String] = []
         out.append("## 1. Intent")
         out.append(orNone(content.intent))
 
@@ -475,13 +540,11 @@ enum RefinementReportMarkdown {
     /// Section 8 on its own — what goes in a ticket or PR.
     static func spec(_ spec: RefinementReportContent.Spec, headingLevel: Int = 2) -> String {
         let h = String(repeating: "#", count: headingLevel)
-        return [
-            "\(h) Intent", orNone(spec.intent),
-            "\(h) Acceptance Criteria", list(spec.acceptanceCriteria),
-            "\(h) Important Decisions", list(spec.decisions),
-            "\(h) Constraints / Non-goals", list(spec.constraints),
-            "\(h) Open Questions", list(spec.openQuestions),
-        ].joined(separator: "\n\n")
+        var out = ["\(h) Intent", orNone(spec.intent)]
+        for part in RefinementReportContent.Spec.List.allCases {
+            out += ["\(h) \(part.title)", list(spec.items(part))]
+        }
+        return out.joined(separator: "\n\n")
     }
 
     static func criterionLine(_ criterion: RefinementReportContent.Criterion) -> String {

@@ -10,69 +10,63 @@ struct RefinementListView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Meeting.date, order: .reverse) private var meetings: [Meeting]
+    @Query private var contacts: [Contact]
 
-    private var backfill = RefinementBackfill.shared
-    private var store = RefinementReportStore.shared
+    private var backfill: RefinementBackfill { .shared }
+    private var store: RefinementReportStore { .shared }
     @AppStorage("refinementConfidence") private var confidenceRaw = RefinementConfidence.possibly.rawValue
-
-    // Explicit: a private stored property makes the synthesized memberwise
-    // initializer private on CI's older toolchain.
-    init(selectedTopic: Binding<RefinementTopic?>, onOpenMeeting: @escaping (Meeting) -> Void) {
-        _selectedTopic = selectedTopic
-        self.onOpenMeeting = onOpenMeeting
-    }
+    @AppStorage("refinementGrouping") private var grouping: RefinementGrouping = .date
+    @AppStorage("refinementTopicOrder") private var topicOrder: TopicMapSort = .mentions
+    @AppStorage("refinementShowRejected") private var showRejected = false
+    /// Topic kinds left out of the Topic grouping. People by default.
+    @AppStorage("refinementHiddenTopicKinds") private var hiddenTopicKinds = TopicKind.person.rawValue
+    /// Folded sections, by section ID. Topic sections start folded — there
+    /// are many, and the headers are the point.
+    @State private var folded: Set<String> = []
+    @State private var unfoldedTopics: Set<String> = []
 
     private var confidence: RefinementConfidence {
         RefinementConfidence(rawValue: confidenceRaw) ?? .possibly
     }
 
-    private var candidates: [Meeting] {
-        meetings.filter { $0.status == .completed && $0.isRefinementCandidate }
-    }
-
-    /// What the slider lets through. Meetings you added yourself always
-    /// show, whatever their score.
-    private var visible: [Meeting] {
-        candidates.filter { confidence.includes($0) }
-    }
-
-    private var sections: [(String, [Meeting])] {
-        MeetingListView.groupDateSections(for: visible, now: .now)
-    }
-
     var body: some View {
+        let candidates = meetings.filter { $0.status == .completed && $0.isRefinementCandidate }
+        // What the slider lets through. Meetings you added yourself always
+        // show, whatever their score.
+        let visible = candidates.filter { confidence.includes($0) }
+        // Rejected rows stay out of the way unless asked for.
+        let rows = visible.flatMap(RefinementTopic.topics(for:))
+            .filter { showRejected || store.status(for: $0) != .rejected }
+        let sections = RefinementListGrouper.sections(
+            rows,
+            by: grouping,
+            topicOrder: topicOrder,
+            resolver: grouping == .topic
+                ? TopicCatalogStore.shared.resolver(hiding: TopicKind.set(from: hiddenTopicKinds), contactNames: contacts.map(\.name))
+                : TopicResolver(),
+            status: store.status(for:)
+        )
         VStack(spacing: 0) {
             if backfill.isRunning || backfill.lastError != nil {
                 backfillBanner
                 Divider()
             }
-            confidenceFilter
+            confidenceFilter(showing: visible.count, of: candidates.count)
             Divider()
+            groupingBar
+                .zIndex(1)  // the kind legend drops over the list
             List(selection: $selectedTopic) {
-                ForEach(sections, id: \.0) { title, sectionMeetings in
-                    Section {
-                        ForEach(sectionMeetings.flatMap(RefinementTopic.topics(for:))) { topic in
-                            RefinementRow(topic: topic, report: store.report(for: topic), isGenerating: store.isGenerating(topic))
-                                .tag(topic)
-                                .contextMenu {
-                                    Button {
-                                        onOpenMeeting(topic.meeting)
-                                    } label: {
-                                        Label("Open Meeting", systemImage: "arrow.up.forward.app")
-                                    }
-                                    Divider()
-                                    MeetingRefinementButton(meeting: topic.meeting)
-                                }
+                ForEach(sections) { section in
+                    Section(isExpanded: expansion(for: section.id)) {
+                        ForEach(section.topics) { topic in
+                            row(topic)
                         }
                     } header: {
-                        Text(title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .textCase(nil)
+                        sectionHeader(section)
                     }
                 }
             }
-            .listStyle(.inset)
+            .listStyle(.sidebar)
             .overlay {
                 if visible.isEmpty && !candidates.isEmpty {
                     ContentUnavailableView {
@@ -93,11 +87,125 @@ struct RefinementListView: View {
         .onAppear {
             FeatureDiscovery.shared.markSeen("refinement-report")
             backfill.runIfNeeded(in: modelContext)
+            TopicClassifier.shared.runIfNeeded(in: modelContext)
         }
     }
 
+    private func row(_ topic: RefinementTopic) -> some View {
+        let report = store.report(for: topic)
+        return RefinementRow(
+            topic: topic,
+            status: report?.status ?? .notBuilt,
+            jiraKey: report?.jiraIssue?.key,
+            isGenerating: store.isGenerating(topic),
+            showsMeeting: grouping != .meeting
+        )
+        .tag(topic)
+        .contextMenu {
+            Button {
+                onOpenMeeting(topic.meeting)
+            } label: {
+                Label("Open Meeting", systemImage: "arrow.up.forward.app")
+            }
+            if report != nil {
+                RefinementStatusMenu(topic: topic)
+            }
+            Divider()
+            MeetingRefinementButton(meeting: topic.meeting)
+        }
+    }
+
+    private func sectionHeader(_ section: RefinementListSection) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if let kind = section.topicKind {
+                Image(systemName: kind.systemImage)
+                    .font(.caption2)
+                    .foregroundStyle(kind.tint)
+                    .help(kind.singular)
+            }
+            Text(section.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            if let subtitle = section.subtitle {
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Text("\(section.topics.count)")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.tertiary)
+        }
+        .textCase(nil)
+        .contextMenu {
+            if section.isTopic {
+                TopicCatalogMenuItems(topic: section.title)
+            }
+        }
+    }
+
+    /// Topic sections open on request; every other grouping starts open.
+    private func expansion(for id: String) -> Binding<Bool> {
+        let isTopic = grouping == .topic
+        return Binding(
+            get: { isTopic ? unfoldedTopics.contains(id) : !folded.contains(id) },
+            set: { open in
+                if isTopic {
+                    if open { unfoldedTopics.insert(id) } else { unfoldedTopics.remove(id) }
+                } else {
+                    if open { folded.remove(id) } else { folded.insert(id) }
+                }
+            }
+        )
+    }
+
+    /// Grouping, and under it the topic kinds when grouping by Topic; the
+    /// filter menu beside both, as tall as they are.
+    private var groupingBar: some View {
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("Group", selection: $grouping) {
+                    ForEach(RefinementGrouping.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .newFeatureBadge("refinement-review")
+                .onChange(of: grouping) { FeatureDiscovery.shared.markSeen("refinement-review") }
+                if grouping == .topic {
+                    TopicKindFilterBar(hiddenRaw: $hiddenTopicKinds)
+                }
+            }
+            filterMenu
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            if grouping == .topic {
+                Picker("Order Topics By", selection: $topicOrder) {
+                    ForEach(TopicMapSort.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.inline)
+                Divider()
+            }
+            Toggle("Show Rejected", isOn: $showRejected)
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: grouping == .topic ? 22 : 15))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(grouping == .topic ? "Topic order and rejected refinements" : "Rejected refinements")
+    }
+
     /// Possibly · Likely · Definitely, as a three-stop slider.
-    private var confidenceFilter: some View {
+    private func confidenceFilter(showing visibleCount: Int, of candidateCount: Int) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Slider(
                 value: Binding(
@@ -117,7 +225,7 @@ struct RefinementListView: View {
                     if level != RefinementConfidence.allCases.last { Spacer() }
                 }
             }
-            Text("\(visible.count) of \(candidates.count) · \(confidence.explanation)")
+            Text("\(visibleCount) of \(candidateCount) · \(confidence.explanation)")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
@@ -149,8 +257,11 @@ struct RefinementListView: View {
 
 private struct RefinementRow: View {
     let topic: RefinementTopic
-    let report: RefinementReport?
+    let status: RefinementStatus
+    let jiraKey: String?
     let isGenerating: Bool
+    /// Off when the section header already names the meeting.
+    let showsMeeting: Bool
 
     private var meeting: Meeting { topic.meeting }
 
@@ -164,8 +275,10 @@ private struct RefinementRow: View {
                 statusIcon
             }
             HStack(spacing: 4) {
-                Text(meeting.title)
-                    .lineLimit(1)
+                if showsMeeting {
+                    Text(meeting.title)
+                        .lineLimit(1)
+                }
                 if topic.count > 1 {
                     Text("· \(topic.position + 1) of \(topic.count)")
                         .fixedSize()
@@ -200,16 +313,26 @@ private struct RefinementRow: View {
     private var statusIcon: some View {
         if isGenerating {
             ProgressView().controlSize(.small)
-        } else if let issue = report?.jiraIssue {
-            Label(issue.key, systemImage: "ticket.fill")
-                .labelStyle(.titleAndIcon)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.blue)
-                .help("Jira ticket \(issue.key) created")
-        } else if report != nil {
-            Image(systemName: "doc.text.fill")
-                .foregroundStyle(RefinementStyle.tint)
-                .help("Report ready")
+        } else {
+            switch status {
+            case .notBuilt:
+                EmptyView()
+            case .new:
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 8, height: 8)
+                    .help("New — not opened yet")
+            case .filed:
+                Label(jiraKey ?? status.label, systemImage: status.systemImage)
+                    .labelStyle(.titleAndIcon)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(status.tint)
+                    .help(jiraKey.map { "Jira ticket \($0) created" } ?? status.label)
+            default:
+                Image(systemName: status.systemImage)
+                    .foregroundStyle(status.tint)
+                    .help(status.label)
+            }
         }
     }
 }
@@ -306,10 +429,48 @@ enum RefinementSpeakers {
     }
 }
 
+/// Set a report's review status, for the report header and list rows.
+struct RefinementStatusMenu: View {
+    let topic: RefinementTopic
+    private var store: RefinementReportStore { .shared }
+
+    var body: some View {
+        let current = store.status(for: topic)
+        Menu {
+            ForEach(RefinementStatus.settable) { status in
+                Button {
+                    store.setStatus(status, for: topic)
+                } label: {
+                    if status == current {
+                        Label(status.label, systemImage: "checkmark")
+                    } else {
+                        Text(status.label)
+                    }
+                }
+            }
+        } label: {
+            Label("Status: \(current.label)", systemImage: current.systemImage)
+        }
+    }
+}
+
+extension RefinementStatus {
+    var tint: Color {
+        switch self {
+        case .notBuilt, .read: .secondary
+        case .new: .accentColor
+        case .followUp: .orange
+        case .approved: .green
+        case .filed: .blue
+        case .rejected: .red
+        }
+    }
+}
+
 /// Add to / Remove from Refinements, for meeting context menus. The user's
 /// choice overrides the analysis either way.
 struct MeetingRefinementButton: View {
-    @Bindable var meeting: Meeting
+    let meeting: Meeting
 
     var body: some View {
         Button {
@@ -341,21 +502,9 @@ enum RefinementConfidence: Int, CaseIterable, Identifiable {
         }
     }
 
-    var label: String {
-        switch self {
-        case .possibly: "possibly"
-        case .likely: "likely"
-        case .definitely: "definitely"
-        }
-    }
+    var label: String { String(describing: self) }
 
-    var explanation: String {
-        switch self {
-        case .possibly: "scored 50% or more"
-        case .likely: "scored 70% or more"
-        case .definitely: "scored 85% or more"
-        }
-    }
+    var explanation: String { "scored \(Int((minimum * 100).rounded()))% or more" }
 
     func includes(_ meeting: Meeting) -> Bool {
         meeting.refinementOverride == true || (meeting.refinementLikelihood ?? 0) >= minimum

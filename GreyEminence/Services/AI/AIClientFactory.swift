@@ -38,6 +38,22 @@ enum AIClientFactory {
         return try await makeClient(provider: provider, model: choice.model, account: account)
     }
 
+    /// Haiku, for small high-volume text jobs like sorting topics into
+    /// kinds. Falls back to the main model on a Bedrock org with no Haiku
+    /// inference profile, as frame analysis does.
+    static func makeLightClient() async throws -> (any AIClient)? {
+        let providerRaw = UserDefaults.standard.string(forKey: "aiProvider") ?? "anthropic"
+        let provider = AIProvider(rawValue: providerRaw) ?? .anthropic
+        let trajector = TrajectorSettings.load()
+        let choice = frameAnalysisModel(
+            preferred: AIModelCatalog.haiku,
+            mainModel: AIModelCatalog.mainModel,
+            provider: provider,
+            haikuProfileAvailable: trajector == nil || trajector?.haikuModel != nil
+        )
+        return try await makeClient(provider: provider, model: choice.model)
+    }
+
     /// Resolution of which model the frame-analysis client is bound to.
     struct FrameAnalysisModelChoice: Equatable {
         let model: String

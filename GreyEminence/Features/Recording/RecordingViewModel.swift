@@ -238,11 +238,40 @@ final class RecordingViewModel {
             await calendarService.requestAccess()
         }
         candidateEvents = await calendarService.eventsInWindow(minutes: 60)
-        if candidateEvents.count == 1, selectedEvent == nil, !calendarSelectionCleared {
-            selectEvent(candidateEvents[0], in: modelContext)
+        if let only = automaticChoice(from: candidateEvents, in: modelContext),
+           selectedEvent == nil, !calendarSelectionCleared {
+            selectEvent(only, in: modelContext)
         } else if selectedEvent == nil {
             // 0 or 2+ with nothing chosen yet → no prep until the user picks.
             prepContext = nil
+        }
+    }
+
+    /// The event to link without asking: the only nearby one that no other
+    /// meeting has recorded yet. An event already recorded is never picked
+    /// silently — a second call soon after (or a second copy of the app)
+    /// would otherwise take its title and attendees. With none left, or
+    /// several, the caller asks.
+    func automaticChoice(from events: [CalendarEvent], excluding meetingID: UUID? = nil, in modelContext: ModelContext) -> CalendarEvent? {
+        let meetings = (try? modelContext.fetch(FetchDescriptor<Meeting>())) ?? []
+        let fresh = events.filter { !Self.isAlreadyRecorded($0, by: meetings, excluding: meetingID) }
+        let skipped = events.count - fresh.count
+        if skipped > 0 {
+            log.log("Calendar: \(skipped) nearby event(s) already recorded — not auto-linking them", category: .general)
+        }
+        return fresh.count == 1 ? fresh[0] : nil
+    }
+
+    /// Whether another meeting is linked to this occurrence of `event`: same
+    /// link, started between half an hour before the event and its end.
+    /// Recurring occurrences share a link, so the time window is what tells
+    /// last week's recording from this one.
+    static func isAlreadyRecorded(_ event: CalendarEvent, by meetings: [Meeting], excluding meetingID: UUID?) -> Bool {
+        let window = event.startDate.addingTimeInterval(-30 * 60)..<max(event.endDate, event.startDate.addingTimeInterval(60))
+        return meetings.contains { meeting in
+            meeting.id != meetingID
+                && meeting.calendarEventID == event.linkIdentifier
+                && window.contains(meeting.date)
         }
     }
 
@@ -264,8 +293,8 @@ final class RecordingViewModel {
     /// Undo a clear, re-offering the chooser (or auto-picking a lone candidate).
     func reopenCalendarSelection(in modelContext: ModelContext) {
         calendarSelectionCleared = false
-        if candidateEvents.count == 1 {
-            selectEvent(candidateEvents[0], in: modelContext)
+        if let only = automaticChoice(from: candidateEvents, in: modelContext) {
+            selectEvent(only, in: modelContext)
         }
     }
 
@@ -296,6 +325,11 @@ final class RecordingViewModel {
         // post-hoc "link a past meeting" flow).
         calendarService.linkEvent(event, to: meeting, in: modelContext, setTitle: true)
         speakerContactMapper.prepopulate(from: meeting.presentAttendees)
+        // Prep follows the link, however it was made — picked on the idle
+        // screen, auto-matched after a menu-bar or auto-detected start, or
+        // chosen mid-call from the toolbar. Without this only the idle
+        // screen's pick ever had prep to show during the call.
+        prepContext = meetingPrepService.gatherPrepContext(for: event, in: modelContext)
     }
 
     /// Manual variant invoked from the recording toolbar. Operates on the
@@ -317,6 +351,7 @@ final class RecordingViewModel {
     func unlinkCalendarEvent(in modelContext: ModelContext) {
         guard let meeting = currentMeeting else { return }
         meeting.unlinkCalendarEvent()
+        prepContext = nil
         // The event's attendees were just pruned; rebuild the speaker mappings
         // from scratch so aliases of removed contacts stop claiming speakers.
         speakerContactMapper.reset()
@@ -681,10 +716,10 @@ final class RecordingViewModel {
             let nearby = await calendarService.eventsInWindow(minutes: 60)
             // Bail if the user stopped/started a different recording meanwhile.
             guard let current = currentMeeting, current.id == meetingID else { return }
-            if nearby.count == 1 {
-                applyCalendarMatch(event: nearby[0], to: current, in: modelContext, source: "auto")
+            if let only = automaticChoice(from: nearby, excluding: meetingID, in: modelContext) {
+                applyCalendarMatch(event: only, to: current, in: modelContext, source: "auto")
                 PersistenceGate.save(modelContext, site: "matchCalendarAtStart", meetingID: current.id)
-            } else if nearby.count > 1 {
+            } else if !nearby.isEmpty {
                 pendingCalendarChoices = nearby
                 log.log("Calendar: \(nearby.count) events within ±60m — prompting user to pick", category: .general)
             } else {
@@ -1023,10 +1058,7 @@ final class RecordingViewModel {
                         resultFollowUps = result.followUps
                         resultTopics = result.topics
                         resultRaw = result.rawResponse
-                        if let title = result.title {
-                            meeting.applyGeneratedTitle(title)
-                        }
-                        meeting.applyRefinementSignal(result.refinement)
+                        meeting.applyAnalysisMetadata(result)
                     }
                 } catch is CancellationError {
                     // App quitting / teardown raced — not a real analysis failure.

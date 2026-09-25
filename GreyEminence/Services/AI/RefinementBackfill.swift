@@ -9,7 +9,8 @@ import SwiftData
 /// tokens — never the transcript, and asks about many meetings per call.
 /// Runs when the Refinements view opens, at most once per launch: a meeting
 /// the model skips stays unassessed and is retried next launch rather than
-/// in a loop.
+/// in a loop. Also re-scores multi-feature meetings once per
+/// `rescoreGeneration`, after the feature rules change.
 @Observable
 @MainActor
 final class RefinementBackfill {
@@ -29,25 +30,49 @@ final class RefinementBackfill {
     private init() {}
 
     /// A meeting the backfill can and should assess: finished, not an
-    /// interview, with a summary to judge from, and either never assessed
-    /// or listed from before a meeting could hold several features.
+    /// interview, never assessed, with a summary to judge from.
     static func needsAssessment(_ meeting: Meeting) -> Bool {
-        guard meeting.status == .completed,
-              !meeting.isInterviewMeeting,
-              !(meeting.latestInsight?.summary.isEmpty ?? true) else { return false }
-        let neverAssessed = meeting.refinementLikelihood == nil && meeting.refinementOverride == nil
-        let singleFeatureEra = meeting.isRefinementCandidate && meeting.refinementFeatures.isEmpty
-        return neverAssessed || singleFeatureEra
+        meeting.status == .completed
+            && !meeting.isInterviewMeeting
+            && meeting.refinementLikelihood == nil
+            && meeting.refinementOverride == nil
+            && !(meeting.latestInsight?.summary.isEmpty ?? true)
+    }
+
+    /// Bump after changing how the prompts split a meeting into features:
+    /// the next run re-scores every meeting listed under more than one, so
+    /// the list reflects the new rules without waiting for re-analysis.
+    /// 1 — a feature's architecture or design pattern is not a second feature.
+    nonisolated static let rescoreGeneration = 1
+    private static let rescoreKey = "refinementRescoreGeneration"
+
+    /// A meeting whose split into features predates the current rules.
+    static func needsRescore(_ meeting: Meeting) -> Bool {
+        meeting.status == .completed
+            && !meeting.isInterviewMeeting
+            && meeting.refinementFeatures.count > 1
+            && !(meeting.latestInsight?.summary.isEmpty ?? true)
     }
 
     func runIfNeeded(in context: ModelContext) {
         guard !isRunning, !ranThisLaunch else { return }
-        let pending = ((try? context.fetch(FetchDescriptor<Meeting>())) ?? [])
-            .filter(Self.needsAssessment)
-            .sorted { $0.date > $1.date }
-        guard !pending.isEmpty else { return }
-
+        // Once per launch even when nothing is pending: the scan walks every
+        // meeting's insights, too much to repeat on each visit to the view.
         ranThisLaunch = true
+        let unassessed = FetchDescriptor<Meeting>(
+            predicate: #Predicate { $0.refinementLikelihood == nil && $0.refinementOverride == nil }
+        )
+        var pending = ((try? context.fetch(unassessed)) ?? []).filter(Self.needsAssessment)
+        let rescoring = UserDefaults.standard.integer(forKey: Self.rescoreKey) < Self.rescoreGeneration
+        if rescoring {
+            pending += ((try? context.fetch(FetchDescriptor<Meeting>())) ?? []).filter(Self.needsRescore)
+        }
+        pending.sort { $0.date > $1.date }
+        guard !pending.isEmpty else {
+            if rescoring { UserDefaults.standard.set(Self.rescoreGeneration, forKey: Self.rescoreKey) }
+            return
+        }
+
         isRunning = true
         checked = 0
         total = pending.count
@@ -68,17 +93,14 @@ final class RefinementBackfill {
                     for (index, signal) in signals {
                         let meeting = batch[index]
                         meeting.applyRefinementSignal(signal)
-                        // Still listed but no names came back: record the one
-                        // it had, so the next launch doesn't ask again.
-                        if meeting.isRefinementCandidate && meeting.refinementFeatures.isEmpty {
-                            meeting.refinementFeatures = [meeting.refinementFeature ?? meeting.title]
-                        }
                         if meeting.isRefinementCandidate { flagged += 1 }
                     }
                     PersistenceGate.save(context, site: "RefinementBackfill.batch")
                     checked += batch.count
                 }
                 LogManager.send("Refinement backfill: done, \(flagged) likely refinement(s)", category: .ai)
+                // Only once the whole run succeeded; a failure retries next launch.
+                if rescoring { UserDefaults.standard.set(Self.rescoreGeneration, forKey: Self.rescoreKey) }
             } catch {
                 lastError = error.localizedDescription
                 LogManager.send("Refinement backfill failed: \(error.localizedDescription)", category: .ai, level: .warning)

@@ -19,6 +19,9 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
     /// The backfill judging older meetings' summaries for the Refinements
     /// list. New meetings are judged inside the final analysis instead.
     case refinementDetection
+    /// Sorting meeting topics into kinds (person, service…) and spotting
+    /// aliases. Once per distinct topic, on Haiku.
+    case topicClassification
     case reanalysis
     case transcriptCorrection
     case ask
@@ -41,6 +44,7 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .reportFigureAnchors: "Report figures"
         case .refinementReport: "Refinement reports"
         case .refinementDetection: "Refinement detection"
+        case .topicClassification: "Topic categories"
         case .reanalysis: "Reanalysis"
         case .transcriptCorrection: "Transcript corrections"
         case .ask: "Ask"
@@ -59,7 +63,7 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .frameAnalysis, .sessionSynthesis: .screenShare
         case .reportFigureAnchors, .refinementReport, .refinementDetection: .reports
         case .embedding: .search
-        case .ask, .interview, .prep, .taskTriage, .other: .other
+        case .ask, .interview, .prep, .taskTriage, .topicClassification, .other: .other
         }
     }
 }

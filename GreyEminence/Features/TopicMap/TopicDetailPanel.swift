@@ -12,9 +12,25 @@ struct TopicDetailPanel: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(node.label)
                             .font(.title3.weight(.bold))
-                        Text("\(node.meetingCount) meeting\(node.meetingCount == 1 ? "" : "s")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            Menu {
+                                TopicCatalogMenuItems(topic: node.label, aliases: node.aliases)
+                            } label: {
+                                Label(node.kind?.singular ?? "Uncategorized", systemImage: node.kind?.systemImage ?? "questionmark.circle")
+                                    .foregroundStyle(node.kind?.tint ?? .secondary)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                            Text("· \(node.meetingCount) meeting\(node.meetingCount == 1 ? "" : "s")")
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.caption)
+                        if !node.aliases.isEmpty {
+                            Text("Also: \(node.aliases.joined(separator: ", "))")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(2)
+                        }
                     }
                     .padding(.horizontal)
 

@@ -526,9 +526,6 @@ struct ContentView: View {
             }
     }
 
-    /// Jump from an Ask snippet to the moment it came from: select its
-    /// meeting, then scroll the transcript (or seek the screen-share player)
-    /// once the detail view has mounted.
     /// From Refinements to the meeting itself, optionally landing on a
     /// transcript line — the same hand-off Ask's sources use.
     private func openRefinementMeeting(_ meeting: Meeting, segmentID: UUID?) {
@@ -541,6 +538,9 @@ struct ContentView: View {
         }
     }
 
+    /// Jump from an Ask snippet to the moment it came from: select its
+    /// meeting, then scroll the transcript (or seek the screen-share player)
+    /// once the detail view has mounted.
     private func openMeeting(for result: SearchResult) {
         let descriptor = FetchDescriptor<Meeting>()
         guard let meeting = (try? modelContext.fetch(descriptor))?.first(where: { $0.id == result.meetingID }) else { return }

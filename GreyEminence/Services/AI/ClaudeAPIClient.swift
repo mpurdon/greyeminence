@@ -148,11 +148,9 @@ struct ClaudeAPIClient: AIClient, Sendable {
         request.httpBody = try JSONEncoder().encode(body)
         // Larger max_tokens (8192) means generation can run longer, so the
         // per-request ceiling is 60s. Still inside the outer 90s withTimeout
-        // that wraps each individual sendMessage attempt. Long-form output
-        // (refinement reports) gets more: a non-streaming response sends
-        // nothing until generation finishes, so this idle timeout is
-        // effectively a cap on generation time.
-        request.timeoutInterval = body.max_tokens > 8192 ? 300 : 60
+        // that wraps each individual sendMessage attempt, unless the caller
+        // asked for longer (see AIRequestTimeout).
+        request.timeoutInterval = AIRequestTimeout.seconds ?? 60
 
         return request
     }

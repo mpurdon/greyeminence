@@ -4,6 +4,78 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.52.0 — 2026-09-25
+
+**One copy at a time**
+- The released app and a development build no longer run on the same data
+  together. Both were recording every call, which left duplicate meetings.
+  A released copy that opens while a development build is running now
+  steps aside and brings the development build forward. A development
+  build that opens while the released app is running offers to quit it,
+  but not while it's recording a call.
+- A recording no longer links itself to a calendar event another meeting
+  already recorded. A second call soon after a meeting was taking that
+  meeting's title and attendees, because its event was still within the
+  hour. If the only nearby event is already recorded, you're asked
+  instead; pick it there if the call really is a continuation.
+
+**Topics**
+- Every meeting topic now has a **category**: People, Organizations,
+  Projects, Services, Technology, Concepts, Places or Other. Topics are
+  sorted once each across the whole library (contacts' names without the
+  model, the rest on Haiku with a meeting each came up in for context),
+  starting the first time you open the Topic Map or Refinements; after
+  that only new topics are sorted.
+- **Aliases**: other names for the same thing count as one topic, shown
+  under the full name — "Carlos" under "Carlos Ayala Gonzalez", "dynamo"
+  under "DynamoDB". Right-click a topic to change its category or to
+  separate an alias; your choices are kept through later sorting.
+- **Topic Map**: category chips over the graph show or hide each kind, and
+  hidden kinds make room for other topics among the ones drawn. Each topic
+  shows its category, and the detail panel lists its other names.
+- **Refinements**, grouped by Topic, has the same chips, with People off
+  by default (replacing the contact-name filter).
+
+**Recording**
+- A **Prep** button in the recording toolbar opens the meeting's prep
+  (open tasks and questions carried over from past occurrences) in a
+  popover, with a count of what's open. It appears whenever the recording
+  is linked to a recurring calendar meeting.
+- Prep now loads however the calendar link is made. Before, only a meeting
+  picked on the idle screen got prep; a recording started from the menu
+  bar or the auto-detector, or linked from the toolbar mid-call, had none.
+  Unlinking the event clears it.
+- The meeting being recorded no longer shows in the Meetings list until
+  you stop; it's in New Recording until then.
+
+**Refinements**
+- **Group the list** by Date, Meeting, Status or Topic. Meeting puts each
+  call's features under one header. Topic uses the meetings' own topics,
+  the same ones the Topic Map counts, ordered by how many meetings
+  mention them or by the most recent; topic sections start folded, and a
+  meeting shows under each of its topics. Every section folds.
+- **Review status** for each report: New, Read, Follow-up, Approved, Filed
+  in Jira and Rejected. Building a report makes it New (a blue dot in the
+  list), opening it makes it Read, and creating its Jira ticket makes it
+  Filed; set the rest from the Status menu in the report header or by
+  right-clicking a row. Rejected refinements are hidden unless you turn on
+  Show Rejected in the list's filter menu. Reports built before this
+  count as New, or Filed if they already have a ticket.
+- A meeting is split into several features less eagerly. The approach
+  discussed for building a feature — its architecture, a design pattern
+  like an outbox, a queue, retry handling — now counts as part of that
+  feature rather than a second one, and a second feature has to have its
+  own intent and acceptance criteria. The final analysis and the
+  background check share the same rules (analysis prompt `meeting.v6`).
+- Meetings already listed under more than one feature are re-scored once,
+  in the background, the next time you open Refinements. Reports you
+  already built are kept; where two features merge into one, the one that
+  remains shows its own report.
+- Internal cleanup: the report view no longer rebuilds its citation index
+  on every click, and long report generations ask the AI client for a
+  longer timeout explicitly instead of it being guessed from the token
+  budget.
+
 ## 0.51.0 — 2026-09-23
 
 **Refinements**

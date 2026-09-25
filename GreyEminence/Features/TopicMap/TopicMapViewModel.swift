@@ -39,7 +39,10 @@ final class TopicMapViewModel {
 
     // MARK: - Graph Building
 
-    func buildGraph(from insights: [MeetingInsight], canvasSize: CGSize) {
+    /// `resolver` merges aliases into their canonical topic and drops topics
+    /// whose kind is filtered out — before the top `maxNodeCount` are
+    /// chosen, so hiding People makes room for other topics.
+    func buildGraph(from insights: [MeetingInsight], canvasSize: CGSize, resolver: TopicResolver = TopicResolver()) {
         // Group insights by meeting, take latest per meeting
         var latestByMeeting: [UUID: MeetingInsight] = [:]
         for insight in insights {
@@ -58,15 +61,25 @@ final class TopicMapViewModel {
         var labelForms: [String: [String: Int]] = [:]  // normalized → [original: count]
         var meetingsByTopic: [String: Set<UUID>] = [:]
         var meetingObjectsByTopic: [String: [Meeting]] = [:]
+        var kinds: [String: TopicKind] = [:]
+        var aliasForms: [String: Set<String>] = [:]
         coOccurrence = [:]
 
         for (meetingID, insight) in latestByMeeting {
             let meeting = insight.meeting!
-            let normalized = insight.topics.map { normalize($0) }
-            let unique = Array(Set(normalized))
+            // Each topic under the key it counts as, with the name to show.
+            var labels: [String: String] = [:]
+            for raw in insight.topics {
+                guard let resolved = resolver.resolve(raw) else { continue }
+                let written = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                if normalize(raw) != resolved.key { aliasForms[resolved.key, default: []].insert(written) }
+                if let kind = resolved.kind, kinds[resolved.key] == nil { kinds[resolved.key] = kind }
+                if labels[resolved.key] == nil { labels[resolved.key] = resolved.displayName ?? written }
+            }
+            let unique = Array(labels.keys)
 
             for (i, norm) in unique.enumerated() {
-                let original = insight.topics.first { normalize($0) == norm } ?? norm
+                let original = labels[norm] ?? norm
                 frequency[norm, default: 0] += 1
                 labelForms[norm, default: [:]][original, default: 0] += 1
                 meetingsByTopic[norm, default: []].insert(meetingID)
@@ -115,7 +128,9 @@ final class TopicMapViewModel {
                 lastMeetingDate: meetingObjectsByTopic[norm]?.map(\.date).max(),
                 position: pos,
                 radius: TopicNode.radius(for: count),
-                color: TopicNode.color(for: norm)
+                color: TopicNode.color(for: norm),
+                kind: kinds[norm],
+                aliases: (aliasForms[norm] ?? []).sorted()
             )
             indexMap[norm] = newNodes.count
             newNodes.append(node)

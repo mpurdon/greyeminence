@@ -82,6 +82,9 @@ struct RecordingToolbar: View {
             // missed (e.g., ad-hoc Teams meeting joined late).
             if viewModel.state != .idle {
                 CalendarMatchMenu(viewModel: viewModel, modelContext: modelContext)
+                if let prep = viewModel.prepContext, prep.shouldDisplay {
+                    PrepButton(context: prep, modelContext: modelContext)
+                }
             }
 
             // Live status cluster (audio levels, segment count, AI activity).
@@ -241,6 +244,51 @@ private struct CalendarMatchMenu: View {
 
 /// Compact connection indicator: green with the event title when linked, neutral
 /// "Link event" prompt when not.
+/// Opens the meeting's prep — what's carried over from past occurrences —
+/// over the recording, whether or not the inspector's Prep tab is showing.
+private struct PrepButton: View {
+    let context: MeetingPrepContext
+    let modelContext: ModelContext
+    @State private var isShowing = false
+
+    /// Open items and questions: what there is to raise.
+    private var openCount: Int {
+        context.unresolvedItems.count + context.followUps.count
+    }
+
+    var body: some View {
+        Button {
+            isShowing.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "doc.text.magnifyingglass")
+                Text("Prep")
+                if openCount > 0 {
+                    Text("\(openCount)")
+                        .font(.caption2.monospacedDigit().weight(.semibold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(.orange.opacity(0.2), in: Capsule())
+                }
+            }
+            .font(.caption)
+        }
+        .buttonStyle(.borderless)
+        .fixedSize()
+        .help(openCount > 0 ? "\(openCount) open item(s) and question(s) from past occurrences" : "Meeting prep")
+        .popover(isPresented: $isShowing, arrowEdge: .bottom) {
+            ScrollView {
+                MeetingPrepView(context: context)
+                    .padding(16)
+                    .frame(width: 440, alignment: .leading)
+            }
+            .frame(maxHeight: 560)
+            // Explicit: prep edits task statuses on the live records.
+            .environment(\.modelContext, modelContext)
+        }
+    }
+}
+
 private struct CalendarLinkLabel: View {
     let linkedTitle: String?
 

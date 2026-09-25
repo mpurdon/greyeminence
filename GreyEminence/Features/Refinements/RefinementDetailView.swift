@@ -6,21 +6,14 @@ import UniformTypeIdentifiers
 /// then export it or file a Jira ticket from it.
 struct RefinementDetailView: View {
     let topic: RefinementTopic
-    @Bindable var meeting: Meeting
     /// Opens the meeting, scrolled to a transcript line when one is given.
     var onOpenMeeting: (Meeting, UUID?) -> Void
     var onOpenJiraSettings: () -> Void
 
-    private var store = RefinementReportStore.shared
+    private var meeting: Meeting { topic.meeting }
+    private var store: RefinementReportStore { .shared }
     @State private var showTicketSheet = false
     @State private var exportMessage: String?
-
-    init(topic: RefinementTopic, onOpenMeeting: @escaping (Meeting, UUID?) -> Void, onOpenJiraSettings: @escaping () -> Void) {
-        self.topic = topic
-        _meeting = Bindable(topic.meeting)
-        self.onOpenMeeting = onOpenMeeting
-        self.onOpenJiraSettings = onOpenJiraSettings
-    }
 
     enum Tab: String, CaseIterable, Identifiable {
         case rationale = "Rationale"
@@ -32,6 +25,12 @@ struct RefinementDetailView: View {
     @State private var selectedCitation: Int?
     /// The transcript as panel lines, rebuilt when the transcript changes.
     @State private var lines: [RefinementPassage.Line] = []
+    /// Citation numbers and passages for the current report, rebuilt when
+    /// the report or the transcript changes rather than on every redraw.
+    @State private var sources: RefinementEvidenceSources?
+    /// "Generated … · Claude Sonnet". Naming the model reads the settings
+    /// file, so it is worked out once per report, not per redraw.
+    @State private var generatedLine: String?
     /// Shared with the rest of the app's inspector panes (⇧⌘I).
     @AppStorage("showInspector") private var showInspector = true
 
@@ -56,7 +55,7 @@ struct RefinementDetailView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if let report, !isGenerating {
+            if let report, !isGenerating, let sources {
                 switch tab {
                 case .rationale:
                     HStack(spacing: 0) {
@@ -64,7 +63,7 @@ struct RefinementDetailView: View {
                             RefinementRationaleView(
                                 content: report.content,
                                 citations: RefinementReportLayout.Citations(
-                                    index: RefinementEvidenceIndex(report.content),
+                                    index: sources.index,
                                     selected: selectedCitation,
                                     onSelect: { number in
                                         selectedCitation = number
@@ -76,8 +75,7 @@ struct RefinementDetailView: View {
                         if showInspector {
                             Divider()
                             RefinementEvidencePanel(
-                                index: RefinementEvidenceIndex(report.content),
-                                lines: lines,
+                                sources: sources,
                                 selected: $selectedCitation,
                                 onOpenLine: { onOpenMeeting(meeting, $0) }
                             )
@@ -90,7 +88,7 @@ struct RefinementDetailView: View {
                             .frame(maxWidth: 820, alignment: .leading)
                     }
                 }
-            } else {
+            } else if report == nil || isGenerating {
                 scrolling {
                     if isGenerating {
                         generatingState
@@ -106,6 +104,13 @@ struct RefinementDetailView: View {
                 .sorted { $0.startTime < $1.startTime }
                 .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 .map { RefinementPassage.Line(id: $0.id, startTime: $0.startTime, speaker: $0.speaker.displayName, text: $0.text) }
+        }
+        .task(id: SourcesKey(report: report?.generatedAt, lineCount: lines.count, firstLine: lines.first?.id)) {
+            sources = report.map { RefinementEvidenceSources(index: RefinementEvidenceIndex($0.content), lines: lines) }
+            // Opening a report is reading it. Keyed on the report, so marking
+            // it unread by hand while it's open sticks.
+            if report != nil, !isGenerating { store.markRead(topic) }
+            generatedLine = report.map { RefinementReportLayout.generatedLine($0) }
         }
         .sheet(isPresented: $showTicketSheet) {
             if let report {
@@ -152,10 +157,12 @@ struct RefinementDetailView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                if let report, !isGenerating {
-                    Text("Report generated \(report.generatedAt.formatted(date: .abbreviated, time: .shortened)) · \(RefinementReportService.modelLabel(report.modelIdentifier))")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                if report != nil, !isGenerating {
+                    if let generatedLine {
+                        Text(generatedLine)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                     Picker("", selection: $tab) {
                         ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
                     }
@@ -194,6 +201,10 @@ struct RefinementDetailView: View {
             }
 
             if let report, !isGenerating {
+                RefinementStatusMenu(topic: topic)
+                    .fixedSize()
+                    .help("Where this refinement is in review")
+
                 Menu {
                     Button("Copy Full Report as Markdown") {
                         copy(RefinementReportMarkdown.full(report.content, title: topic.feature, date: meeting.date))
@@ -339,7 +350,7 @@ struct RefinementDetailView: View {
         }
     }
 
-    private func exportPDF(_ report: RefinementReport, scope: RefinementPDFExporter.Scope) {
+    private func exportPDF(_ report: RefinementReport, scope: RefinementExportScope) {
         let feature = topic.feature
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.pdf]
@@ -366,6 +377,13 @@ struct RefinementDetailView: View {
         )
         return "\(title) — \(day) (\(suffix))".sanitizedForFilename() + ".\(fileExtension)"
     }
+}
+
+/// What the evidence sources depend on: which report, and which transcript.
+private struct SourcesKey: Equatable {
+    let report: Date?
+    let lineCount: Int
+    let firstLine: UUID?
 }
 
 private struct Banner<Actions: View>: View {

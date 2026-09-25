@@ -6,7 +6,7 @@ enum AIPromptTemplates {
     /// Bumped whenever the built-in prompt text changes meaningfully. Persisted with
     /// MeetingInsight so we can tell which prompt generation produced a given result
     /// and offer "regenerate with newer prompt" UX later.
-    static let promptVersion = "meeting.v5"
+    static let promptVersion = "meeting.v6"
 
     // MARK: - Public accessors
     //
@@ -146,6 +146,7 @@ enum AIPromptTemplates {
         case .refinementSystem: defaultRefinementSystemPrompt
         case .refinementReport: defaultRefinementReportPrompt
         case .refinementClassify: defaultRefinementClassifyPrompt
+        case .topicClassify: defaultTopicClassifyPrompt
         }
     }
 
@@ -426,9 +427,7 @@ enum AIPromptTemplates {
         sales or support calls, and meetings that only mention a feature in passing. \
         "features" names each distinct feature the group refined, 2-6 words each, the one \
         that got the most time first, at most 4 — and [] when likelihood is below 0.5. \
-        List a feature only if the group worked through what it should do; one that was \
-        merely mentioned or given a status update does not count. Two aspects of the \
-        same feature are one feature.
+        \(refinementFeatureRules)
         - If there is not enough content to produce meaningful insights, return empty arrays and \
         [] for summary. Do not generate placeholder or filler text.
         - When updating a rolling analysis, ALWAYS preserve all previous action items, topics, \
@@ -941,6 +940,60 @@ enum AIPromptTemplates {
         leave every array empty.
         """
 
+    // MARK: - Topic categories
+
+    static func topicClassifyPrompt(people: String, topics: String) -> String {
+        let template = PromptStore.shared.get(.topicClassify, default: defaultTopicClassifyPrompt)
+        return PromptStore.render(template, values: ["people": people, "topics": topics])
+    }
+
+    static let topicClassifySystemPrompt = """
+        You sort topics from meeting notes into kinds and spot other names \
+        for the same thing. You MUST respond with ONLY valid JSON matching \
+        the schema in the user message — no prose, no markdown, no \
+        explanation before or after.
+        """
+
+    /// One pass per distinct topic, library-wide. Each topic comes with a
+    /// meeting it appeared in and its neighbours there, because a bare name
+    /// ("Milo", "Cadence") can be a person, a service or a project.
+    private static let defaultTopicClassifyPrompt: String = """
+        Below are topics taken from a company's meeting notes: themes and \
+        key terms (names, acronyms, tools, systems). Each has an identifier, \
+        and a meeting it came up in with the topics it appeared alongside.
+
+        PEOPLE KNOWN TO BE IN THESE MEETINGS
+        {{people}}
+
+        TOPICS
+        {{topics}}
+
+        For every topic, give its "kind":
+        - person: an individual, by full name, first name, nickname or misspelling.
+        - organization: a company, customer, vendor, agency, or an internal team or department.
+        - project: a named initiative, program, product line or effort (a pilot, a migration, a launch).
+        - service: a software system, application, API or component the company runs or builds.
+        - technology: a third-party tool, platform, language, framework, cloud service or AI model.
+        - concept: a theme, practice, process, problem or idea.
+        - place: a location — a city, country, office or region.
+        - other: none of these.
+
+        And "canonical": when the topic is another name for one specific \
+        thing — a first name or nickname of a listed person, an \
+        abbreviation or acronym, a spelling variant, a shortened product \
+        name — that thing's full name as usually written ("Carlos" → \
+        "Carlos Ayala Gonzalez" when he is the only Carlos listed; "dynamo" \
+        → "DynamoDB"). Otherwise null. Never map a topic to something \
+        broader, narrower or merely related: "Claude Code" is not "Claude", \
+        "Lead service" is not "Lead". A first name two listed people share \
+        gets null.
+
+        Return JSON of exactly this shape, with every topic exactly once:
+        {"topics":[{"id":"T1","kind":"person","canonical":"Walter Martens"},{"id":"T2","kind":"technology","canonical":null}]}
+
+        Use only the T identifiers given above.
+        """
+
     static func refinementClassifyPrompt(meetings: String) -> String {
         let template = PromptStore.shared.get(.refinementClassify, default: defaultRefinementClassifyPrompt)
         return PromptStore.render(template, values: ["meetings": meetings])
@@ -950,6 +1003,23 @@ enum AIPromptTemplates {
         You sort past meetings by whether they refined a software feature. \
         You MUST respond with ONLY valid JSON matching the schema in the user \
         message — no prose, no markdown, no explanation before or after.
+        """
+
+    /// What counts as one feature, shared by the final analysis and the
+    /// backfill so the two split meetings the same way. The failure it
+    /// guards against: a design discussed at length (an outbox pattern, a
+    /// queue) listed as a feature beside the feature it was designed for.
+    static let refinementFeatureRules = """
+        A feature is something that would get its own ticket: a capability of \
+        the product or system, with its own intent and acceptance criteria. \
+        The approach discussed for building a feature — its architecture, \
+        design pattern, technology choice, data model, sequence of calls, or \
+        retry and failure handling — is part of that feature, not a second \
+        one. Name the feature, not the solution ("Async certificate \
+        retention", not "Outbox pattern"). List a second feature only when it \
+        has its own intent and its own acceptance criteria; when unsure, list \
+        one. A feature that was only mentioned or given a status update does \
+        not count.
         """
 
     /// The backfill's counterpart to the "refinement" field of the final
@@ -976,11 +1046,10 @@ enum AIPromptTemplates {
 
         Name each distinct feature the group refined, 2-6 words each, the \
         one that got the most attention first, at most 4 — and [] when the \
-        likelihood is below 0.5. A feature that was only mentioned does not \
-        count; two aspects of the same feature are one feature.
+        likelihood is below 0.5. \(refinementFeatureRules)
 
         Return JSON of exactly this shape, with every meeting exactly once:
-        {"meetings":[{"id":"M1","likelihood":0.8,"features":["Bulk invoice export","Export retry policy"]},{"id":"M2","likelihood":0.1,"features":[]}]}
+        {"meetings":[{"id":"M1","likelihood":0.8,"features":["Bulk invoice export","Client onboarding checklist"]},{"id":"M2","likelihood":0.1,"features":[]}]}
 
         Use only the M identifiers given above.
         """

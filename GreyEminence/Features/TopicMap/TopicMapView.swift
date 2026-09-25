@@ -22,6 +22,11 @@ struct TopicMapView: View {
     @State private var isReanalyzing = false
     @State private var reanalyzeProgress: (current: Int, total: Int)?
     @AppStorage("topicMapSort") private var sortOrder: TopicMapSort = .mentions
+    @Query private var contacts: [Contact]
+    /// Topic kinds filtered out of the map; all shown by default.
+    @AppStorage("topicMapHiddenKinds") private var hiddenKindsRaw = ""
+    private var catalogStore: TopicCatalogStore { .shared }
+    private var classifier: TopicClassifier { .shared }
     var onMeetingSelected: ((Meeting) -> Void)?
 
     var body: some View {
@@ -35,7 +40,7 @@ struct TopicMapView: View {
                         description: Text("Record and analyze meetings to build your topic map")
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.nodes.isEmpty {
+                } else if viewModel.nodes.isEmpty && hiddenKindsRaw.isEmpty {
                     VStack(spacing: 16) {
                         ContentUnavailableView(
                             "No Topics Yet",
@@ -71,6 +76,12 @@ struct TopicMapView: View {
                 canvasSize = size
                 rebuildIfNeeded()
                 applyPendingFocus()
+                classifier.runIfNeeded(in: modelContext)
+            }
+            .onChange(of: catalogStore.revision) { rebuildIfNeeded() }
+            .onChange(of: hiddenKindsRaw) {
+                rebuildIfNeeded()
+                FeatureDiscovery.shared.markSeen("topic-categories")
             }
             .onChange(of: size) { _, newSize in
                 canvasSize = newSize
@@ -95,6 +106,19 @@ struct TopicMapView: View {
             ZStack(alignment: .topTrailing) {
                 graphCanvas
                 controlButtons
+                VStack(alignment: .leading, spacing: 4) {
+                    TopicKindFilterBar(hiddenRaw: $hiddenKindsRaw)
+                        .newFeatureBadge("topic-categories")
+                    if classifier.isRunning {
+                        Text("Sorting topics into categories… \(classifier.checked) of \(classifier.total)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(8)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .padding(8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
 
             if viewModel.selectedNode != nil {
@@ -171,6 +195,14 @@ struct TopicMapView: View {
                 }
                 .frame(height: 10)
 
+                if let kind = node.kind {
+                    Image(systemName: kind.systemImage)
+                        .font(.system(size: 8))
+                        .foregroundStyle(kind.tint)
+                        .frame(width: 10)
+                        .help(kind.singular)
+                }
+
                 Text(node.label)
                     .font(.system(size: 10))
                     .lineLimit(1)
@@ -187,6 +219,9 @@ struct TopicMapView: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             viewModel.hoveredTopicID = hovering ? node.id : nil
+        }
+        .contextMenu {
+            TopicCatalogMenuItems(topic: node.label, aliases: node.aliases)
         }
     }
 
@@ -392,7 +427,8 @@ struct TopicMapView: View {
         guard canvasSize.width > 0 && canvasSize.height > 0 else { return }
         let topicInsights = insights.filter { !$0.topics.isEmpty }
         guard !topicInsights.isEmpty else { return }
-        viewModel.buildGraph(from: topicInsights, canvasSize: canvasSize)
+        let resolver = catalogStore.resolver(hiding: TopicKind.set(from: hiddenKindsRaw), contactNames: contacts.map(\.name))
+        viewModel.buildGraph(from: topicInsights, canvasSize: canvasSize, resolver: resolver)
     }
 
     private func applyPendingFocus() {
@@ -458,11 +494,7 @@ struct TopicMapView: View {
                     continue
                 }
 
-                if let title = result.title {
-                    meeting.applyGeneratedTitle(title)
-                }
-
-                meeting.applyRefinementSignal(result.refinement)
+                meeting.applyAnalysisMetadata(result)
 
                 let insight = MeetingInsight(
                     summary: result.summary,

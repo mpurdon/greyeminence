@@ -841,10 +841,7 @@ struct TranscriptPanelView: View {
                 return try await service.performFinalAnalysis(segments: snapshots, roster: roster)
             }
             if let result = finalResult {
-                if let title = result.title {
-                    target.applyGeneratedTitle(title)
-                }
-                target.applyRefinementSignal(result.refinement)
+                target.applyAnalysisMetadata(result)
                 let insight = MeetingInsight(
                     summary: result.summary,
                     followUpQuestions: result.followUps,

@@ -22,6 +22,14 @@ final class AppLifecycleCoordinator: NSObject, NSApplicationDelegate {
         registerSleepWakeObservers()
     }
 
+    // MARK: - Launch
+
+    /// Before any window or launch-time recovery: a development build and
+    /// the released one must not run on the same data at once.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        InstanceGuard.check()
+    }
+
     // MARK: - Termination
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

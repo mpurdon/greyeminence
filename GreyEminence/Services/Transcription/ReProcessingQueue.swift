@@ -778,11 +778,7 @@ final class ReProcessingQueue {
             for old in meeting.insights { context.delete(old) }
             for old in meeting.actionItems { context.delete(old) }
 
-            if let title = result.title {
-                meeting.applyGeneratedTitle(title)
-            }
-
-            meeting.applyRefinementSignal(result.refinement)
+            meeting.applyAnalysisMetadata(result)
             let insight = MeetingInsight(
                 summary: result.summary,
                 followUpQuestions: result.followUps,

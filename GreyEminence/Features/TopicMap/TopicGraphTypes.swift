@@ -10,6 +10,11 @@ struct TopicNode: Identifiable {
     var velocity: CGPoint = .zero
     var radius: CGFloat
     let color: Color
+    /// From the topic catalog; nil until the topic is classified.
+    var kind: TopicKind? = nil
+    /// Other names counted under this topic ("Carlos" under "Carlos Ayala
+    /// Gonzalez"), as they were written.
+    var aliases: [String] = []
 
     static func color(for id: String) -> Color {
         // Monochrome — all nodes use the same base color;

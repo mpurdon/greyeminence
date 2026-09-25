@@ -37,8 +37,6 @@ struct RefinementSignal: Sendable, Equatable {
     /// Most time spent first. Empty when nothing was refined.
     let features: [String]
 
-    var feature: String? { features.first }
-
     init(likelihood: Double, features: [String]) {
         self.likelihood = min(max(likelihood, 0), 1)
         var seen = Set<String>()
@@ -50,14 +48,9 @@ struct RefinementSignal: Sendable, Equatable {
             .map { $0 }
     }
 
-    init(likelihood: Double, feature: String?) {
-        self.init(likelihood: likelihood, features: feature.map { [$0] } ?? [])
-    }
-
     /// Tolerant of the shapes a model actually returns: a number or numeric
-    /// string for the likelihood; a "features" array, or the single
-    /// "feature" string older prompts asked for. Anything without a readable
-    /// likelihood is no signal at all.
+    /// string for the likelihood. Anything without a readable likelihood is
+    /// no signal at all.
     static func parse(_ value: Any?) -> RefinementSignal? {
         guard let object = value as? [String: Any] else { return nil }
         let likelihood: Double
@@ -68,9 +61,7 @@ struct RefinementSignal: Sendable, Equatable {
             likelihood = parsed
         default: return nil
         }
-        let features = (object["features"] as? [Any])?.compactMap { $0 as? String }
-            ?? (object["feature"] as? String).map { [$0] }
-            ?? []
+        let features = (object["features"] as? [Any])?.compactMap { $0 as? String } ?? []
         return RefinementSignal(likelihood: likelihood, features: features)
     }
 }
@@ -436,6 +427,14 @@ enum AITimeoutError: LocalizedError {
             "AI request timed out after \(seconds) seconds"
         }
     }
+}
+
+/// A transport timeout for calls that generate for minutes. A non-streaming
+/// response sends nothing until generation finishes, so the client's idle
+/// timeout caps generation time; a caller expecting long output sets this
+/// around the call and the clients use it in place of their default.
+enum AIRequestTimeout {
+    @TaskLocal static var seconds: TimeInterval?
 }
 
 /// Runs the given async throwing closure with a timeout. Throws `AITimeoutError.timedOut` if exceeded.

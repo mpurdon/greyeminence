@@ -17,24 +17,12 @@ struct JiraTicketSheet: View {
     @State private var issueType = JiraSettings.defaultIssueTypeName
     @State private var summary = ""
     @State private var labels = ""
-    @State private var scope: Scope = .spec
+    @State private var scope: RefinementExportScope = .specOnly
     @State private var descriptionText = ""
     @State private var isCreating = false
     @State private var errorMessage: String?
 
-    private let isConfigured = JiraSettings.isConfigured
-
-    enum Scope: String, CaseIterable, Identifiable {
-        case spec = "Spec only"
-        case full = "Full report"
-        var id: String { rawValue }
-    }
-
-    init(topic: RefinementTopic, report: RefinementReport, onOpenJiraSettings: @escaping () -> Void) {
-        self.topic = topic
-        self.report = report
-        self.onOpenJiraSettings = onOpenJiraSettings
-    }
+    private var isConfigured: Bool { JiraSettings.isConfigured }
 
     private var canCreate: Bool {
         isConfigured && !isCreating
@@ -60,10 +48,10 @@ struct JiraTicketSheet: View {
         .frame(width: 620, height: 600)
         .onAppear {
             summary = topic.feature
-            descriptionText = Self.draftDescription(for: scope, report: report, feature: topic.feature, meeting: meeting)
+            descriptionText = Self.draftDescription(for: scope, report: report, meeting: meeting)
         }
         .onChange(of: scope) { _, newScope in
-            descriptionText = Self.draftDescription(for: newScope, report: report, feature: topic.feature, meeting: meeting)
+            descriptionText = Self.draftDescription(for: newScope, report: report, meeting: meeting)
         }
     }
 
@@ -78,7 +66,7 @@ struct JiraTicketSheet: View {
             TextField("Summary", text: $summary)
             TextField("Labels", text: $labels, prompt: Text("comma-separated, optional"))
             Picker("Description", selection: $scope) {
-                ForEach(Scope.allCases) { Text($0.rawValue).tag($0) }
+                ForEach(RefinementExportScope.allCases) { Text($0.rawValue).tag($0) }
             }
             .pickerStyle(.segmented)
             TextEditor(text: $descriptionText)
@@ -172,19 +160,10 @@ struct JiraTicketSheet: View {
             .filter { !$0.isEmpty }
     }
 
-    static func draftDescription(for scope: Scope, report: RefinementReport, feature: String, meeting: Meeting) -> String {
-        let title = feature
-        let body: String
-        switch scope {
-        case .spec:
-            body = RefinementReportMarkdown.spec(report.content.spec)
-        case .full:
-            // Drop the document title and date line: the ticket's summary
-            // already names the feature.
-            body = RefinementReportMarkdown.full(report.content, title: title, date: meeting.date)
-                .components(separatedBy: "\n\n")
-                .dropFirst(2)
-                .joined(separator: "\n\n")
+    static func draftDescription(for scope: RefinementExportScope, report: RefinementReport, meeting: Meeting) -> String {
+        let body = switch scope {
+        case .specOnly: RefinementReportMarkdown.spec(report.content.spec)
+        case .full: RefinementReportMarkdown.sections(report.content).trimmingCharacters(in: .newlines)
         }
         return body + "\n\n---\n\n_From the refinement meeting \"\(meeting.title)\" on \(meeting.date.formatted(date: .long, time: .omitted))._\n"
     }

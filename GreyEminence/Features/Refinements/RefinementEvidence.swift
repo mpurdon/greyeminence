@@ -27,13 +27,9 @@ struct RefinementCitation: Hashable, Sendable {
     let end: TimeInterval?
 
     var label: String {
-        guard let end, end > start else { return Self.format(start) }
-        return "\(Self.format(start))–\(Self.format(end))"
-    }
-
-    static func format(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds)
-        return String(format: "%d:%02d", total / 60, total % 60)
+        let format = ReportModelBuilder.timestampLabel
+        guard let end, end > start else { return format(start) }
+        return "\(format(start))–\(format(end))"
     }
 
     /// "7:52", "[7:52]", "1:02:07", and spans written "7:01-7:10",
@@ -82,28 +78,30 @@ struct RefinementEvidenceIndex: Sendable {
 
     private(set) var entries: [Entry] = []
     private(set) var numbersByItem: [RefinementItemRef: [Int]] = [:]
+    private var numbersByCitation: [RefinementCitation: Int] = [:]
     /// Evidence text for items that have some but name no moment (a screen
     /// share, a general observation) — still shown, just without a passage.
     private(set) var uncitedNotes: [(ref: RefinementItemRef, text: String, note: String)] = []
 
     init(_ content: RefinementReportContent) {
         for (i, item) in content.acceptanceCriteria.enumerated() {
-            add(.criterion(i), text: item.text, explicit: item.citations, evidence: item.evidence)
+            add(.criterion(i), text: item.text, explicit: item.citations, evidence: item.evidence, note: item.evidence)
         }
         for (i, item) in content.decisions.enumerated() {
-            add(.decision(i), text: item.decision, explicit: item.citations, evidence: item.reason)
+            add(.decision(i), text: item.decision, explicit: item.citations, evidence: item.reason, note: item.reason)
         }
         for (i, item) in content.rejectedApproaches.enumerated() {
-            add(.rejected(i), text: item.approach, explicit: item.citations, evidence: item.reason)
+            add(.rejected(i), text: item.approach, explicit: item.citations, evidence: item.reason, note: item.reason)
         }
         for (i, item) in content.constraints.enumerated() {
-            add(.constraint(i), text: item.text, explicit: item.citations, evidence: item.source)
+            add(.constraint(i), text: item.text, explicit: item.citations, evidence: item.source, note: item.source)
         }
         for (i, note) in content.reviewerNotes.enumerated() {
-            add(.note(i), text: note, explicit: nil, evidence: note, noteIsText: true)
+            // The note is its own text; repeating it as the evidence line adds nothing.
+            add(.note(i), text: note, explicit: nil, evidence: note, note: nil)
         }
         for (i, item) in content.openQuestions.enumerated() {
-            add(.question(i), text: item.question, explicit: item.citations, evidence: nil)
+            add(.question(i), text: item.question, explicit: item.citations, evidence: nil, note: nil)
         }
     }
 
@@ -111,20 +109,22 @@ struct RefinementEvidenceIndex: Sendable {
         numbersByItem[ref] ?? []
     }
 
+    /// Numbers run 1… in `entries` order.
     func entry(_ number: Int) -> Entry? {
-        entries.first { $0.id == number }
+        entries.indices.contains(number - 1) ? entries[number - 1] : nil
     }
 
+    /// `evidence` is scanned for timestamps; `note` is what the card shows.
     private mutating func add(
         _ ref: RefinementItemRef,
         text: String,
         explicit: [String]?,
         evidence: String?,
-        noteIsText: Bool = false
+        note: String?
     ) {
         var citations = (explicit ?? []).flatMap(RefinementCitation.parse(in:))
         if let evidence { citations += RefinementCitation.parse(in: evidence) }
-        let note = noteIsText ? nil : evidence?.nonEmpty
+        let note = note?.nonEmpty
 
         var seen = Set<RefinementCitation>()
         let unique = citations.filter { seen.insert($0).inserted }
@@ -134,13 +134,14 @@ struct RefinementEvidenceIndex: Sendable {
         }
 
         for citation in unique {
-            if let index = entries.firstIndex(where: { $0.citation == citation }) {
-                entries[index].supports.append((ref, text))
-                if entries[index].note == nil { entries[index].note = note }
-                numbersByItem[ref, default: []].append(entries[index].id)
+            if let number = numbersByCitation[citation] {
+                entries[number - 1].supports.append((ref, text))
+                if entries[number - 1].note == nil { entries[number - 1].note = note }
+                numbersByItem[ref, default: []].append(number)
             } else {
                 let number = entries.count + 1
                 entries.append(Entry(id: number, citation: citation, supports: [(ref, text)], note: note))
+                numbersByCitation[citation] = number
                 numbersByItem[ref, default: []].append(number)
             }
         }
@@ -166,8 +167,15 @@ enum RefinementPassage {
     static func lines(for citation: RefinementCitation, in lines: [Line]) -> [Line] {
         guard !lines.isEmpty else { return [] }
         // The line that contains the moment: the last one starting at or
-        // just after it (models round timestamps to the second).
-        let first = lines.lastIndex { $0.startTime <= citation.start + 1 } ?? 0
+        // just after it (models round timestamps to the second). Binary
+        // search, since `lines` is sorted.
+        let target = citation.start + 1
+        var low = 0, high = lines.count
+        while low < high {
+            let mid = (low + high) / 2
+            if lines[mid].startTime <= target { low = mid + 1 } else { high = mid }
+        }
+        let first = max(low - 1, 0)
         let limit = citation.end ?? (citation.start + followOnSeconds)
         var result = [lines[first]]
         var index = first + 1
@@ -176,5 +184,31 @@ enum RefinementPassage {
             index += 1
         }
         return result
+    }
+}
+
+/// The index with the transcript lines behind each number, worked out once
+/// per report and transcript rather than on every redraw of the panel.
+struct RefinementEvidenceSources {
+    let index: RefinementEvidenceIndex
+    /// Sorted by start time.
+    let lines: [RefinementPassage.Line]
+    let passages: [Int: [RefinementPassage.Line]]
+    /// The citation numbers marking each line, ascending.
+    let numbersByLine: [UUID: [Int]]
+
+    init(index: RefinementEvidenceIndex, lines: [RefinementPassage.Line]) {
+        self.index = index
+        self.lines = lines
+        var passages: [Int: [RefinementPassage.Line]] = [:]
+        var numbersByLine: [UUID: [Int]] = [:]
+        for entry in index.entries {
+            let passage = RefinementPassage.lines(for: entry.citation, in: lines)
+            passages[entry.id] = passage
+            // Entries run in number order, so each line's list stays sorted.
+            for line in passage { numbersByLine[line.id, default: []].append(entry.id) }
+        }
+        self.passages = passages
+        self.numbersByLine = numbersByLine
     }
 }

@@ -109,12 +109,10 @@ final class Meeting {
     /// judged by the final analysis pass or, for meetings analysed before
     /// that existed, by the Refinements backfill. `nil` = never assessed.
     var refinementLikelihood: Double?
-    /// The feature being refined, as the assessment named it — the first of
-    /// `refinementFeatures` once there are several.
+    /// Unused: superseded by `refinementFeatures` before release. Kept only
+    /// because SchemaV24 stores it.
     var refinementFeature: String?
-    /// Every feature the meeting refined, most time spent first. Empty on
-    /// meetings assessed before a meeting could hold more than one; the
-    /// backfill fills those in.
+    /// Every feature the meeting refined, most time spent first.
     var refinementFeatures: [String] = []
     /// The user's decision, which beats the assessment either way: `true`
     /// added to Refinements by hand, `false` removed from it.
@@ -194,24 +192,27 @@ final class Meeting {
         return (refinementLikelihood ?? 0) >= Self.refinementThreshold
     }
 
+    /// What every analysis pass records on the meeting itself, beyond the
+    /// insight: its title and refinement judgement. One call so a new save
+    /// site can't record one and forget the other.
+    func applyAnalysisMetadata(_ result: AnalysisResult) {
+        if let title = result.title { applyGeneratedTitle(title) }
+        applyRefinementSignal(result.refinement)
+    }
+
     /// Record an analysis pass's refinement judgement. A pass that did not
     /// return one (a user-overridden prompt, an older model) leaves the
     /// previous judgement alone rather than erasing it.
     func applyRefinementSignal(_ signal: RefinementSignal?) {
         guard let signal else { return }
         refinementLikelihood = signal.likelihood
-        if !signal.features.isEmpty {
-            refinementFeatures = signal.features
-            refinementFeature = signal.features[0]
-        }
+        if !signal.features.isEmpty { refinementFeatures = signal.features }
     }
 
     /// One entry per feature on the Refinements list. A meeting with no
-    /// named feature (added by hand, or assessed before names existed) still
-    /// gets one, under its own title.
+    /// named feature (added by hand) still gets one, under its own title.
     var refinementTopics: [String] {
-        if !refinementFeatures.isEmpty { return refinementFeatures }
-        return [refinementFeature ?? title]
+        refinementFeatures.isEmpty ? [title] : refinementFeatures
     }
 
     /// Record an AI-generated title. Always stored in `generatedTitle`; only

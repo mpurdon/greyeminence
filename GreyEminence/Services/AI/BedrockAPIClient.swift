@@ -87,9 +87,7 @@ struct BedrockAPIClient: AIClient, Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.httpBody = bodyData
-        // Long-form output (refinement reports) can generate for minutes,
-        // and nothing arrives until it is done.
-        request.timeoutInterval = maxTokens > 8192 ? 300 : 120
+        request.timeoutInterval = AIRequestTimeout.seconds ?? 120
 
         request = try signRequest(request: request, body: bodyData, host: host, path: path)
 

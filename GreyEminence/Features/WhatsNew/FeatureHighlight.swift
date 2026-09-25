@@ -24,6 +24,24 @@ enum FeatureHighlightCatalog {
     /// set its `version` to that release's MARKETING_VERSION.
     static let all: [FeatureHighlight] = [
         FeatureHighlight(
+            id: "topic-categories",
+            version: "0.52.0",
+            title: "Topics sorted by what they are",
+            summary: "Every meeting topic now has a category \u{2014} People, Organizations, Projects, Services, Technology, Concepts, Places \u{2014} and other names for the same thing count as one: \u{201C}Carlos\u{201D} under his full name, \u{201C}dynamo\u{201D} under DynamoDB. Hide a kind with the chips on the Topic Map, and hover them for the legend. Right-click a topic to recategorise it or separate a wrong match; your choices stick.",
+            systemImage: "square.grid.3x3.topleft.filled",
+            tint: .indigo,
+            destination: .topicMap
+        ),
+        FeatureHighlight(
+            id: "refinement-review",
+            version: "0.52.0",
+            title: "Review refinements like an inbox",
+            summary: "Group Refinements by Date, Meeting, Status or Topic, and track each report: New, Read, Follow-up, Approved, Filed in Jira or Rejected. Building a report marks it New, opening it marks it Read, filing its ticket marks it Filed \u{2014} set the rest from the Status menu. While recording, the new Prep button shows what\u{2019}s carried over from the last occurrence.",
+            systemImage: "tray.full",
+            tint: .teal,
+            destination: .refinements
+        ),
+        FeatureHighlight(
             id: "refinement-report",
             version: "0.51.0",
             title: "Turn refinement meetings into specs",

@@ -26,24 +26,23 @@ final class RefinementReportTests: XCTestCase {
 
     func testSignalParsesNumbersAndNumericStrings() {
         XCTAssertEqual(
-            RefinementSignal.parse(["likelihood": 0.82, "feature": "Bulk export"]),
-            RefinementSignal(likelihood: 0.82, feature: "Bulk export")
+            RefinementSignal.parse(["likelihood": 0.82, "features": ["Bulk export"]]),
+            RefinementSignal(likelihood: 0.82, features: ["Bulk export"])
         )
         XCTAssertEqual(RefinementSignal.parse(["likelihood": "0.3"])?.likelihood, 0.3)
         XCTAssertEqual(RefinementSignal.parse(["likelihood": 1])?.likelihood, 1.0)
     }
 
     func testSignalClampsAndDropsEmptyFeatureNames() {
-        XCTAssertEqual(RefinementSignal(likelihood: 1.7, feature: nil).likelihood, 1)
-        XCTAssertEqual(RefinementSignal(likelihood: -0.2, feature: nil).likelihood, 0)
-        XCTAssertNil(RefinementSignal(likelihood: 0.1, feature: "  ").feature)
-        XCTAssertNil(RefinementSignal(likelihood: 0.1, feature: "null").feature)
+        XCTAssertEqual(RefinementSignal(likelihood: 1.7, features: []).likelihood, 1)
+        XCTAssertEqual(RefinementSignal(likelihood: -0.2, features: []).likelihood, 0)
+        XCTAssertEqual(RefinementSignal(likelihood: 0.1, features: ["  ", "null"]).features, [])
     }
 
     func testSignalIsNilWithoutAReadableLikelihood() {
         XCTAssertNil(RefinementSignal.parse(nil))
         XCTAssertNil(RefinementSignal.parse("0.9"))
-        XCTAssertNil(RefinementSignal.parse(["feature": "Export"]))
+        XCTAssertNil(RefinementSignal.parse(["features": ["Export"]]))
         XCTAssertNil(RefinementSignal.parse(["likelihood": "high"]))
     }
 
@@ -51,17 +50,17 @@ final class RefinementReportTests: XCTestCase {
         let meeting = Meeting(title: "Grooming", status: .completed)
         XCTAssertFalse(meeting.isRefinementCandidate, "unassessed meetings are not listed")
 
-        meeting.applyRefinementSignal(RefinementSignal(likelihood: 0.75, feature: "Export"))
+        meeting.applyRefinementSignal(RefinementSignal(likelihood: 0.75, features: ["Export"]))
         XCTAssertTrue(meeting.isRefinementCandidate)
-        XCTAssertEqual(meeting.refinementFeature, "Export")
+        XCTAssertEqual(meeting.refinementFeatures, ["Export"])
 
         meeting.refinementOverride = false
         XCTAssertFalse(meeting.isRefinementCandidate, "the user's removal beats the analysis")
 
         meeting.refinementOverride = true
-        meeting.applyRefinementSignal(RefinementSignal(likelihood: 0.05, feature: nil))
+        meeting.applyRefinementSignal(RefinementSignal(likelihood: 0.05, features: []))
         XCTAssertTrue(meeting.isRefinementCandidate, "the user's addition beats a later analysis")
-        XCTAssertEqual(meeting.refinementFeature, "Export", "a nil feature does not erase a named one")
+        XCTAssertEqual(meeting.refinementFeatures, ["Export"], "no names does not erase named ones")
 
         meeting.applyRefinementSignal(nil)
         XCTAssertEqual(meeting.refinementLikelihood, 0.05, "a pass with no signal leaves the last one")
@@ -79,14 +78,27 @@ final class RefinementReportTests: XCTestCase {
         XCTAssertTrue(AIPromptTemplates.defaultText(for: .meetingFinal).contains("\"refinement\" object"))
     }
 
+    func testBothDetectionPromptsShareTheFeatureRules() {
+        // An architecture discussed for a feature is part of it, not a second
+        // feature — the split that listed "Outbox pattern" beside the feature
+        // it was designed for.
+        for key in [PromptKey.meetingSystem, .refinementClassify] {
+            let text = AIPromptTemplates.defaultText(for: key)
+            XCTAssertTrue(text.contains(AIPromptTemplates.refinementFeatureRules), "\(key.rawValue) lacks the shared feature rules")
+        }
+        XCTAssertTrue(AIPromptTemplates.refinementFeatureRules.contains("not \"Outbox pattern\""))
+        XCTAssertFalse(AIPromptTemplates.defaultText(for: .refinementClassify).contains("retry policy"),
+                       "the example must not model a feature's mechanism as a second feature")
+    }
+
     // MARK: - Backfill
 
     func testBackfillParseMapsIdentifiersBackToTheBatch() {
         let response = """
         ```json
         {"meetings":[
-          {"id":"M1","likelihood":0.9,"feature":"Bulk export"},
-          {"id":"m3","likelihood":0.1,"feature":null},
+          {"id":"M1","likelihood":0.9,"features":["Bulk export"]},
+          {"id":"m3","likelihood":0.1,"features":[]},
           {"id":"M9","likelihood":0.8},
           {"id":"M2"}
         ]}
@@ -94,8 +106,8 @@ final class RefinementReportTests: XCTestCase {
         """
         let signals = RefinementBackfill.parse(response: response, count: 3)
         XCTAssertEqual(signals.count, 2)
-        XCTAssertEqual(signals[0], RefinementSignal(likelihood: 0.9, feature: "Bulk export"))
-        XCTAssertEqual(signals[2], RefinementSignal(likelihood: 0.1, feature: nil))
+        XCTAssertEqual(signals[0], RefinementSignal(likelihood: 0.9, features: ["Bulk export"]))
+        XCTAssertEqual(signals[2], RefinementSignal(likelihood: 0.1, features: []))
         XCTAssertNil(signals[1], "an entry with no likelihood stays unassessed")
     }
 
@@ -125,7 +137,7 @@ final class RefinementReportTests: XCTestCase {
     // MARK: - Report prompt
 
     func testDefaultPromptsUseEveryDeclaredPlaceholder() {
-        for key in [PromptKey.refinementReport, .refinementClassify] {
+        for key in [PromptKey.refinementReport, .refinementClassify, .topicClassify] {
             let text = AIPromptTemplates.defaultText(for: key)
             for placeholder in key.placeholders {
                 XCTAssertTrue(text.contains("{{\(placeholder)}}"), "\(key.rawValue) never uses {{\(placeholder)}}")
@@ -327,11 +339,9 @@ final class RefinementReportTests: XCTestCase {
 
     // MARK: - Several features per meeting
 
-    func testSignalReadsAFeatureListAndTheOlderSingleFeature() {
+    func testSignalReadsAFeatureList() {
         let signal = RefinementSignal.parse(["likelihood": 0.8, "features": ["Bulk export", " bulk EXPORT ", "Retry policy", "", "A", "B", "C"]])
         XCTAssertEqual(signal?.features, ["Bulk export", "Retry policy", "A", "B"], "deduped case-insensitively, capped at four")
-        XCTAssertEqual(signal?.feature, "Bulk export")
-        XCTAssertEqual(RefinementSignal.parse(["likelihood": 0.8, "feature": "Export"])?.features, ["Export"])
         XCTAssertEqual(RefinementSignal.parse(["likelihood": 0.2, "features": []])?.features, [])
     }
 
@@ -341,7 +351,6 @@ final class RefinementReportTests: XCTestCase {
 
         meeting.applyRefinementSignal(RefinementSignal(likelihood: 0.8, features: ["Intake", "Contract trigger"]))
         XCTAssertEqual(meeting.refinementTopics, ["Intake", "Contract trigger"])
-        XCTAssertEqual(meeting.refinementFeature, "Intake")
 
         meeting.applyRefinementSignal(RefinementSignal(likelihood: 0.8, features: []))
         XCTAssertEqual(meeting.refinementTopics, ["Intake", "Contract trigger"], "an empty list doesn't erase named features")

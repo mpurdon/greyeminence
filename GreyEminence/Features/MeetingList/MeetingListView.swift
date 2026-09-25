@@ -19,10 +19,15 @@ struct MeetingListView: View {
     }
 
     /// Pinned meetings stay in the list however old they are — that is what
-    /// pinning is for.
+    /// pinning is for. The call being recorded joins the list once it's
+    /// stopped; until then it lives in New Recording. (A meeting left
+    /// recording by a crash is completed at the next launch, so this never
+    /// hides one for good.)
     private var visibleMeetings: [Meeting] {
         let cutoff = cutoffDate
-        return meetings.filter { !$0.isInterviewMeeting && !$0.isArchived(before: cutoff) }
+        return meetings.filter {
+            $0.status == .completed && !$0.isInterviewMeeting && !$0.isArchived(before: cutoff)
+        }
     }
 
     private var archivedCount: Int {

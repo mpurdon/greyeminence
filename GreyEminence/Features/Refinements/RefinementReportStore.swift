@@ -58,6 +58,23 @@ final class RefinementReportStore {
 
     func isGenerating(_ topic: RefinementTopic) -> Bool { generating.contains(topic.id) }
 
+    func status(for topic: RefinementTopic) -> RefinementStatus {
+        report(for: topic)?.status ?? .notBuilt
+    }
+
+    /// Set by hand, from the report header or a list row. Needs a report:
+    /// with none, the topic is simply not built yet.
+    func setStatus(_ status: RefinementStatus, for topic: RefinementTopic) {
+        guard var report = report(for: topic), report.status != status else { return }
+        report.reviewStatus = status
+        save(report, for: topic)
+    }
+
+    /// Opening a New report makes it Read; any other status is left alone.
+    func markRead(_ topic: RefinementTopic) {
+        if status(for: topic) == .new { setStatus(.read, for: topic) }
+    }
+
     func error(for topic: RefinementTopic) -> String? { errors[topic.id] }
 
     func generate(for topic: RefinementTopic) {
@@ -81,7 +98,9 @@ final class RefinementReportStore {
                 var report = try await RefinementReportService(client: client).generate(input, meetingID: meetingID)
                 // A regenerated report is about the same feature; keep the
                 // ticket already filed for it rather than inviting a duplicate.
+                // New content needs reading again, unless it is already filed.
                 report.jiraIssue = self.report(for: topic)?.jiraIssue
+                report.reviewStatus = report.jiraIssue == nil ? .new : .filed
                 save(report, for: topic)
             } catch {
                 guard !Task.isCancelled else { return }
@@ -102,6 +121,7 @@ final class RefinementReportStore {
     func attach(_ issue: JiraIssueLink, to topic: RefinementTopic) {
         guard var report = report(for: topic) else { return }
         report.jiraIssue = issue
+        report.reviewStatus = .filed
         save(report, for: topic)
     }
 

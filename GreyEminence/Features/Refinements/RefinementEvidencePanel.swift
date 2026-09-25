@@ -6,9 +6,7 @@ import SwiftUI
 /// with cited lines marked. A chip selects its number, and whichever view
 /// is showing scrolls to it.
 struct RefinementEvidencePanel: View {
-    let index: RefinementEvidenceIndex
-    /// Sorted by start time.
-    let lines: [RefinementPassage.Line]
+    let sources: RefinementEvidenceSources
     @Binding var selected: Int?
     /// Opens the meeting itself at a transcript line.
     var onOpenLine: (UUID) -> Void
@@ -21,19 +19,16 @@ struct RefinementEvidencePanel: View {
 
     @State private var mode: Mode = .evidence
 
-    /// Line IDs behind each citation number, worked out once per report.
-    private var passages: [Int: [RefinementPassage.Line]] {
-        Dictionary(uniqueKeysWithValues: index.entries.map { ($0.id, RefinementPassage.lines(for: $0.citation, in: lines)) })
-    }
+    private var index: RefinementEvidenceIndex { sources.index }
+    private var passages: [Int: [RefinementPassage.Line]] { sources.passages }
 
     var body: some View {
-        let passages = passages
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
             switch mode {
-            case .evidence: evidenceList(passages)
-            case .transcript: transcriptList(passages)
+            case .evidence: evidenceList
+            case .transcript: transcriptList
             }
         }
         .background(.background)
@@ -61,7 +56,7 @@ struct RefinementEvidencePanel: View {
 
     // MARK: - Evidence
 
-    private func evidenceList(_ passages: [Int: [RefinementPassage.Line]]) -> some View {
+    private var evidenceList: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
@@ -186,19 +181,14 @@ struct RefinementEvidencePanel: View {
 
     // MARK: - Transcript
 
-    private func transcriptList(_ passages: [Int: [RefinementPassage.Line]]) -> some View {
-        // Which citation numbers each line belongs to, for the margin marks.
-        var numbersByLine: [UUID: [Int]] = [:]
-        for (number, lines) in passages {
-            for line in lines { numbersByLine[line.id, default: []].append(number) }
-        }
+    private var transcriptList: some View {
         let selectedLines = Set((selected.flatMap { passages[$0] } ?? []).map(\.id))
 
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(lines) { line in
-                        let numbers = (numbersByLine[line.id] ?? []).sorted()
+                    ForEach(sources.lines) { line in
+                        let numbers = sources.numbersByLine[line.id] ?? []
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             transcriptLine(line, highlighted: selectedLines.contains(line.id))
                             Spacer(minLength: 0)
@@ -230,14 +220,14 @@ struct RefinementEvidencePanel: View {
                 }
                 .padding(8)
             }
-            .onChange(of: selected) { _, number in scrollTranscript(proxy, to: number, passages) }
-            .onAppear { scrollTranscript(proxy, to: selected, passages) }
+            .onChange(of: selected) { _, number in scrollTranscript(proxy, to: number) }
+            .onAppear { scrollTranscript(proxy, to: selected) }
         }
     }
 
     private func transcriptLine(_ line: RefinementPassage.Line, highlighted: Bool) -> some View {
         (
-            Text(RefinementCitation.format(line.startTime) + "  ")
+            Text(ReportModelBuilder.timestampLabel(line.startTime) + "  ")
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.tertiary)
             + Text(line.speaker + ": ")
@@ -260,7 +250,7 @@ struct RefinementEvidencePanel: View {
         }
     }
 
-    private func scrollTranscript(_ proxy: ScrollViewProxy, to number: Int?, _ passages: [Int: [RefinementPassage.Line]]) {
+    private func scrollTranscript(_ proxy: ScrollViewProxy, to number: Int?) {
         guard let number, let first = passages[number]?.first else { return }
         DispatchQueue.main.async {
             withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(first.id, anchor: .center) }

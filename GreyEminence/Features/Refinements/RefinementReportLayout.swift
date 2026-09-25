@@ -34,8 +34,10 @@ enum RefinementReportLayout {
 
     /// Sections 1–7. The spec (section 8) is laid out separately — its own
     /// tab on screen, the last pages of the PDF.
-    static func sectionBlocks(_ content: RefinementReportContent, citations: Citations? = nil) -> [RefinementBlock] {
-        var builder = BlockBuilder()
+    /// `leadingSpacing` separates the first section from whatever precedes
+    /// it — nothing on screen, the title block in the PDF.
+    static func sectionBlocks(_ content: RefinementReportContent, citations: Citations? = nil, leadingSpacing: CGFloat = 0) -> [RefinementBlock] {
+        var builder = BlockBuilder(leadingSpacing: leadingSpacing)
         let inline = citations == nil
 
         builder.section("Intent", systemImage: "scope", items: [
@@ -78,6 +80,12 @@ enum RefinementReportLayout {
         return builder.blocks
     }
 
+    /// "Generated Sep 23, 2026 at 4:12 PM · Claude Sonnet" — under the
+    /// title on screen and in the PDF.
+    static func generatedLine(_ report: RefinementReport) -> String {
+        "Generated \(report.generatedAt.formatted(date: .abbreviated, time: .shortened)) · \(RefinementReportService.modelLabel(report.modelIdentifier))"
+    }
+
     /// The report's title block, for the PDF — the app shows the same facts
     /// in its header bar.
     static func titleBlock(feature: String, meetingTitle: String, date: Date, duration: String, kind: String, generated: String) -> RefinementBlock {
@@ -104,12 +112,13 @@ enum RefinementReportLayout {
 /// Accumulates blocks, gluing each section heading to its first item so a
 /// heading never ends a page on its own.
 private struct BlockBuilder {
+    let leadingSpacing: CGFloat
     var blocks: [RefinementBlock] = []
 
     mutating func section(_ title: String, systemImage: String, count: Int? = nil, items: [AnyView]) {
         let header = RefinementSectionHeader(title: title, systemImage: systemImage, count: count)
         let first = items.first ?? AnyView(Text("None identified.").foregroundStyle(.tertiary))
-        append(blocks.isEmpty ? 0 : RefinementReportLayout.sectionSpacing, AnyView(
+        append(blocks.isEmpty ? leadingSpacing : RefinementReportLayout.sectionSpacing, AnyView(
             VStack(alignment: .leading, spacing: 10) {
                 header
                 first
@@ -349,8 +358,11 @@ struct RefinementBulletRow: View {
 /// `parts` lets the PDF exporter split a spec too tall for one page into
 /// consecutive cards; on screen it is always whole.
 struct RefinementSpecCard: View {
-    enum Part: CaseIterable {
-        case intent, criteria, decisions, constraints, questions
+    enum Part: Hashable, CaseIterable {
+        case intent
+        case list(RefinementReportContent.Spec.List)
+
+        static var allCases: [Part] { [.intent] + RefinementReportContent.Spec.List.allCases.map(Part.list) }
     }
 
     let spec: RefinementReportContent.Spec
@@ -385,10 +397,7 @@ struct RefinementSpecCard: View {
                 case .intent:
                     Text(spec.intent.nonEmpty ?? "No intent stated.")
                         .fixedSize(horizontal: false, vertical: true)
-                case .criteria: list("Acceptance Criteria", spec.acceptanceCriteria)
-                case .decisions: list("Important Decisions", spec.decisions)
-                case .constraints: list("Constraints / Non-goals", spec.constraints)
-                case .questions: list("Open Questions", spec.openQuestions)
+                case .list(let list): self.list(list.title, spec.items(list))
                 }
             }
         }

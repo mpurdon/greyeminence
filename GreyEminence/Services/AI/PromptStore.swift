@@ -19,6 +19,7 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
     case refinementSystem     = "refinement.system"
     case refinementReport     = "refinement.report"
     case refinementClassify   = "refinement.classify"
+    case topicClassify        = "topics.classify"
 
     var id: String { rawValue }
 
@@ -40,6 +41,7 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
         case .refinementSystem: "Refinement Report — System Prompt"
         case .refinementReport: "Refinement Report"
         case .refinementClassify: "Refinements — Backfill Classifier"
+        case .topicClassify: "Topics — Categories and Aliases"
         }
     }
 
@@ -79,6 +81,8 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
             ["meetingTitle", "meetingDate", "participants", "focus", "screenContext", "transcript"]
         case .refinementClassify:
             ["meetings"]
+        case .topicClassify:
+            ["people", "topics"]
         }
     }
 }

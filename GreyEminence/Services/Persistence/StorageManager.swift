@@ -171,6 +171,21 @@ final class StorageManager: Sendable {
         saveSidecar(shelf, to: refinementReportURL(for: meetingID))
     }
 
+    /// Every meeting topic's category and aliases, library-wide. Derived
+    /// from the stored insights, so a sidecar rather than a schema version:
+    /// an older build opened on the same data loses nothing.
+    var topicCatalogURL: URL {
+        derivedURL.appendingPathComponent("topic-catalog.json")
+    }
+
+    func loadTopicCatalog() -> TopicCatalog {
+        loadSidecar(TopicCatalog.self, at: topicCatalogURL) ?? TopicCatalog()
+    }
+
+    func saveTopicCatalog(_ catalog: TopicCatalog) {
+        saveSidecar(catalog, to: topicCatalogURL)
+    }
+
     /// Cached report figure-anchoring plan. A sidecar file rather than a
     /// SwiftData field: it is derived data that can always be recomputed, so
     /// storing it here buys the cache without a schema version bump.

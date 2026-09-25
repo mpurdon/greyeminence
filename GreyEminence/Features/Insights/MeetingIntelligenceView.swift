@@ -263,12 +263,7 @@ struct MeetingIntelligenceView: View {
                 refinement: rawResult.refinement
             )
 
-            // Update meeting title if generated (kept out of `title` while the
-            // meeting is linked to a calendar event).
-            if let title = result.title {
-                meeting.applyGeneratedTitle(title)
-            }
-            meeting.applyRefinementSignal(result.refinement)
+            meeting.applyAnalysisMetadata(result)
 
             // Persist new insight (append; keep history of prior insights)
             let insight = MeetingInsight(
