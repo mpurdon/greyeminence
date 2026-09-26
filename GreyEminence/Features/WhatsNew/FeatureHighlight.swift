@@ -24,6 +24,15 @@ enum FeatureHighlightCatalog {
     /// set its `version` to that release's MARKETING_VERSION.
     static let all: [FeatureHighlight] = [
         FeatureHighlight(
+            id: "rationale-review",
+            version: "0.53.0",
+            title: "Work the rationale, then write the spec",
+            summary: "Refinement reports are now something you review, not just read. Drag acceptance criteria and constraints into Must, Should, Could, Won\u{2019}t or Ignore; reword any item, add notes, answer open questions, add what the meeting missed. When it says what was decided, Accept Rationale writes the spec from your review \u{2014} then verify it. Statuses follow along: New, In Progress, Accepted, Verified.",
+            systemImage: "checklist",
+            tint: .teal,
+            destination: .refinements
+        ),
+        FeatureHighlight(
             id: "topic-categories",
             version: "0.52.0",
             title: "Topics sorted by what they are",

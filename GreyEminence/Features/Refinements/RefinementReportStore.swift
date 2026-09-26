@@ -39,6 +39,8 @@ final class RefinementReportStore {
 
     /// Topic IDs being generated.
     private(set) var generating: Set<String> = []
+    /// Topic IDs whose spec is being written from the accepted rationale.
+    private(set) var generatingSpec: Set<String> = []
     private(set) var errors: [String: String] = [:]
 
     /// Bumped on every write so views reading through `report(for:)` —
@@ -70,9 +72,77 @@ final class RefinementReportStore {
         save(report, for: topic)
     }
 
-    /// Opening a New report makes it Read; any other status is left alone.
+    /// Opening a New report puts it In Progress; any other status is left alone.
     func markRead(_ topic: RefinementTopic) {
-        if status(for: topic) == .new { setStatus(.read, for: topic) }
+        if status(for: topic) == .new { setStatus(.inProgress, for: topic) }
+    }
+
+    // MARK: - Review
+
+    func isGeneratingSpec(_ topic: RefinementTopic) -> Bool { generatingSpec.contains(topic.id) }
+
+    func editReview(_ topic: RefinementTopic, _ change: (inout RefinementReview) -> Void) {
+        guard var report = report(for: topic) else { return }
+        let before = report
+        report.editReview(change)
+        if report != before { save(report, for: topic) }
+    }
+
+    /// Accept the rationale and write the spec from it.
+    func acceptRationale(_ topic: RefinementTopic) {
+        guard var report = report(for: topic) else { return }
+        report.acceptRationale()
+        save(report, for: topic)
+        generateSpec(topic)
+    }
+
+    func reopenRationale(_ topic: RefinementTopic) {
+        guard var report = report(for: topic) else { return }
+        report.reopenRationale()
+        save(report, for: topic)
+    }
+
+    func verifySpec(_ topic: RefinementTopic) {
+        guard var report = report(for: topic) else { return }
+        report.verifySpec()
+        save(report, for: topic)
+    }
+
+    /// Write the spec from the accepted rationale. Also the retry after a
+    /// failed attempt.
+    func generateSpec(_ topic: RefinementTopic) {
+        let key = topic.id
+        guard !generatingSpec.contains(key), let report = report(for: topic), report.isRationaleAccepted else { return }
+        let meetingID = topic.meeting.id
+        let feature = topic.feature
+        let rationale = RefinementReportMarkdown.rationale(report.content, review: report.review)
+        generatingSpec.insert(key)
+        errors[key] = nil
+
+        tasks["spec|" + key] = Task {
+            defer {
+                generatingSpec.remove(key)
+                tasks["spec|" + key] = nil
+            }
+            do {
+                guard let client = try await AIClientFactory.makeClient() else {
+                    errors[key] = "AI is not configured. Add an account in Settings → AI."
+                    return
+                }
+                let spec = try await RefinementSpecService(client: client).generate(feature: feature, rationale: rationale, meetingID: meetingID)
+                // Written for the rationale as accepted; if it was reopened
+                // meanwhile, still keep it — marked out of date by the edit.
+                guard var current = self.report(for: topic) else { return }
+                current.storeSpec(spec, modelIdentifier: client.modelIdentifier)
+                if !current.isRationaleAccepted { current.review?.specIsStale = true }
+                save(current, for: topic)
+                LogManager.send("Refinement spec generated from the reviewed rationale", category: .ai, meetingID: meetingID)
+            } catch {
+                guard !Task.isCancelled else { return }
+                errors[key] = "Couldn't write the spec: \(error.localizedDescription)"
+                LogManager.send("Refinement spec failed: \(error.localizedDescription)", category: .ai, level: .error, meetingID: meetingID)
+            }
+        }
     }
 
     func error(for topic: RefinementTopic) -> String? { errors[topic.id] }

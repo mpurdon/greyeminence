@@ -9,6 +9,32 @@ enum RefinementItemRef: Hashable, Sendable {
     case note(Int)
     case question(Int)
 
+    /// Stable across launches, for keying your review of the item.
+    var key: String {
+        switch self {
+        case .criterion(let i): "criterion:\(i)"
+        case .decision(let i): "decision:\(i)"
+        case .rejected(let i): "rejected:\(i)"
+        case .constraint(let i): "constraint:\(i)"
+        case .note(let i): "note:\(i)"
+        case .question(let i): "question:\(i)"
+        }
+    }
+
+    init?(key: String) {
+        let parts = key.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2, let i = Int(parts[1]) else { return nil }
+        switch parts[0] {
+        case "criterion": self = .criterion(i)
+        case "decision": self = .decision(i)
+        case "rejected": self = .rejected(i)
+        case "constraint": self = .constraint(i)
+        case "note": self = .note(i)
+        case "question": self = .question(i)
+        default: return nil
+        }
+    }
+
     var kindLabel: String {
         switch self {
         case .criterion: "Criterion"

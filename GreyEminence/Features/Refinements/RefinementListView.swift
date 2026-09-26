@@ -23,6 +23,8 @@ struct RefinementListView: View {
     /// Folded sections, by section ID. Topic sections start folded — there
     /// are many, and the headers are the point.
     @State private var folded: Set<String> = []
+    /// A reference, so filling it from the body isn't a state change.
+    @State private var sectionCache = SectionCache()
     @State private var unfoldedTopics: Set<String> = []
 
     private var confidence: RefinementConfidence {
@@ -37,15 +39,7 @@ struct RefinementListView: View {
         // Rejected rows stay out of the way unless asked for.
         let rows = visible.flatMap(RefinementTopic.topics(for:))
             .filter { showRejected || store.status(for: $0) != .rejected }
-        let sections = RefinementListGrouper.sections(
-            rows,
-            by: grouping,
-            topicOrder: topicOrder,
-            resolver: grouping == .topic
-                ? TopicCatalogStore.shared.resolver(hiding: TopicKind.set(from: hiddenTopicKinds), contactNames: contacts.map(\.name))
-                : TopicResolver(),
-            status: store.status(for:)
-        )
+        let sections = sections(for: rows)
         VStack(spacing: 0) {
             if backfill.isRunning || backfill.lastError != nil {
                 backfillBanner
@@ -58,8 +52,17 @@ struct RefinementListView: View {
             List(selection: $selectedTopic) {
                 ForEach(sections) { section in
                     Section(isExpanded: expansion(for: section.id)) {
-                        ForEach(section.topics) { topic in
-                            row(topic)
+                        if grouping == .meeting {
+                            ForEach(RefinementListGrouper.meetingRuns(section.topics), id: \.meeting.id) { run in
+                                RefinementMeetingHeader(meeting: run.meeting, onOpenMeeting: onOpenMeeting)
+                                ForEach(run.topics) { topic in
+                                    row(topic)
+                                }
+                            }
+                        } else {
+                            ForEach(section.topics) { topic in
+                                row(topic)
+                            }
                         }
                     } header: {
                         sectionHeader(section)
@@ -91,6 +94,47 @@ struct RefinementListView: View {
         }
     }
 
+    /// The grouped sections, rebuilt only when something they depend on
+    /// changes. The body runs on every selection and hover; grouping by
+    /// Topic reads every meeting's topics and took over 100 ms, so
+    /// rebuilding it each time made every click lag.
+    private func sections(for rows: [RefinementTopic]) -> [RefinementListSection] {
+        var hasher = Hasher()
+        hasher.combine(grouping)
+        hasher.combine(topicOrder)
+        hasher.combine(hiddenTopicKinds)
+        hasher.combine(store.revision)             // statuses
+        hasher.combine(TopicCatalogStore.shared.revision)
+        hasher.combine(contacts.count)
+        hasher.combine(Calendar.current.startOfDay(for: .now)) // date blocks
+        for row in rows { hasher.combine(row.id) }
+        let key = hasher.finalize()
+        if sectionCache.key == key { return sectionCache.sections }
+
+        let started = Date.now
+        let sections = RefinementListGrouper.sections(
+            rows,
+            by: grouping,
+            topicOrder: topicOrder,
+            resolver: grouping == .topic
+                ? TopicCatalogStore.shared.resolver(hiding: TopicKind.set(from: hiddenTopicKinds), contactNames: contacts.map(\.name))
+                : TopicResolver(),
+            status: store.status(for:)
+        )
+        Self.logIfSlow(since: started, grouping: grouping, rows: rows.count, sections: sections.count)
+        sectionCache.key = key
+        sectionCache.sections = sections
+        return sections
+    }
+
+    /// If building the list ever gets slow, say so with numbers rather than
+    /// leave it to be felt.
+    private static func logIfSlow(since started: Date, grouping: RefinementGrouping, rows: Int, sections: Int) {
+        let elapsed = Date.now.timeIntervalSince(started)
+        guard elapsed > 0.1 else { return }
+        LogManager.send("Refinements list: grouping \(rows) rows by \(grouping.rawValue) into \(sections) sections took \(Int(elapsed * 1000)) ms", category: .general, level: .warning)
+    }
+
     private func row(_ topic: RefinementTopic) -> some View {
         let report = store.report(for: topic)
         return RefinementRow(
@@ -98,7 +142,7 @@ struct RefinementListView: View {
             status: report?.status ?? .notBuilt,
             jiraKey: report?.jiraIssue?.key,
             isGenerating: store.isGenerating(topic),
-            showsMeeting: grouping != .meeting
+            isUnderMeeting: grouping == .meeting
         )
         .tag(topic)
         .contextMenu {
@@ -255,17 +299,41 @@ struct RefinementListView: View {
     }
 }
 
+private final class SectionCache {
+    var key: Int?
+    var sections: [RefinementListSection] = []
+}
+
 private struct RefinementRow: View {
     let topic: RefinementTopic
     let status: RefinementStatus
     let jiraKey: String?
     let isGenerating: Bool
-    /// Off when the section header already names the meeting.
-    let showsMeeting: Bool
+    /// In Meeting mode the meeting's header carries its title, time,
+    /// speakers and likelihood; the row is just the feature, indented.
+    let isUnderMeeting: Bool
 
     private var meeting: Meeting { topic.meeting }
 
     var body: some View {
+        if isUnderMeeting {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: RefinementStyle.symbol)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Text(topic.feature)
+                    .lineLimit(2)
+                Spacer(minLength: 4)
+                statusIcon
+            }
+            .padding(.leading, 14)
+            .padding(.vertical, 2)
+        } else {
+            fullRow
+        }
+    }
+
+    private var fullRow: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(topic.feature)
@@ -275,10 +343,8 @@ private struct RefinementRow: View {
                 statusIcon
             }
             HStack(spacing: 4) {
-                if showsMeeting {
-                    Text(meeting.title)
-                        .lineLimit(1)
-                }
+                Text(meeting.title)
+                    .lineLimit(1)
                 if topic.count > 1 {
                     Text("· \(topic.position + 1) of \(topic.count)")
                         .fixedSize()
@@ -333,6 +399,53 @@ private struct RefinementRow: View {
                     .foregroundStyle(status.tint)
                     .help(status.label)
             }
+        }
+    }
+}
+
+/// Meeting mode's heading for one meeting: what the full rows repeat per
+/// feature, said once. Not selectable — its features are.
+private struct RefinementMeetingHeader: View {
+    let meeting: Meeting
+    var onOpenMeeting: (Meeting) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "person.2.wave.2")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(meeting.title)
+                    .font(.body.weight(.semibold))
+                    .lineLimit(2)
+            }
+            HStack(spacing: 6) {
+                Text(meeting.date.formatted(date: .abbreviated, time: .shortened))
+                Text("·")
+                Text(meeting.formattedDuration)
+                RefinementSpeakerDots(voices: RefinementSpeakers.voices(for: meeting))
+                Spacer(minLength: 4)
+                if meeting.refinementOverride == true {
+                    Text("Added by you")
+                } else if let likelihood = meeting.refinementLikelihood {
+                    Text("\(Int((likelihood * 100).rounded()))% likely")
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 2)
+        .selectionDisabled()
+        .contextMenu {
+            Button {
+                onOpenMeeting(meeting)
+            } label: {
+                Label("Open Meeting", systemImage: "arrow.up.forward.app")
+            }
+            Divider()
+            MeetingRefinementButton(meeting: meeting)
         }
     }
 }
@@ -457,10 +570,11 @@ struct RefinementStatusMenu: View {
 extension RefinementStatus {
     var tint: Color {
         switch self {
-        case .notBuilt, .read: .secondary
+        case .notBuilt, .inProgress: .secondary
         case .new: .accentColor
         case .followUp: .orange
-        case .approved: .green
+        case .accepted: .teal
+        case .verified: .green
         case .filed: .blue
         case .rejected: .red
         }

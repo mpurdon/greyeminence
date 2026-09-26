@@ -73,6 +73,14 @@ final class TopicCatalogTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(TopicCatalog.self, from: Data(future.utf8)).entry(for: "x")?.kind, .other)
     }
 
+    func testACatalogFromBeforeAliasVersioningStillLoads() throws {
+        // The shape 0.52.0 wrote: no aliasesCheckedVersion.
+        let stored = #"{"entries":{"carlos":{"kind":"person","canonical":"Carlos Ayala Gonzalez","kindIsUserSet":false,"aliasIsUserSet":false,"version":1}}}"#
+        let catalog = try JSONDecoder().decode(TopicCatalog.self, from: Data(stored.utf8))
+        XCTAssertEqual(catalog.entry(for: "carlos")?.canonical, "Carlos Ayala Gonzalez")
+        XCTAssertNil(catalog.aliasesCheckedVersion, "so the one full check still runs")
+    }
+
     func testResolverHidesKindsAndFallsBackToContactNames() {
         var catalog = TopicCatalog()
         catalog.apply(kind: .service, canonical: nil, to: "Milo", version: 1)

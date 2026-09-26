@@ -146,6 +146,7 @@ enum AIPromptTemplates {
         case .refinementSystem: defaultRefinementSystemPrompt
         case .refinementReport: defaultRefinementReportPrompt
         case .refinementClassify: defaultRefinementClassifyPrompt
+        case .refinementSpec: defaultRefinementSpecPrompt
         case .topicClassify: defaultTopicClassifyPrompt
         }
     }
@@ -860,14 +861,7 @@ enum AIPromptTemplates {
           "rejected_approaches": [{"approach": "...", "reason": "why, or null", "citations": ["mm:ss"]}],
           "constraints": [{"text": "...", "source": "where it came from, or null", "citations": ["mm:ss"]}],
           "reviewer_notes": ["..."],
-          "open_questions": [{"question": "...", "owner": "who was to resolve it, or null", "citations": ["mm:ss"]}],
-          "spec": {
-            "intent": "...",
-            "acceptance_criteria": ["..."],
-            "decisions": ["..."],
-            "constraints": ["..."],
-            "open_questions": ["..."]
-          }
+          "open_questions": [{"question": "...", "owner": "who was to resolve it, or null", "citations": ["mm:ss"]}]
         }
 
         What each field holds:
@@ -912,10 +906,6 @@ enum AIPromptTemplates {
         verified, and places where the work may proceed without enough \
         information.
 
-        spec — the effective specification: a concise restatement of what the \
-        meeting ultimately decided, short enough to place directly in a \
-        ticket or pull request. One line per bullet.
-
         citations — on every item that has them: the transcript timestamps \
         where the evidence is, copied from the [m:ss] stamps on the lines \
         above. A single line as "7:52"; a stretch of discussion as \
@@ -941,6 +931,53 @@ enum AIPromptTemplates {
         """
 
     // MARK: - Topic categories
+
+    // MARK: - Spec from the reviewed rationale
+
+    static func refinementSpecPrompt(feature: String, rationale: String) -> String {
+        let template = PromptStore.shared.get(.refinementSpec, default: defaultRefinementSpecPrompt)
+        return PromptStore.render(template, values: ["feature": feature, "rationale": rationale])
+    }
+
+    /// The spec is written from the rationale as the reviewer left it, not
+    /// from the transcript: their priorities, answers and wording are the
+    /// point, and anything they left out must stay out.
+    static let defaultRefinementSpecPrompt: String = """
+        A team refined the feature "{{feature}}" in a meeting. Its rationale \
+        was reconstructed from the transcript and then reviewed by a person: \
+        they set priorities (Must / Should / Could / Won't) on acceptance \
+        criteria and constraints, rewrote items, answered open questions, \
+        added items and notes, and removed what didn't belong.
+
+        REVIEWED RATIONALE
+        {{rationale}}
+
+        Write the effective specification — what was decided, short enough \
+        to put directly in a ticket or pull request — as JSON of exactly \
+        this shape:
+
+        {
+          "intent": "1-2 sentences",
+          "acceptance_criteria": ["[Must] observable condition", "..."],
+          "decisions": ["..."],
+          "constraints": ["..."],
+          "open_questions": ["..."]
+        }
+
+        Rules:
+        - The review is authoritative. Use the reviewer's wording where they \
+        rewrote an item; follow their notes; never bring back anything that \
+        isn't in the rationale above.
+        - Keep each criterion's and constraint's priority as a prefix: \
+        "[Must] …". Order criteria Must, Should, Could. A Won't item goes in \
+        constraints as an explicit non-goal ("Out of scope: …").
+        - A resolved question is settled: fold its answer into the criteria, \
+        decisions or constraints it affects, and leave it out of \
+        open_questions. Only unresolved questions remain there.
+        - One line per bullet, behavioral rather than implementation detail. \
+        Merge duplicates; don't add anything new.
+        - Use an empty array for a section with nothing in it.
+        """
 
     static func topicClassifyPrompt(people: String, topics: String) -> String {
         let template = PromptStore.shared.get(.topicClassify, default: defaultTopicClassifyPrompt)

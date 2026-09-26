@@ -13,6 +13,8 @@ struct RefinementDetailView: View {
     private var meeting: Meeting { topic.meeting }
     private var store: RefinementReportStore { .shared }
     @State private var showTicketSheet = false
+    /// Regenerating replaces the report, review and all.
+    @State private var confirmRegenerate = false
     @State private var exportMessage: String?
 
     enum Tab: String, CaseIterable, Identifiable {
@@ -60,6 +62,13 @@ struct RefinementDetailView: View {
                 case .rationale:
                     HStack(spacing: 0) {
                         scrolling {
+                            RefinementReviewBar(
+                                report: report,
+                                isGeneratingSpec: store.isGeneratingSpec(topic),
+                                onAccept: { store.acceptRationale(topic) },
+                                onReopen: { store.reopenRationale(topic) },
+                                onShowSpec: { tab = .spec }
+                            )
                             RefinementRationaleView(
                                 content: report.content,
                                 citations: RefinementReportLayout.Citations(
@@ -69,7 +78,9 @@ struct RefinementDetailView: View {
                                         selectedCitation = number
                                         showInspector = true
                                     }
-                                )
+                                ),
+                                review: report.review,
+                                actions: reviewActions
                             )
                         }
                         if showInspector {
@@ -84,8 +95,15 @@ struct RefinementDetailView: View {
                     }
                 case .spec:
                     scrolling {
-                        RefinementSpecCard(spec: report.content.spec, showsCopy: true)
-                            .frame(maxWidth: 820, alignment: .leading)
+                        RefinementSpecPane(
+                            report: report,
+                            isGenerating: store.isGeneratingSpec(topic),
+                            onAccept: { store.acceptRationale(topic) },
+                            onRetry: { store.generateSpec(topic) },
+                            onVerify: { store.verifySpec(topic) },
+                            onShowRationale: { tab = .rationale }
+                        )
+                        .frame(maxWidth: 820, alignment: .leading)
                     }
                 }
             } else if report == nil || isGenerating {
@@ -117,6 +135,43 @@ struct RefinementDetailView: View {
                 JiraTicketSheet(topic: topic, report: report, onOpenJiraSettings: onOpenJiraSettings)
             }
         }
+    }
+
+    /// Review changes, applied through the store so status and acceptance
+    /// follow them.
+    private var reviewActions: RefinementReviewActions {
+        let store = store
+        let topic = topic
+        return RefinementReviewActions(
+            update: { target, change in
+                store.editReview(topic) { review in
+                    switch target {
+                    case .intent:
+                        var item = RefinementItemReview(editedText: review.intent)
+                        change(&item)
+                        review.intent = item.editedText?.nonEmpty
+                    case .item(let ref):
+                        var item = review.item(ref)
+                        change(&item)
+                        review.items[ref.key] = item.isEmpty ? nil : item
+                    case .added(let id):
+                        guard let index = review.added.firstIndex(where: { $0.id == id }) else { return }
+                        var item = review.added[index].review
+                        change(&item)
+                        // An added item's wording is its text, not an edit.
+                        if let text = item.editedText?.nonEmpty { review.added[index].text = text }
+                        item.editedText = nil
+                        review.added[index].review = item
+                    }
+                }
+            },
+            add: { section, text in
+                store.editReview(topic) { $0.added.append(RefinementAddedItem(section: section, text: text)) }
+            },
+            remove: { id in
+                store.editReview(topic) { $0.added.removeAll { $0.id == id } }
+            }
+        )
     }
 
     /// Banners above whatever the pane shows, in one scroll view.
@@ -193,11 +248,20 @@ struct RefinementDetailView: View {
                 Button("Cancel") { store.cancel(topic) }
             } else if report != nil {
                 Button {
-                    store.generate(for: topic)
+                    if report?.review?.hasWork == true {
+                        confirmRegenerate = true
+                    } else {
+                        store.generate(for: topic)
+                    }
                 } label: {
                     Label("Regenerate", systemImage: "arrow.clockwise")
                 }
                 .help("Run the analysis again on the current transcript. Replaces this report.")
+                .confirmationDialog("Regenerate this report?", isPresented: $confirmRegenerate) {
+                    Button("Regenerate and Discard Review", role: .destructive) { store.generate(for: topic) }
+                } message: {
+                    Text("A new report replaces this one, along with your priorities, notes, answers, edits and the spec written from them.")
+                }
             }
 
             if let report, !isGenerating {
@@ -207,10 +271,10 @@ struct RefinementDetailView: View {
 
                 Menu {
                     Button("Copy Full Report as Markdown") {
-                        copy(RefinementReportMarkdown.full(report.content, title: topic.feature, date: meeting.date))
+                        copy(RefinementReportMarkdown.full(report, title: topic.feature, date: meeting.date))
                     }
                     Button("Copy Spec as Markdown") {
-                        copy(RefinementReportMarkdown.spec(report.content.spec))
+                        copy(RefinementReportMarkdown.spec(report.effectiveSpec))
                     }
                     Divider()
                     Button("Export PDF — Full Report…") { exportPDF(report, scope: .full) }
@@ -342,7 +406,7 @@ struct RefinementDetailView: View {
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try RefinementReportMarkdown.full(report.content, title: title, date: meeting.date)
+            try RefinementReportMarkdown.full(report, title: title, date: meeting.date)
                 .write(to: url, atomically: true, encoding: .utf8)
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } catch {

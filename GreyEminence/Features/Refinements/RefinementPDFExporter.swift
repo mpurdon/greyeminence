@@ -52,13 +52,13 @@ enum RefinementPDFExporter {
         let specSpacing = RefinementReportLayout.sectionSpacing
         switch scope {
         case .full:
-            blocks += RefinementReportLayout.sectionBlocks(report.content, leadingSpacing: 16)
+            blocks += RefinementReportLayout.sectionBlocks(report.content, review: report.review, leadingSpacing: 16)
             // The spec is what gets handed on, so it opens its own page.
-            var spec = specBlocks(report.content.spec, spacingBefore: specSpacing)
+            var spec = specBlocks(report.effectiveSpec, spacingBefore: specSpacing)
             if !spec.isEmpty { spec[0].startsNewPage = true }
             blocks += spec
         case .specOnly:
-            blocks += specBlocks(report.content.spec, spacingBefore: 16)
+            blocks += specBlocks(report.effectiveSpec, spacingBefore: 16)
         }
 
         try render(blocks, footer: "\(feature) — \(meeting.date.formatted(date: .abbreviated, time: .omitted))", to: url)

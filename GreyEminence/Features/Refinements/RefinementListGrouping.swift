@@ -21,6 +21,11 @@ struct RefinementListSection: Identifiable {
 
 @MainActor
 enum RefinementListGrouper {
+    /// Topic sections shown, at most. A library has thousands of topics —
+    /// most in a single meeting — and a list of that many sections is slow
+    /// to build and useless to scan.
+    nonisolated static let topicSectionLimit = 50
+
     /// `topics` newest meeting first, each meeting's features together.
     static func sections(
         _ topics: [RefinementTopic],
@@ -31,8 +36,9 @@ enum RefinementListGrouper {
         now: Date = .now
     ) -> [RefinementListSection] {
         switch grouping {
-        case .date: byDate(topics, now: now)
-        case .meeting: byMeeting(topics)
+        // Meeting mode has the same date blocks; the list draws each
+        // meeting once, with its features under it.
+        case .date, .meeting: byDate(topics, now: now)
         case .status: byStatus(topics, status: status)
         case .topic: byMeetingTopic(topics, order: topicOrder, resolver: resolver)
         }
@@ -42,18 +48,6 @@ enum RefinementListGrouper {
         let byMeeting = Dictionary(grouping: topics, by: \.meeting.id)
         return MeetingListView.groupDateSections(for: meetings(in: topics), now: now).map { title, meetings in
             RefinementListSection(id: "date:\(title)", title: title, topics: meetings.flatMap { byMeeting[$0.id] ?? [] })
-        }
-    }
-
-    private static func byMeeting(_ topics: [RefinementTopic]) -> [RefinementListSection] {
-        let byMeeting = Dictionary(grouping: topics, by: \.meeting.id)
-        return meetings(in: topics).map { meeting in
-            RefinementListSection(
-                id: "meeting:\(meeting.id)",
-                title: meeting.title,
-                subtitle: "\(meeting.date.formatted(date: .abbreviated, time: .shortened)) · \(meeting.formattedDuration)",
-                topics: byMeeting[meeting.id] ?? []
-            )
         }
     }
 
@@ -117,7 +111,12 @@ enum RefinementListGrouper {
             }
             return a.key < b.key
         }
-        var sections = ordered.map { key, bucket in
+        // Topics that group something — two meetings or more — up to the
+        // limit; the rest of the refinements go under Other Topics, so
+        // none go missing.
+        let shown = ordered.filter { $0.value.meetingIDs.count >= 2 }.prefix(topicSectionLimit)
+        let placed = Set(shown.flatMap { $0.value.topics.map(\.id) })
+        var sections = shown.map { key, bucket in
             let count = bucket.meetingIDs.count
             return RefinementListSection(
                 id: "topic:\(key)",
@@ -128,6 +127,11 @@ enum RefinementListGrouper {
                 isTopic: true
             )
         }
+        var seen = Set(untopical.map(\.id))
+        let other = topics.filter { !placed.contains($0.id) && seen.insert($0.id).inserted }
+        if !other.isEmpty {
+            sections.append(RefinementListSection(id: "topic:~other", title: "Other Topics", subtitle: "topics from one meeting", topics: other))
+        }
         if !untopical.isEmpty {
             sections.append(RefinementListSection(id: "topic:", title: "No Topics", topics: untopical))
         }
@@ -137,6 +141,20 @@ enum RefinementListGrouper {
     /// The Topic Map's key: case and surrounding space don't make a new topic.
     nonisolated static func normalize(_ topic: String) -> String {
         topic.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    /// A block's topics as consecutive runs, one per meeting — for Meeting
+    /// mode, which heads each run with its meeting.
+    static func meetingRuns(_ topics: [RefinementTopic]) -> [(meeting: Meeting, topics: [RefinementTopic])] {
+        var runs: [(meeting: Meeting, topics: [RefinementTopic])] = []
+        for topic in topics {
+            if let last = runs.indices.last, runs[last].meeting.id == topic.meeting.id {
+                runs[last].topics.append(topic)
+            } else {
+                runs.append((topic.meeting, [topic]))
+            }
+        }
+        return runs
     }
 
     /// Distinct meetings, in the order their topics arrive.

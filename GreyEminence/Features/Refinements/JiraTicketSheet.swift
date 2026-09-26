@@ -162,8 +162,8 @@ struct JiraTicketSheet: View {
 
     static func draftDescription(for scope: RefinementExportScope, report: RefinementReport, meeting: Meeting) -> String {
         let body = switch scope {
-        case .specOnly: RefinementReportMarkdown.spec(report.content.spec)
-        case .full: RefinementReportMarkdown.sections(report.content).trimmingCharacters(in: .newlines)
+        case .specOnly: RefinementReportMarkdown.spec(report.effectiveSpec)
+        case .full: RefinementReportMarkdown.sections(report).trimmingCharacters(in: .newlines)
         }
         return body + "\n\n---\n\n_From the refinement meeting \"\(meeting.title)\" on \(meeting.date.formatted(date: .long, time: .omitted))._\n"
     }

@@ -137,7 +137,7 @@ final class RefinementReportTests: XCTestCase {
     // MARK: - Report prompt
 
     func testDefaultPromptsUseEveryDeclaredPlaceholder() {
-        for key in [PromptKey.refinementReport, .refinementClassify, .topicClassify] {
+        for key in [PromptKey.refinementReport, .refinementClassify, .topicClassify, .refinementSpec] {
             let text = AIPromptTemplates.defaultText(for: key)
             for placeholder in key.placeholders {
                 XCTAssertTrue(text.contains("{{\(placeholder)}}"), "\(key.rawValue) never uses {{\(placeholder)}}")
@@ -251,17 +251,19 @@ final class RefinementReportTests: XCTestCase {
 
     func testFullMarkdownHasEverySectionAndLabels() throws {
         let content = try XCTUnwrap(RefinementReportService.parse(response: fullResponse))
-        let markdown = RefinementReportMarkdown.full(content, title: "Upload limits", date: Date(timeIntervalSince1970: 1_790_000_000))
+        let report = RefinementReport(content: content, generatedAt: .now, modelIdentifier: "m", promptVersion: "v", transcriptFingerprint: "f")
+        let markdown = RefinementReportMarkdown.full(report, title: "Upload limits", date: Date(timeIntervalSince1970: 1_790_000_000))
         for heading in ["## 1. Intent", "## 2. Acceptance criteria that emerged", "## 3. Decisions made during refinement",
                         "## 4. Rejected approaches", "## 5. Constraints discovered",
-                        "## 6. Implementer- and reviewer-relevant information", "## 7. Unresolved questions",
+                        "## 6. Implementer- and reviewer-relevant information", "## 7. Open questions",
                         "## 8. Effective session spec", "### Acceptance Criteria", "### Open Questions"] {
             XCTAssertTrue(markdown.contains(heading), "missing \(heading)")
         }
         XCTAssertTrue(markdown.contains("- **EXPLICIT** — Uploads over 10MB are rejected"))
         XCTAssertTrue(markdown.contains("**INFERRED · Medium confidence** — The error names the limit"))
         XCTAssertTrue(markdown.contains("  - **Reason/evidence:** Not stated"), "a missing reason is said, never invented")
-        XCTAssertTrue(markdown.contains("Does the limit apply to admins? _(owner: Priya)_"))
+        XCTAssertTrue(markdown.contains("Does the limit apply to admins? _(owner: Priya)_\n  - **Unresolved**"))
+        XCTAssertTrue(markdown.contains("_Draft from the first pass"), "a spec not written from a review says so")
     }
 
     func testEmptySectionsSayNoneIdentified() {

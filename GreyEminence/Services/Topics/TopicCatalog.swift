@@ -90,6 +90,10 @@ struct TopicCatalog: Codable, Sendable, Equatable {
     }
 
     var entries: [String: Entry] = [:]
+    /// The `TopicAliasCheck.version` every alias has been checked against.
+    /// A full pass runs only when the checks change. Optional: catalogs
+    /// written before it existed must still decode.
+    var aliasesCheckedVersion: Int?
 
     static func normalize(_ topic: String) -> String {
         topic.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -164,11 +168,11 @@ struct TopicCatalog: Codable, Sendable, Equatable {
 
 extension TopicCatalog {
     /// Clear every alias the checks in `TopicAliasCheck` reject, except
-    /// ones you set. Run over the whole catalog after each classification,
-    /// so aliases stored before a check existed are cleaned too.
-    mutating func dropImplausibleAliases(contactNames: [String]) {
+    /// ones you set. `keys` limits it to entries just classified; without
+    /// them, every entry — for aliases stored before the checks changed.
+    mutating func dropImplausibleAliases(contactNames: [String], keys: Set<String>? = nil) {
         let check = TopicAliasCheck(contactNames: contactNames)
-        for (key, entry) in entries {
+        for (key, entry) in entries where keys?.contains(key) ?? true {
             guard let canonical = entry.canonical, !entry.aliasIsUserSet else { continue }
             let kind = entries[Self.normalize(canonical)]?.kind ?? entry.kind
             if !check.isPlausible(alias: key, canonical: canonical, kind: kind) {
@@ -183,6 +187,9 @@ extension TopicCatalog {
 /// → "Steven Goodman", "matt" → one of two Matts, a topic ID ("T11") in
 /// place of a name.
 struct TopicAliasCheck: Sendable {
+    /// Bump when the checks change, so stored aliases are checked again.
+    static let version = 1
+
     /// Every contact's name, as words.
     let contacts: [[String]]
 

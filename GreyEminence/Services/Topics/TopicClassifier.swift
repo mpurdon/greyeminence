@@ -24,14 +24,46 @@ final class TopicClassifier {
     private(set) var checked = 0
     private(set) var total = 0
     private(set) var lastError: String?
+    /// Insights in the store at the last check. Opening the Topic Map or
+    /// Refinements re-checks only when a meeting has been analysed since.
+    private var checkedInsightCount: Int?
 
     private init() {}
 
     func runIfNeeded(in context: ModelContext) {
         guard !isRunning else { return }
+        let count = (try? context.fetchCount(FetchDescriptor<MeetingInsight>())) ?? 0
+        guard count != checkedInsightCount else { return }
+        checkedInsightCount = count
+        // Reading every insight's topics took over half a second on the
+        // main actor — a stall right after opening the view. It runs on a
+        // context of its own in the background; only the catalog update,
+        // tens of milliseconds, comes back here.
+        let container = context.container
+        Task { @MainActor in
+            let started = Date.now
+            let samples = await Task.detached(priority: .utility) {
+                Self.samples(in: ModelContext(container))
+            }.value
+            let loaded = Date.now
+            check(samples, in: context, loadedIn: loaded.timeIntervalSince(started))
+        }
+    }
+
+    /// Every distinct topic, read on `context` — a background one.
+    nonisolated static func samples(in context: ModelContext) -> [Sample] {
+        // Topics and dates only — not the summaries and raw responses,
+        // megabytes of text this doesn't read.
+        var descriptor = FetchDescriptor<MeetingInsight>()
+        descriptor.propertiesToFetch = [\.topics, \.createdAt]
+        descriptor.relationshipKeyPathsForPrefetching = [\.meeting]
+        return samples(from: (try? context.fetch(descriptor)) ?? [])
+    }
+
+    private func check(_ samples: [Sample], in context: ModelContext, loadedIn background: TimeInterval) {
+        let started = Date.now
         let store = TopicCatalogStore.shared
         let contacts = ((try? context.fetch(FetchDescriptor<Contact>())) ?? []).map(\.name)
-        let samples = Self.samples(from: (try? context.fetch(FetchDescriptor<MeetingInsight>())) ?? [])
 
         // A topic that is a contact's full name needs no model.
         let fullNames = Dictionary(
@@ -43,9 +75,20 @@ final class TopicClassifier {
             for sample in samples where fullNames[sample.key] != nil && catalog.entry(for: sample.label) == nil {
                 catalog.apply(kind: .person, canonical: nil, to: sample.label)
             }
-            catalog.dropImplausibleAliases(contactNames: contacts)
+            if (catalog.aliasesCheckedVersion ?? 0) < TopicAliasCheck.version {
+                catalog.dropImplausibleAliases(contactNames: contacts)
+                catalog.aliasesCheckedVersion = TopicAliasCheck.version
+            }
         }
         let pending = samples.filter { store.catalog.needsClassifying($0.label, version: version) }
+        // Only the part on the main actor can stall the app.
+        let onMain = Date.now.timeIntervalSince(started)
+        if onMain > 0.1 {
+            LogManager.send(
+                "Topic categories: checking \(samples.count) topics held the main actor \(Int(onMain * 1000)) ms (read in the background in \(Int(background * 1000)) ms)",
+                category: .ai, level: .warning
+            )
+        }
         guard !pending.isEmpty else { return }
 
         isRunning = true
@@ -69,7 +112,7 @@ final class TopicClassifier {
                         for (index, result) in results {
                             catalog.apply(kind: result.kind, canonical: result.canonical, to: batch[index].label, version: version)
                         }
-                        catalog.dropImplausibleAliases(contactNames: contacts)
+                        catalog.dropImplausibleAliases(contactNames: contacts, keys: Set(batch.map(\.key)))
                     }
                     checked += batch.count
                 }
@@ -114,7 +157,7 @@ final class TopicClassifier {
 
     /// Distinct topics across each meeting's latest insight — what the
     /// Topic Map shows — most-mentioned first.
-    static func samples(from insights: [MeetingInsight]) -> [Sample] {
+    nonisolated static func samples(from insights: [MeetingInsight]) -> [Sample] {
         var latest: [UUID: MeetingInsight] = [:]
         for insight in insights {
             guard let meeting = insight.meeting, !insight.topics.isEmpty else { continue }

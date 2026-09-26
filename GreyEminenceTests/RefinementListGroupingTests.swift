@@ -70,7 +70,7 @@ final class RefinementListGroupingTests: XCTestCase {
 
         object["reviewStatus"] = "archivedByAFutureVersion"
         let decoded = try JSONDecoder().decode(RefinementReport.self, from: JSONSerialization.data(withJSONObject: object))
-        XCTAssertEqual(decoded.status, .read)
+        XCTAssertEqual(decoded.status, .inProgress)
     }
 
     // MARK: - Grouping
@@ -79,17 +79,23 @@ final class RefinementListGroupingTests: XCTestCase {
         let context = try makeContext()
         let older = meeting("Grooming", daysAgo: 3, features: ["Export", "Retries"], in: context)
         let newer = meeting("Kickoff", daysAgo: 1, features: ["Intake"], in: context)
-        let sections = RefinementListGrouper.sections(rows([newer, older]), by: .meeting, status: { _ in .notBuilt })
-        XCTAssertEqual(sections.map(\.title), ["Kickoff", "Grooming"])
-        XCTAssertEqual(sections[1].topics.map(\.feature), ["Export", "Retries"])
+        let topics = rows([newer, older])
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let byMeeting = RefinementListGrouper.sections(topics, by: .meeting, status: { _ in .notBuilt }, now: now)
+        let byDate = RefinementListGrouper.sections(topics, by: .date, status: { _ in .notBuilt }, now: now)
+        XCTAssertEqual(byMeeting.map(\.title), byDate.map(\.title), "the same date blocks as the Meetings list")
+
+        let runs = RefinementListGrouper.meetingRuns(byMeeting.flatMap(\.topics))
+        XCTAssertEqual(runs.map(\.meeting.title), ["Kickoff", "Grooming"], "newest first, each meeting once")
+        XCTAssertEqual(runs[1].topics.map(\.feature), ["Export", "Retries"])
     }
 
     func testStatusGroupingPutsWhatNeedsAttentionFirst() throws {
         let context = try makeContext()
         let a = meeting("A", daysAgo: 1, features: ["One", "Two", "Three"], in: context)
-        let statuses: [String: RefinementStatus] = ["One": .approved, "Two": .new, "Three": .followUp]
+        let statuses: [String: RefinementStatus] = ["One": .verified, "Two": .new, "Three": .followUp]
         let sections = RefinementListGrouper.sections(rows([a]), by: .status, status: { statuses[$0.feature]! })
-        XCTAssertEqual(sections.map(\.title), ["New", "Follow-up", "Approved"])
+        XCTAssertEqual(sections.map(\.title), ["New", "Follow-up", "Verified"])
     }
 
     func testTopicGroupingCountsMeetingsLikeTheTopicMap() throws {
@@ -115,7 +121,7 @@ final class RefinementListGroupingTests: XCTestCase {
         let context = try makeContext()
         let call = meeting("Sync", daysAgo: 1, features: ["Intake"],
                            topics: ["Walter", "Lead Service", "dynamo", "Tj"], in: context)
-        let other = meeting("Design", daysAgo: 2, features: ["Export"], topics: ["DynamoDB"], in: context)
+        let other = meeting("Design", daysAgo: 2, features: ["Export"], topics: ["DynamoDB", "walter", "lead service", "Tj"], in: context)
         var catalog = TopicCatalog()
         catalog.apply(kind: .person, canonical: "Walter Martens", to: "Walter", version: 1)
         catalog.apply(kind: .technology, canonical: "DynamoDB", to: "dynamo", version: 1)
@@ -128,6 +134,23 @@ final class RefinementListGroupingTests: XCTestCase {
         XCTAssertEqual(sections.map(\.title), ["DynamoDB", "Lead Service", "Tj"], "dynamo counts as DynamoDB; Walter is hidden")
         XCTAssertEqual(sections[0].subtitle, "2 meetings")
         XCTAssertEqual(sections[0].topicKind, .technology)
+    }
+
+    func testOneMeetingTopicsGoUnderOtherAndSectionsAreCapped() throws {
+        let context = try makeContext()
+        var meetings: [Meeting] = []
+        // Two meetings share each of 60 topics; one more has a topic of its own.
+        for i in 0..<120 {
+            meetings.append(meeting("M\(i)", daysAgo: Double(i), features: ["F\(i)"], topics: ["Topic \(i / 2)"], in: context))
+        }
+        let loner = meeting("Loner", daysAgo: 200, features: ["Solo"], topics: ["Only here"], in: context)
+        let sections = RefinementListGrouper.sections(rows(meetings + [loner]), by: .topic, status: { _ in .notBuilt })
+
+        XCTAssertEqual(sections.filter { $0.isTopic }.count, RefinementListGrouper.topicSectionLimit)
+        let otherSection = try XCTUnwrap(sections.first { $0.title == "Other Topics" })
+        XCTAssertTrue(otherSection.topics.contains { $0.feature == "Solo" }, "a one-meeting topic's refinement isn't lost")
+        XCTAssertEqual(otherSection.topics.count, 21, "the loner, plus the 20 refinements past the cap")
+        XCTAssertEqual(Set(sections.flatMap(\.topics).map(\.id)).count, 121, "every refinement is somewhere")
     }
 
     func testUnclassifiedContactNamesCountAsPeople() throws {

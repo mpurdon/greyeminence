@@ -16,8 +16,10 @@
 		03BBE2FF01E16556041941A7 /* RefinementReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBD9E2E3EF358E84018A88F /* RefinementReportTests.swift */; };
 		044C360066CB6ABDD88DF8EC /* TimelineScrubber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46EEFDE3216D4CCF1E1923A8 /* TimelineScrubber.swift */; };
 		046A05CC7579B2253099D51D /* TopicMapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD13CBF8483BC48BC008542 /* TopicMapTests.swift */; };
+		04E3CAC89F7E403BFAA6FC2B /* RefinementReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD853E36207DDF55F93F2B40 /* RefinementReviewTests.swift */; };
 		077B50C616B12DC34082F605 /* CharacterSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E4A14EBE4E82FF3649CD5F5 /* CharacterSheetView.swift */; };
 		077F199C2745CF409C9CA9A8 /* RefinementBackfill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 839836ABD4907C2772B04904 /* RefinementBackfill.swift */; };
+		080BAF02925F8CF287ED6F64 /* RefinementReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59949FF7745740F23530ADF0 /* RefinementReviewViews.swift */; };
 		0822C1F8DEC3B3C33FA40140 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = E73B3D65573E84BFDA22E0FA /* FluidAudio */; };
 		0962CE60D8CA562FED69C778 /* ModelDownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00113CB03ECCACD1B6516101 /* ModelDownloadManager.swift */; };
 		0A209D1F9E2BCBCAAF6C8490 /* RefinementDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7D4540CE041CAFD736F5551 /* RefinementDetailView.swift */; };
@@ -171,6 +173,7 @@
 		70F7CABA599E3F641758F2A7 /* FilenameSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31B50D46D495E9E6F1650A84 /* FilenameSanitizer.swift */; };
 		71DD1B1AACF574A9C2948594 /* LiveTranscriptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFE615EDF257D5D3EC87E1 /* LiveTranscriptView.swift */; };
 		731B99180852038A8C312858 /* RubricCriterion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4763E15F118E2C39BBE17F27 /* RubricCriterion.swift */; };
+		749748B0323E1296598969A9 /* RefinementReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBFDC93A4BECEFAA2F143EE3 /* RefinementReview.swift */; };
 		74C7EBF80E1F6C351F16E9F8 /* RefinementEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = D288125834B7DCDFCD6844A8 /* RefinementEvidence.swift */; };
 		74CC2E4DBCD6DE379F332162 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DAA9CB7A537E882B021ABF4 /* SettingsView.swift */; };
 		74E8BFA67B26EC75F7D3A2CF /* SpeakerAlignmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00D0917A85C9D1748D7D898 /* SpeakerAlignmentTests.swift */; };
@@ -513,6 +516,7 @@
 		5781D8AA1BE1E3CD924CBDC1 /* AudioDeviceInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceInfo.swift; sourceTree = "<group>"; };
 		57B9AB151CD1BBDDDCB15B67 /* ClaudeAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAPIClient.swift; sourceTree = "<group>"; };
 		57C7DDBDF9E04C8AA890F062 /* AIRetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIRetry.swift; sourceTree = "<group>"; };
+		59949FF7745740F23530ADF0 /* RefinementReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinementReviewViews.swift; sourceTree = "<group>"; };
 		59A4997345983696DC9017FF /* BedrockAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedrockAPIClient.swift; sourceTree = "<group>"; };
 		59E97FD2F848DA9E742B3699 /* InterviewTemplatePhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewTemplatePhase.swift; sourceTree = "<group>"; };
 		5A42AA08DB1A00AE08C7884B /* ArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveView.swift; sourceTree = "<group>"; };
@@ -661,6 +665,7 @@
 		BB29EBBD966374617FAC91F6 /* ActionItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionItem.swift; sourceTree = "<group>"; };
 		BB2B49773B9CDDF2E3BABE9C /* AIUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsage.swift; sourceTree = "<group>"; };
 		BBB5B7F2625CA891A0A4FE73 /* MeetingIntelligenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingIntelligenceView.swift; sourceTree = "<group>"; };
+		BBFDC93A4BECEFAA2F143EE3 /* RefinementReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinementReview.swift; sourceTree = "<group>"; };
 		BC713090D575048A65C8A716 /* SettingsNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigation.swift; sourceTree = "<group>"; };
 		BC86CBDEA9C270FECBE21CD4 /* RefinementListGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinementListGroupingTests.swift; sourceTree = "<group>"; };
 		BD246F57B67011F22F1AF64A /* TranscriptionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionCoordinator.swift; sourceTree = "<group>"; };
@@ -718,6 +723,7 @@
 		DBAB1E4C042E177AB57AA5C0 /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 		DC104B981D262F388FA1544D /* TemplateLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateLibraryView.swift; sourceTree = "<group>"; };
 		DC89881F5FBFA4FDFBF5D015 /* FeatureHighlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureHighlight.swift; sourceTree = "<group>"; };
+		DD853E36207DDF55F93F2B40 /* RefinementReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinementReviewTests.swift; sourceTree = "<group>"; };
 		DDA08488A6C4DDF53905B1B6 /* TaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailView.swift; sourceTree = "<group>"; };
 		DDBE2B5B6C2497EB697EA018 /* FeatureDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureDiscovery.swift; sourceTree = "<group>"; };
 		DDCF1A81A140D771C4779D0E /* SchemaVersions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaVersions.swift; sourceTree = "<group>"; };
@@ -943,6 +949,7 @@
 				44B8F5CB2E5D4692C0851A8E /* RefinementPDFExporter.swift */,
 				1F31F9EFAF7EAE393AFCD051 /* RefinementReportLayout.swift */,
 				E314CA389EDA01517FFB933D /* RefinementReportStore.swift */,
+				59949FF7745740F23530ADF0 /* RefinementReviewViews.swift */,
 			);
 			path = Refinements;
 			sourceTree = "<group>";
@@ -973,6 +980,7 @@
 				1FB7CEC0E14991A2743BEB83 /* PromptStore.swift */,
 				839836ABD4907C2772B04904 /* RefinementBackfill.swift */,
 				B45720A4C0107F6A226ED781 /* RefinementReportService.swift */,
+				BBFDC93A4BECEFAA2F143EE3 /* RefinementReview.swift */,
 				F296FDF7EC19DD5EE43B83C1 /* ResumeAnalyzer.swift */,
 				74AAE11819AFE7A239B0B6B8 /* TaskTriageService.swift */,
 				93C28939DE9447A9DCE2636A /* TrajectorSettings.swift */,
@@ -1048,6 +1056,7 @@
 				C345769BE4ED62462F4C54E7 /* MicRecoveryPolicyTests.swift */,
 				BC86CBDEA9C270FECBE21CD4 /* RefinementListGroupingTests.swift */,
 				0CBD9E2E3EF358E84018A88F /* RefinementReportTests.swift */,
+				DD853E36207DDF55F93F2B40 /* RefinementReviewTests.swift */,
 				CF5308BD16804ADACE01AC19 /* RelatedMeetingContextTests.swift */,
 				049811664B96F6AC7CB5CB6D /* ReportAnchoringTests.swift */,
 				C8F2604B1D157082D739245E /* ReportPDFRendererTests.swift */,
@@ -1826,6 +1835,8 @@
 				2FD96378F38928E4F69783AE /* RefinementReportLayout.swift in Sources */,
 				8FFA43C95C3D3D5392E83317 /* RefinementReportService.swift in Sources */,
 				55356E3E8EE206B3AD0CB0E0 /* RefinementReportStore.swift in Sources */,
+				749748B0323E1296598969A9 /* RefinementReview.swift in Sources */,
+				080BAF02925F8CF287ED6F64 /* RefinementReviewViews.swift in Sources */,
 				B0D384060B5E31ED986E444F /* RelatedMeetingContext.swift in Sources */,
 				3070710A8EB3EB1F87A9E49D /* ReportAnchorPlan.swift in Sources */,
 				C3A13D4D59639A6675A5FFC4 /* ReportComposerService.swift in Sources */,
@@ -1969,6 +1980,7 @@
 				834ED1A22D2D5D6496F850FF /* ReProcessingQueuePolicyTests.swift in Sources */,
 				22357024071ECDE54EF2028E /* RefinementListGroupingTests.swift in Sources */,
 				03BBE2FF01E16556041941A7 /* RefinementReportTests.swift in Sources */,
+				04E3CAC89F7E403BFAA6FC2B /* RefinementReviewTests.swift in Sources */,
 				754DE4C9F75A1015188415BC /* RelatedMeetingContextTests.swift in Sources */,
 				E69011BC4E9A897B71DEF111 /* ReportAnchoringTests.swift in Sources */,
 				D57A5B821B59CB87FBE351DB /* ReportPDFRendererTests.swift in Sources */,
@@ -2088,14 +2100,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260925171854;
+				CURRENT_PROJECT_VERSION = 20260926015431;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.52.0;
+				MARKETING_VERSION = 0.53.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;
@@ -2112,14 +2124,14 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 20260925171854;
+				CURRENT_PROJECT_VERSION = 20260926015431;
 				DEVELOPMENT_TEAM = YR87TCS6NH;
 				INFOPLIST_FILE = GreyEminence/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.52.0;
+				MARKETING_VERSION = 0.53.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.greyeminence.app;
 				PRODUCT_NAME = "Grey Eminence";
 				SDKROOT = macosx;

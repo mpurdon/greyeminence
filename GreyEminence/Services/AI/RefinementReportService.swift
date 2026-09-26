@@ -8,6 +8,8 @@ struct RefinementReportContent: Codable, Sendable, Equatable {
     /// Where a criterion or decision came from.
     enum Basis: String, Codable, Sendable, CaseIterable {
         case explicit, emergent, inferred
+        /// Added by the reviewer, not the meeting. Never from the model.
+        case added
 
         /// Models write "EXPLICIT", "Emergent" and the occasional
         /// "inferred (medium)"; anything unreadable is treated as inferred,
@@ -244,31 +246,37 @@ struct RefinementReport: Codable, Sendable, Equatable {
     /// Where the report is in review. Nil on reports from before statuses
     /// existed — read as New, or Filed when a ticket was created.
     var reviewStatus: RefinementStatus?
+    /// Your work on the rationale, and the spec generated from it.
+    var review: RefinementReview?
 
     var status: RefinementStatus {
         reviewStatus ?? (jiraIssue == nil ? .new : .filed)
     }
 }
 
-/// Where a refinement is in review. A topic with no report is `.notBuilt`;
-/// building one makes it New, opening it makes it Read, and creating its
-/// Jira ticket makes it Filed. Follow-up, Approved and Rejected are the
-/// reviewer's to set, and any status can be set by hand.
+/// Where a refinement is in review. A topic with no report is `.notBuilt`.
+/// Building one makes it New; opening or working on it, In Progress;
+/// accepting the rationale generates the spec and makes it Accepted;
+/// verifying the spec, Verified; creating its Jira ticket, Filed.
+/// Follow-up and Rejected are the reviewer's to set, and any status can be
+/// set by hand.
 enum RefinementStatus: String, Codable, Sendable, CaseIterable, Identifiable {
-    case new, followUp, read, notBuilt, approved, filed, rejected
+    // Declaration order is review order, for the Status grouping.
+    case new, followUp, inProgress, accepted, notBuilt, verified, filed, rejected
 
     var id: String { rawValue }
 
     /// Every status but `.notBuilt`, which only the absence of a report means.
-    static let settable: [RefinementStatus] = [.new, .read, .followUp, .approved, .filed, .rejected]
+    static let settable: [RefinementStatus] = [.new, .inProgress, .followUp, .accepted, .verified, .filed, .rejected]
 
     var label: String {
         switch self {
         case .notBuilt: "No Report"
         case .new: "New"
-        case .read: "Read"
+        case .inProgress: "In Progress"
         case .followUp: "Follow-up"
-        case .approved: "Approved"
+        case .accepted: "Accepted"
+        case .verified: "Verified"
         case .filed: "Filed in Jira"
         case .rejected: "Rejected"
         }
@@ -278,26 +286,32 @@ enum RefinementStatus: String, Codable, Sendable, CaseIterable, Identifiable {
         switch self {
         case .notBuilt: "doc"
         case .new: "circle.fill"
-        case .read: "doc.text"
+        case .inProgress: "pencil.circle"
         case .followUp: "flag.fill"
-        case .approved: "checkmark.seal.fill"
+        case .accepted: "checkmark.circle"
+        case .verified: "checkmark.seal.fill"
         case .filed: "ticket.fill"
         case .rejected: "xmark.circle.fill"
         }
     }
 
-    /// A status written by a newer version reads as Read rather than
-    /// costing the whole report its decode.
+    /// 0.52.0 wrote "read" and "approved"; a status from a newer version
+    /// reads as In Progress rather than costing the report its decode.
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
-        self = RefinementStatus(rawValue: raw) ?? .read
+        switch raw {
+        case "read": self = .inProgress
+        case "approved": self = .verified
+        default: self = RefinementStatus(rawValue: raw) ?? .inProgress
+        }
     }
 }
 
 struct RefinementReportService: Sendable {
     /// Bump on any change to the default prompts, so a stored report records
     /// which wording produced it.
-    static let promptVersion = "refinement.v4"
+    /// v5: no spec in the first pass — it waits for the reviewed rationale.
+    static let promptVersion = "refinement.v5"
 
     /// Eight sections with per-item evidence run long on an hour-long
     /// meeting — well past the 8192 the analysis passes use.
@@ -479,60 +493,160 @@ struct RefinementReportService: Sendable {
     }
 }
 
+// MARK: - Spec from the reviewed rationale
+
+/// Writes the effective spec from the rationale once it's been reviewed and
+/// accepted. Works from the reviewed rationale alone — a few thousand
+/// tokens, not the transcript.
+struct RefinementSpecService: Sendable {
+    static let maxTokens = 4096
+
+    let client: any AIClient
+
+    func generate(feature: String, rationale: String, meetingID: UUID) async throws -> RefinementReportContent.Spec {
+        let system = AIPromptTemplates.refinementSystemPrompt
+        let prompt = AIPromptTemplates.refinementSpecPrompt(feature: feature, rationale: rationale)
+        let response = try await AIUsageContext.attribute(.refinementReport, meetingID: meetingID) {
+            try await AIRetry.run(label: "refinementSpec", meetingID: meetingID) { [client, system, prompt] in
+                try await withTimeout(seconds: 120) {
+                    try await client.sendMessage(system: system, userContent: prompt, maxTokens: Self.maxTokens)
+                }
+            }
+        }
+        guard let spec = Self.parse(response: response) else {
+            LogManager.send(
+                "Refinement spec unreadable — raw response: " + AIResponseDecoder.failureExcerpt(response),
+                category: .ai, level: .error, meetingID: meetingID
+            )
+            throw RefinementReportService.ServiceError.unreadableResponse
+        }
+        return spec
+    }
+
+    static func parse(response: String) -> RefinementReportContent.Spec? {
+        guard let object = try? AIResponseDecoder.objectFrom(response),
+              let data = try? JSONSerialization.data(withJSONObject: object) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        guard let spec = try? decoder.decode(RefinementReportContent.Spec.self, from: data),
+              spec.intent.nonEmpty != nil || !spec.acceptanceCriteria.isEmpty else { return nil }
+        return spec
+    }
+}
+
 // MARK: - Markdown
 
 /// The report as Markdown, for Copy / Save and as the starting point of a
-/// Jira description. Built from the structure, so what is exported is
-/// exactly what the view shows.
+/// Jira description. Built from the structure — with your review applied —
+/// so what is exported is what the view shows.
 enum RefinementReportMarkdown {
 
-    static func full(_ content: RefinementReportContent, title: String, date: Date) -> String {
-        "# Refinement: \(title)\n\n_\(date.formatted(date: .long, time: .shortened))_\n\n" + sections(content)
+    static func full(_ report: RefinementReport, title: String, date: Date) -> String {
+        "# Refinement: \(title)\n\n_\(date.formatted(date: .long, time: .shortened))_\n\n" + sections(report)
     }
 
     /// The eight sections without the document title — for a ticket, whose
     /// summary already names the feature.
-    static func sections(_ content: RefinementReportContent) -> String {
-        var out: [String] = []
-        out.append("## 1. Intent")
-        out.append(orNone(content.intent))
-
-        out.append("## 2. Acceptance criteria that emerged")
-        out.append(list(content.acceptanceCriteria.map(criterionLine)))
-
-        out.append("## 3. Decisions made during refinement")
-        if content.decisions.isEmpty {
-            out.append(none)
+    static func sections(_ report: RefinementReport) -> String {
+        var out = rationale(report.content, review: report.review)
+        out += "\n## 8. Effective session spec\n\n"
+        if report.specIsDraft {
+            out += report.content.spec == RefinementReportContent.Spec()
+                ? "_Not generated yet: the spec is written once the rationale is accepted._\n"
+                : "_Draft from the first pass, not yet generated from a reviewed rationale._\n\n" + spec(report.effectiveSpec, headingLevel: 3) + "\n"
         } else {
-            for decision in content.decisions {
-                var lines = ["- **Decision:** \(decision.decision)"]
-                if let category = decision.category?.nonEmpty { lines[0] += " _(\(category))_" }
-                lines.append("  - **Reason/evidence:** \(decision.reason?.nonEmpty ?? "Not stated")")
-                lines.append("  - **Alternatives considered:** \(decision.alternatives?.nonEmpty ?? "None discussed")")
-                if let effect = decision.effect?.nonEmpty { lines.append("  - **Effect on behavior:** \(effect)") }
-                lines.append("  - **Explicit or inferred:** \(decision.basis == .inferred ? "Inferred" : "Explicit")")
-                out.append(lines.joined(separator: "\n"))
-            }
+            out += spec(report.effectiveSpec, headingLevel: 3) + "\n"
+        }
+        return out
+    }
+
+    /// Sections 1–7 with the review applied: left-out items gone, your
+    /// wording in place, priorities, notes and answers alongside, your
+    /// added items at the end of their section. What the spec is written
+    /// from.
+    static func rationale(_ content: RefinementReportContent, review: RefinementReview?) -> String {
+        let review = review ?? RefinementReview()
+        var out: [String] = []
+        func added(_ section: RefinementReviewSection, _ line: (RefinementAddedItem) -> String) -> [String] {
+            review.added
+                .filter { $0.section == section && !$0.review.isLeftOut && $0.text.nonEmpty != nil }
+                .map { line($0) + noteLines($0.review) }
         }
 
+        out.append("## 1. Intent")
+        out.append(review.intent?.nonEmpty ?? orNone(content.intent))
+
+        out.append("## 2. Acceptance criteria that emerged")
+        var criteria: [String] = []
+        for (i, criterion) in content.acceptanceCriteria.enumerated() {
+            let r = review.item(.criterion(i))
+            guard !r.isLeftOut else { continue }
+            var edited = criterion
+            if let text = r.editedText?.nonEmpty { edited.text = text }
+            criteria.append(tag(r.priority) + criterionLine(edited) + noteLines(r))
+        }
+        criteria += added(.criteria) { tag($0.review.priority) + "**ADDED IN REVIEW** — \($0.text)" }
+        out.append(list(criteria))
+
+        out.append("## 3. Decisions made during refinement")
+        var decisions: [String] = []
+        for (i, decision) in content.decisions.enumerated() {
+            let r = review.item(.decision(i))
+            guard !r.isLeftOut else { continue }
+            var lines = ["**Decision:** \(r.editedText?.nonEmpty ?? decision.decision)"]
+            if let category = decision.category?.nonEmpty { lines[0] += " _(\(category))_" }
+            lines.append("  - **Reason/evidence:** \(decision.reason?.nonEmpty ?? "Not stated")")
+            lines.append("  - **Alternatives considered:** \(decision.alternatives?.nonEmpty ?? "None discussed")")
+            if let effect = decision.effect?.nonEmpty { lines.append("  - **Effect on behavior:** \(effect)") }
+            lines.append("  - **Explicit or inferred:** \(decision.basis == .inferred ? "Inferred" : "Explicit")")
+            decisions.append(lines.joined(separator: "\n") + noteLines(r))
+        }
+        decisions += added(.decisions) { "**Decision (added in review):** \($0.text)" }
+        out.append(list(decisions))
+
         out.append("## 4. Rejected approaches")
-        out.append(list(content.rejectedApproaches.map { item in
-            item.reason?.nonEmpty.map { "\(item.approach) — \($0)" } ?? item.approach
-        }))
+        var rejected: [String] = []
+        for (i, item) in content.rejectedApproaches.enumerated() {
+            let r = review.item(.rejected(i))
+            guard !r.isLeftOut else { continue }
+            let text = r.editedText?.nonEmpty ?? item.approach
+            rejected.append((item.reason?.nonEmpty.map { "\(text) — \($0)" } ?? text) + noteLines(r))
+        }
+        rejected += added(.rejected) { $0.text }
+        out.append(list(rejected))
 
         out.append("## 5. Constraints discovered")
-        out.append(list(content.constraints.map { item in
-            item.source?.nonEmpty.map { "\(item.text) _(\($0))_" } ?? item.text
-        }))
+        var constraints: [String] = []
+        for (i, item) in content.constraints.enumerated() {
+            let r = review.item(.constraint(i))
+            guard !r.isLeftOut else { continue }
+            let text = r.editedText?.nonEmpty ?? item.text
+            constraints.append(tag(r.priority) + (item.source?.nonEmpty.map { "\(text) _(\($0))_" } ?? text) + noteLines(r))
+        }
+        constraints += added(.constraints) { tag($0.review.priority) + $0.text }
+        out.append(list(constraints))
 
         out.append("## 6. Implementer- and reviewer-relevant information")
-        out.append(list(content.reviewerNotes))
+        var notes: [String] = []
+        for (i, note) in content.reviewerNotes.enumerated() {
+            let r = review.item(.note(i))
+            guard !r.isLeftOut else { continue }
+            notes.append((r.editedText?.nonEmpty ?? note) + noteLines(r))
+        }
+        notes += added(.notes) { $0.text }
+        out.append(list(notes))
 
-        out.append("## 7. Unresolved questions")
-        out.append(list(content.openQuestions.map(questionLine)))
-
-        out.append("## 8. Effective session spec")
-        out.append(spec(content.spec, headingLevel: 3))
+        out.append("## 7. Open questions")
+        var questions: [String] = []
+        for (i, question) in content.openQuestions.enumerated() {
+            let r = review.item(.question(i))
+            guard !r.isLeftOut else { continue }
+            var edited = question
+            if let text = r.editedText?.nonEmpty { edited.question = text }
+            questions.append(questionLine(edited) + resolutionLine(r) + noteLines(r))
+        }
+        questions += added(.questions) { $0.text + resolutionLine($0.review) }
+        out.append(list(questions))
 
         return out.joined(separator: "\n\n") + "\n"
     }
@@ -559,6 +673,18 @@ enum RefinementReportMarkdown {
 
     static func questionLine(_ question: RefinementReportContent.OpenQuestion) -> String {
         question.owner?.nonEmpty.map { "\(question.question) _(owner: \($0))_" } ?? question.question
+    }
+
+    private static func tag(_ priority: RefinementPriority?) -> String {
+        priority.map { "**[\($0.label)]** " } ?? ""
+    }
+
+    private static func noteLines(_ review: RefinementItemReview) -> String {
+        review.note?.nonEmpty.map { "\n  - **Reviewer note:** \($0)" } ?? ""
+    }
+
+    private static func resolutionLine(_ review: RefinementItemReview) -> String {
+        review.resolution?.nonEmpty.map { "\n  - **Resolved:** \($0)" } ?? "\n  - **Unresolved**"
     }
 
     private static let none = "None identified."

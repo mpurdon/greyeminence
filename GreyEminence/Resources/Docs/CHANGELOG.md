@@ -4,6 +4,41 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.53.0 — 2026-09-26
+
+**Refinements: review the rationale, then write the spec**
+- Every part of a report's rationale can now be worked on. Acceptance
+  criteria and constraints are sorted on a board: Must, Should, Could,
+  Won't and Ignore are boxes with counts at the top, closed until you open
+  them, and unsorted items wait below in To sort — drag each into a box
+  and the workspace clears as you go. Move to… in an item's menu does the same by click.
+  Reword any item, including the intent; add a note to any item; resolve
+  an open question with its answer, or reopen it; ignore an item so it
+  stays out of the spec; and add your own items to any section.
+- The spec is no longer written in the first pass. Accept Rationale, above
+  the rationale, writes it from the rationale as you reviewed it: your
+  wording and priorities kept, left-out items left out, resolved questions
+  folded into what they settle, your notes followed. Then check it and
+  Verify Spec.
+- Statuses follow the work: New → In Progress (opened or worked on) →
+  Accepted (rationale accepted, spec written) → Verified → Filed in Jira.
+  Changing an accepted rationale reopens it and marks the spec out of
+  date. Reports from 0.52.0 carry over: Read is now In Progress, Approved
+  is Verified.
+- Exports and Jira tickets use the reviewed rationale and the spec written
+  from it. Reports built before this keep their first-pass spec, labelled
+  a draft, until you accept their rationale.
+- Regenerating a report you've reviewed asks first: the review goes with
+  it.
+- Refinements opens faster: the check for new topics to sort only runs
+  when a meeting has been analysed since the last one, reads just the
+  topics, and waits until the view has drawn. Grouping by Topic shows the
+  topics that span two or more meetings (up to 50) and puts the rest
+  under Other Topics — instead of thousands of one-meeting sections.
+- Grouping by Meeting uses the same date blocks as the Meetings list,
+  newest first, and shows each meeting once — title, time, length,
+  speakers — with its features listed under it.
+
 ## 0.52.0 — 2026-09-25
 
 **One copy at a time**
