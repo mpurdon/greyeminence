@@ -153,6 +153,7 @@ struct MeetingIntelligenceView: View {
                         PersistenceGate.save(modelContext, site: "MeetingIntelligenceView.deleteActionItem", meetingID: meeting.id)
                     }
                     AISummarySection(summary: insight.summary)
+                    MeetingDiagramsSection(meeting: meeting)
                     KnowledgeLinksSection(topics: insight.topics)
                 } else if meeting.isAnalyzing || isReanalyzing {
                     VStack(spacing: 12) {
@@ -253,17 +254,11 @@ struct MeetingIntelligenceView: View {
             // the model ignored the prompt instruction and re-suggested items.
             let suppressedActions = Set(meeting.suppressedActionItems)
             let suppressedQuestions = Set(meeting.suppressedFollowUps)
-            let result = AnalysisResult(
-                title: rawResult.title,
-                summary: rawResult.summary,
-                actionItems: rawResult.actionItems.filter { !suppressedActions.contains(Self.normalizeKey($0.text)) },
-                followUps: rawResult.followUps.filter { !suppressedQuestions.contains(Self.normalizeKey($0)) },
-                topics: rawResult.topics,
-                rawResponse: rawResult.rawResponse,
-                refinement: rawResult.refinement
-            )
+            var result = rawResult
+            result.actionItems = rawResult.actionItems.filter { !suppressedActions.contains(Self.normalizeKey($0.text)) }
+            result.followUps = rawResult.followUps.filter { !suppressedQuestions.contains(Self.normalizeKey($0)) }
 
-            meeting.applyAnalysisMetadata(result)
+            MeetingAnalysisRecorder.record(result, on: meeting)
 
             // Persist new insight (append; keep history of prior insights)
             let insight = MeetingInsight(

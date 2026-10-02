@@ -494,7 +494,7 @@ struct TopicMapView: View {
                     continue
                 }
 
-                meeting.applyAnalysisMetadata(result)
+                MeetingAnalysisRecorder.record(result, on: meeting)
 
                 let insight = MeetingInsight(
                     summary: result.summary,

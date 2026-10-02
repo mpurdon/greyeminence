@@ -11,6 +11,7 @@ struct GeneralSettingsView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("stalledThresholdDays") private var stalledThresholdDays = 7
     @AppStorage("appFontSize") private var appFontSize = "medium"
+    @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.system.rawValue
     @AppStorage("myContactID") private var myContactIDString = ""
     /// 0 = unlimited (default). >0 means delete audio for any completed
     /// meeting older than that many days. Transcripts always stay.
@@ -85,6 +86,10 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Picker("Appearance", selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { Text($0.label).tag($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
                 Picker("Text Size", selection: $appFontSize) {
                     Text("Extra Small").tag("xSmall")
                     Text("Small").tag("small")

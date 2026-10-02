@@ -307,7 +307,51 @@ final class RecordingViewModel {
             prepContext = nil
             return
         }
-        prepContext = meetingPrepService.gatherPrepContext(for: event, in: modelContext)
+        setPrepContext(for: event, in: modelContext)
+    }
+
+    /// The occurrence `prepContext` was built for, so a related-context
+    /// result (or the scheduler's pre-call refresh) only lands on its own card.
+    private var prepEventKey: String?
+    private var relatedPrepTask: Task<Void, Never>?
+
+    /// Build series prep for `event`, then attach related context from other
+    /// meetings — cached by `MeetingPrepScheduler` when it front-ran today's
+    /// calendar, otherwise fetched in the background.
+    private func setPrepContext(for event: CalendarEvent, in modelContext: ModelContext) {
+        let excluded = currentMeeting?.id
+        var context = meetingPrepService.gatherPrepContext(for: event, excludingMeetingID: excluded, in: modelContext)
+        log.log(
+            "Prep: “\(event.title ?? "untitled")” recurring=\(event.isRecurring) → \(context.provenance)",
+            category: .general
+        )
+        relatedPrepTask?.cancel()
+        let key = MeetingPrepScheduler.key(for: event)
+        prepEventKey = key
+        let scheduler = MeetingPrepScheduler.shared
+        if let cached = scheduler.cachedStatus(for: event) {
+            context.related = cached
+            prepContext = context
+            return
+        }
+        guard !MeetingPrepRelated.keywords(fromTitle: event.title ?? "").isEmpty else {
+            prepContext = context
+            return
+        }
+        context.related = .loading
+        prepContext = context
+        relatedPrepTask = Task { [weak self] in
+            let status = await scheduler.related(for: event, excludingMeetingID: excluded)
+            guard !Task.isCancelled, let self else { return }
+            self.relatedPrepUpdated(key: key, status: status)
+        }
+    }
+
+    /// A related-context result for `key` — from this screen's own ask or the
+    /// scheduler's refresh before the call.
+    func relatedPrepUpdated(key: String, status: RelatedPrepStatus) {
+        guard prepEventKey == key, prepContext != nil else { return }
+        prepContext?.related = status
     }
 
     /// Apply a calendar event's metadata (title, attendees, series) to a meeting.
@@ -329,7 +373,7 @@ final class RecordingViewModel {
         // screen, auto-matched after a menu-bar or auto-detected start, or
         // chosen mid-call from the toolbar. Without this only the idle
         // screen's pick ever had prep to show during the call.
-        prepContext = meetingPrepService.gatherPrepContext(for: event, in: modelContext)
+        setPrepContext(for: event, in: modelContext)
     }
 
     /// Manual variant invoked from the recording toolbar. Operates on the
@@ -1058,7 +1102,7 @@ final class RecordingViewModel {
                         resultFollowUps = result.followUps
                         resultTopics = result.topics
                         resultRaw = result.rawResponse
-                        meeting.applyAnalysisMetadata(result)
+                        MeetingAnalysisRecorder.record(result, on: meeting)
                     }
                 } catch is CancellationError {
                     // App quitting / teardown raced — not a real analysis failure.

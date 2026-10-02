@@ -18,3 +18,18 @@ extension String {
         return String(mapped.trimmingCharacters(in: .whitespaces).prefix(maxLength))
     }
 }
+
+/// Names for exported files, the same shape everywhere.
+enum ExportFilename {
+    /// "Bulk Invoice Export — 2026-09-23 (refinement).md"
+    static func suggested(title: String, date: Date, suffix: String, fileExtension: String) -> String {
+        let calendar = Calendar.current
+        let day = String(
+            format: "%04d-%02d-%02d",
+            calendar.component(.year, from: date),
+            calendar.component(.month, from: date),
+            calendar.component(.day, from: date)
+        )
+        return "\(title) — \(day) (\(suffix))".sanitizedForFilename() + ".\(fileExtension)"
+    }
+}

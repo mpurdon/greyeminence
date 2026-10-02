@@ -4,6 +4,78 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.54.0 — 2026-10-02
+
+**Dark mode**
+- **Appearance** — Match System, Light or Dark — in Settings → General and
+  the View menu, for every window, sheet and menu. The interview character
+  sheet stays on its paper, and exports stay light.
+
+**Diagrams**
+- A new **Diagrams** view lists meetings with something to draw: a
+  **flow** — a sequence of events or steps the meeting walked through — or
+  a **timeline** of deliverables and milestones placed in time. The final
+  analysis now looks for both (analysis prompt `meeting.v8`); meetings
+  analysed before this are checked in the background from their stored
+  summaries, twenty at a time, the first time you open the view. Each
+  meeting's analysis also lists its diagrams, with a + to add one the
+  detection missed.
+- **Flows** are drawn natively, top to bottom: a start, steps, decisions
+  as diamonds with labelled branches, loops and retries as dashed arrows
+  back up the side, and who or what does each step. An arrow that skips
+  rows runs between the boxes rather than across them, the order with the
+  fewest crossings is kept, and straight chains stay straight.
+  A flow is one process as it runs: what the meeting said about it —
+  critiques, a proposed redesign, who should own it — goes in the summary
+  and open questions, not the steps. One process talked through twice is
+  one flow. Nothing follows an end, and a decision has at least two ways
+  out (prompt `diagrams.v3`, checked again in code).
+- **Detect and Redraw**, in a meeting's Diagrams menu or on a diagram in
+  the list, looks for that meeting's diagrams again from its transcript
+  and draws them.
+- **Timelines** put each deliverable on a real date axis — a bar from
+  start to due, a dot for a due date, a diamond for a milestone — with the
+  meeting and today marked and owners beside each. Relative dates ("next
+  Friday", "end of Q4") are worked out from the meeting date and drawn
+  lighter as estimates, with the phrase kept; items with no date are
+  listed below, each with **Set Date…** to place it or **Ignore** to leave
+  it off (Ignored items can be restored). A timeline is a Gantt chart —
+  names and owners in a column on the left, dates across the top — on a
+  page with its summary, what's undated and its risks; a deliverable's
+  details open beside it. The canvas uses the same background as a
+  meeting.
+- A flow fills the pane and zooms and pans like a map: the mouse wheel, a
+  pinch or ⌘+ / ⌘− / ⌘0 to zoom about the pointer, drag or two-finger scroll
+  to move around, Fit to see it whole. It opens fitted.
+- One sidebar holds the rest: an overview (summary, counts, what was left
+  open) until you click a step or deliverable, then what it is, an Edit
+  form with labelled fields, and the transcript it came from — a
+  speaker's fragments joined into readable passages, one click from the
+  meeting at that moment. Redraw asks first once you've edited.
+- Export as PDF or PNG, or **Copy as Mermaid** to paste into Jira,
+  Confluence or GitHub, which draw it.
+
+**Meeting prep**
+- Prep now brings in what your *other* meetings say about a meeting's
+  subject. It searches their transcripts for the distinctive words in the
+  title — "Cadence Eng Sync" searches for Cadence, ignoring words like
+  sync, weekly, eng and prep — and sums up what they say in a few
+  **Related Discussions** points, each naming the meetings it came from.
+  Only passages that actually mention the subject count, from the last 90
+  days; a recurring meeting's own past occurrences are left to the series
+  prep above it. A one-off meeting gets the card only when something
+  turns up.
+- **Prepared ahead.** Shortly after launch, prep runs for each of today's
+  remaining meetings, so it's ready when you open the recording screen.
+  About 15 minutes before each one it runs again, so a meeting held in
+  between — often one to prepare for this one — is included. Meetings
+  earlier the same day come first, marked as such for the summary.
+- Fixed: once recording started, prep showed the recording itself as
+  "the last time you recorded this meeting", and the related search was
+  cancelled.
+- A moved or edited occurrence of a recurring meeting is now recognised
+  as part of its series, so it gets the series' prep.
+
 ## 0.53.0 — 2026-09-26
 
 **Refinements: review the rationale, then write the spec**

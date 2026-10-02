@@ -190,7 +190,12 @@ struct EditableTranscriptSegmentRow: View {
                 }
             }
             .popover(isPresented: $showContactPicker) {
-                ContactPicker(excludedContacts: []) { contact in
+                // Attendees first, like the identity bar: the voice is
+                // almost always someone on the invite.
+                ContactPicker(
+                    excludedContacts: [],
+                    prioritizedContacts: segment.meeting?.presentAttendees ?? []
+                ) { contact in
                     changeSpeaker(to: .other(contact.name))
                     showContactPicker = false
                 }

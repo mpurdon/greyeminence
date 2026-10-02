@@ -17,9 +17,6 @@ final class RefinementBackfill {
     static let shared = RefinementBackfill()
 
     nonisolated static let batchSize = 20
-    /// Enough to tell a design discussion from a status update, short
-    /// enough that a batch stays small.
-    nonisolated static let summaryCharacterLimit = 1_200
 
     private(set) var isRunning = false
     private(set) var checked = 0
@@ -109,77 +106,17 @@ final class RefinementBackfill {
     }
 
     private func assess(_ batch: [Meeting], client: any AIClient) async throws -> [Int: RefinementSignal] {
-        let prompt = AIPromptTemplates.refinementClassifyPrompt(meetings: Self.catalogue(batch.map(Self.entry)))
-        let system = AIPromptTemplates.refinementClassifySystemPrompt
-        let response = try await AIUsageContext.attribute(.refinementDetection) {
-            try await AIRetry.run(label: "refinementBackfill") { [client, system, prompt] in
-                try await withTimeout(seconds: 90) {
-                    try await client.sendMessage(system: system, userContent: prompt, maxTokens: 4096)
-                }
-            }
-        }
+        let prompt = AIPromptTemplates.refinementClassifyPrompt(meetings: MeetingSummaryCatalogue.catalogue(batch.map(MeetingSummaryCatalogue.entry)))
+        let response = try await AILongRequest.send(
+            client, system: AIPromptTemplates.refinementClassifySystemPrompt, prompt: prompt, maxTokens: 4096,
+            timeoutSeconds: 90, purpose: .refinementDetection, label: "refinementBackfill"
+        )
         return Self.parse(response: response, count: batch.count)
     }
 
     // MARK: - Pure helpers (unit-tested)
 
-    struct Entry: Sendable, Equatable {
-        let title: String
-        let date: Date
-        let topics: [String]
-        let summary: String
-    }
-
-    static func entry(for meeting: Meeting) -> Entry {
-        let insight = meeting.latestInsight
-        return Entry(
-            title: meeting.title,
-            date: meeting.date,
-            topics: insight?.topics ?? [],
-            summary: flatten(summary: insight?.summary ?? "")
-        )
-    }
-
-    /// Stored summaries are JSON sections (or a legacy bullet string);
-    /// the classifier only needs the words.
-    nonisolated static func flatten(summary raw: String) -> String {
-        let text: String
-        if let sections = SummarySection.parse(raw) {
-            text = sections.map { section in
-                ([section.title] + section.points.map { "\($0.label): \($0.detail)" }).joined(separator: "; ")
-            }.joined(separator: " | ")
-        } else {
-            text = raw.replacingOccurrences(of: "\n", with: " ")
-        }
-        guard text.count > summaryCharacterLimit else { return text }
-        return String(text.prefix(summaryCharacterLimit)) + "…"
-    }
-
-    nonisolated static func catalogue(_ entries: [Entry]) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return entries.enumerated().map { index, entry in
-            var lines = ["M\(index + 1) | \(entry.title) | \(formatter.string(from: entry.date))"]
-            if !entry.topics.isEmpty { lines.append("Topics: \(entry.topics.prefix(12).joined(separator: ", "))") }
-            lines.append("Summary: \(entry.summary)")
-            return lines.joined(separator: "\n")
-        }.joined(separator: "\n\n")
-    }
-
-    /// Maps "M3" back to batch index 2. Unknown identifiers and unreadable
-    /// entries are dropped; the rest of the batch still counts.
     nonisolated static func parse(response: String, count: Int) -> [Int: RefinementSignal] {
-        guard let object = try? AIResponseDecoder.objectFrom(response),
-              let items = object["meetings"] as? [[String: Any]] else { return [:] }
-        var signals: [Int: RefinementSignal] = [:]
-        for item in items {
-            guard let id = item["id"] as? String,
-                  let index = ReportComposerService.index(from: id, prefix: "M"),
-                  (1...count).contains(index),
-                  let signal = RefinementSignal.parse(item) else { continue }
-            signals[index - 1] = signal
-        }
-        return signals
+        MeetingSummaryCatalogue.parse(response: response, count: count, item: { RefinementSignal.parse($0) })
     }
 }

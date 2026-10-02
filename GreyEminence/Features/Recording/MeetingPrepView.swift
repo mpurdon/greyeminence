@@ -41,6 +41,8 @@ struct MeetingPrepView: View {
             case .notApplicable:
                 EmptyView()
             }
+
+            RelatedPrepSection(status: context.related, statesNothingFound: Self.statesNothingFound(context.provenance))
         }
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 12))
@@ -72,6 +74,13 @@ struct MeetingPrepView: View {
             return "From the last time you recorded this meeting"
         }
         return "From your last \(count) recordings of this meeting"
+    }
+
+    /// A first occurrence says plainly that nothing else turned up either; a
+    /// one-off has no card to say it on, and history has its own content.
+    nonisolated static func statesNothingFound(_ provenance: MeetingPrepContext.Provenance) -> Bool {
+        if case .firstOccurrence = provenance { return true }
+        return false
     }
 
     nonisolated static func shortDate(_ date: Date) -> String {
@@ -158,6 +167,84 @@ struct MeetingPrepView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Related context
+
+/// What other meetings say about this one's subject. Shown only when there's
+/// no series history, and labelled as coming from *other* meetings so it's
+/// never mistaken for what this meeting left open.
+private struct RelatedPrepSection: View {
+    let status: RelatedPrepStatus
+    let statesNothingFound: Bool
+
+    var body: some View {
+        switch status {
+        case .notRequested:
+            EmptyView()
+        case .loading:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text("Looking through other meetings for context…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .none:
+            if statesNothingFound {
+                Text("Nothing substantive about it in your other meetings either.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        case .ready(let prep):
+            VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Related Discussions")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.purple)
+                    Text("From other meetings that mention \(prep.keywords.map { "“\($0)”" }.joined(separator: ", ")) · prepared \(prep.generatedAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                if prep.points.isEmpty {
+                    ForEach(Array(prep.sources.prefix(4).enumerated()), id: \.offset) { _, source in
+                        VStack(alignment: .leading, spacing: 1) {
+                            sourceLabel([source])
+                            Text(source.excerpt)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                    }
+                } else {
+                    ForEach(Array(prep.points.enumerated()), id: \.offset) { _, point in
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 4))
+                                .foregroundStyle(.purple)
+                                .padding(.top, 6)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(point.text)
+                                    .font(.caption)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                sourceLabel(point.sourceIndices.filter { prep.sources.indices.contains($0) }.map { prep.sources[$0] })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sourceLabel(_ sources: [RelatedPrep.Source]) -> some View {
+        if !sources.isEmpty {
+            Text(sources.prefix(2).map { "\($0.title) · \(MeetingPrepView.shortDate($0.date))" }.joined(separator: "; "))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 }

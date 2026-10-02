@@ -778,7 +778,7 @@ final class ReProcessingQueue {
             for old in meeting.insights { context.delete(old) }
             for old in meeting.actionItems { context.delete(old) }
 
-            meeting.applyAnalysisMetadata(result)
+            MeetingAnalysisRecorder.record(result, on: meeting)
             let insight = MeetingInsight(
                 summary: result.summary,
                 followUpQuestions: result.followUps,

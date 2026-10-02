@@ -345,7 +345,7 @@ struct RefinementReportService: Sendable {
         /// Every feature the meeting refined, for context in the focus note.
         var allFeatures: [String] = []
 
-        var fingerprint: String { RefinementReportService.fingerprint(of: transcript) }
+        var fingerprint: String { MeetingPromptContext.fingerprint(of: transcript) }
     }
 
     let client: any AIClient
@@ -355,17 +355,12 @@ struct RefinementReportService: Sendable {
         Input(
             title: meeting.title,
             date: meeting.date,
-            participants: participants(roster: MeetingRoster.snapshot(for: meeting)),
+            participants: MeetingPromptContext.participants(roster: MeetingRoster.snapshot(for: meeting)),
             screenContext: ScreenObservationFormatter.finalBlock(for: meeting),
-            transcript: transcript(for: meeting),
+            transcript: MeetingPromptContext.transcript(for: meeting),
             feature: feature,
             allFeatures: meeting.refinementFeatures
         )
-    }
-
-    @MainActor
-    static func transcript(for meeting: Meeting) -> String {
-        AIPromptTemplates.formatSegments(TranscriptFile.from(meeting: meeting).segments)
     }
 
     func generate(_ input: Input, meetingID: UUID) async throws -> RefinementReport {
@@ -373,15 +368,10 @@ struct RefinementReportService: Sendable {
 
         let system = AIPromptTemplates.refinementSystemPrompt
         let prompt = Self.userPrompt(for: input)
-        let response = try await AIUsageContext.attribute(.refinementReport, meetingID: meetingID) {
-            try await AIRetry.run(label: "refinementReport", meetingID: meetingID) { [client, system, prompt] in
-                try await withTimeout(seconds: Self.timeoutSeconds) {
-                    try await AIRequestTimeout.$seconds.withValue(TimeInterval(Self.timeoutSeconds)) {
-                        try await client.sendMessage(system: system, userContent: prompt, maxTokens: Self.maxTokens)
-                    }
-                }
-            }
-        }
+        let response = try await AILongRequest.send(
+            client, system: system, prompt: prompt, maxTokens: Self.maxTokens,
+            timeoutSeconds: Self.timeoutSeconds, purpose: .refinementReport, label: "refinementReport", meetingID: meetingID
+        )
 
         guard let content = Self.parse(response: response), !content.isEmpty else {
             LogManager.send(
@@ -414,7 +404,7 @@ struct RefinementReportService: Sendable {
             meetingTitle: input.title,
             meetingDate: input.date.formatted(date: .long, time: .shortened),
             participants: input.participants.isEmpty ? "Not recorded" : input.participants.joined(separator: ", "),
-            screenContext: screenContextBlock(input.screenContext),
+            screenContext: MeetingPromptContext.screenContextBlock(input.screenContext, note: screenNote),
             focus: focusBlock(feature: input.feature, allFeatures: input.allFeatures),
             transcript: input.transcript
         )
@@ -448,49 +438,9 @@ struct RefinementReportService: Sendable {
         return try? decoder.decode(RefinementReportContent.self, from: data)
     }
 
-    /// A ticket or spec shown on screen is usually the "original request" the
-    /// prompt asks the model to compare against, so the screen recap goes in
-    /// when there is one. Empty otherwise, leaving no orphaned heading.
-    static func screenContextBlock(_ context: String?) -> String {
-        guard let context = context?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !context.isEmpty else { return "" }
-        return """
-
-            SHARED SCREEN
-            What was on screen during the meeting. A ticket, spec or design \
-            shown here counts as the original requirements.
-            \(context)
-
-            """
-    }
-
-    /// Roster names with "me" labelled, so the model can match the "Me"
-    /// speaker label in the transcript to a person.
-    static func participants(roster: MeetingRoster) -> [String] {
-        var names: [String] = []
-        if let me = roster.myName, !me.isEmpty { names.append("\(me) (\"Me\" in the transcript)") }
-        names.append(contentsOf: roster.otherAttendees)
-        return names
-    }
-
-    /// "Claude Sonnet" rather than a Bedrock inference-profile ARN, which is
-    /// what the model identifier is on an org that routes through profiles.
-    /// Profile ARNs hide the family, so they are matched against the
-    /// trajector-settings slots — the same matching the usage ledger prices by.
-    static func modelLabel(_ identifier: String, settings: TrajectorSettings? = TrajectorSettings.load()) -> String {
-        switch AIPricing.family(forModelIdentifier: identifier, settings: settings) {
-        case AIPricing.opus: "Claude Opus"
-        case AIPricing.sonnet: "Claude Sonnet"
-        case AIPricing.haiku: "Claude Haiku"
-        default: identifier.contains("arn:") ? "Claude via Bedrock" : identifier
-        }
-    }
-
-    /// Stable across launches (unlike `Hasher`), so a stored report can be
-    /// compared against today's transcript.
-    static func fingerprint(of transcript: String) -> String {
-        AWSSigV4Signer.sha256Hex(Data(transcript.utf8))
-    }
+    /// A ticket or spec shown on screen is usually the "original request"
+    /// the prompt asks the model to compare against.
+    static let screenNote = "What was on screen during the meeting. A ticket, spec or design shown here counts as the original requirements."
 }
 
 // MARK: - Spec from the reviewed rationale
@@ -506,13 +456,10 @@ struct RefinementSpecService: Sendable {
     func generate(feature: String, rationale: String, meetingID: UUID) async throws -> RefinementReportContent.Spec {
         let system = AIPromptTemplates.refinementSystemPrompt
         let prompt = AIPromptTemplates.refinementSpecPrompt(feature: feature, rationale: rationale)
-        let response = try await AIUsageContext.attribute(.refinementReport, meetingID: meetingID) {
-            try await AIRetry.run(label: "refinementSpec", meetingID: meetingID) { [client, system, prompt] in
-                try await withTimeout(seconds: 120) {
-                    try await client.sendMessage(system: system, userContent: prompt, maxTokens: Self.maxTokens)
-                }
-            }
-        }
+        let response = try await AILongRequest.send(
+            client, system: system, prompt: prompt, maxTokens: Self.maxTokens,
+            timeoutSeconds: 120, purpose: .refinementReport, label: "refinementSpec", meetingID: meetingID
+        )
         guard let spec = Self.parse(response: response) else {
             LogManager.send(
                 "Refinement spec unreadable — raw response: " + AIResponseDecoder.failureExcerpt(response),

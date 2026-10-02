@@ -31,6 +31,8 @@ struct SidebarView: View {
                     tasksItem
                     sidebarItem(.refinements)
                         .newFeatureBadge("refinement-report")
+                    sidebarItem(.diagrams)
+                        .newFeatureBadge("diagrams")
                     sidebarItem(.interviews)
                     sidebarItem(.people)
                     sidebarItem(.topicMap)

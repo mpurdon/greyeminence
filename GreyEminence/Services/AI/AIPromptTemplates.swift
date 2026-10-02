@@ -6,7 +6,7 @@ enum AIPromptTemplates {
     /// Bumped whenever the built-in prompt text changes meaningfully. Persisted with
     /// MeetingInsight so we can tell which prompt generation produced a given result
     /// and offer "regenerate with newer prompt" UX later.
-    static let promptVersion = "meeting.v6"
+    static let promptVersion = "meeting.v8"
 
     // MARK: - Public accessors
     //
@@ -147,6 +147,9 @@ enum AIPromptTemplates {
         case .refinementReport: defaultRefinementReportPrompt
         case .refinementClassify: defaultRefinementClassifyPrompt
         case .refinementSpec: defaultRefinementSpecPrompt
+        case .diagramFlow: defaultDiagramFlowPrompt
+        case .diagramTimeline: defaultDiagramTimelinePrompt
+        case .diagramClassify: defaultDiagramClassifyPrompt
         case .topicClassify: defaultTopicClassifyPrompt
         }
     }
@@ -366,7 +369,8 @@ enum AIPromptTemplates {
           "action_items": [{"text": "description of action", "assignee": "person or null", "source_quote": "verbatim phrase from the transcript that triggered this item"}],
           "follow_ups": ["question that should be followed up on"],
           "topics": ["Theme Topic", "specific-tool", "ACRONYM", "PersonName"],
-          "refinement": {"likelihood": 0.0, "features": ["Feature name"]}
+          "refinement": {"likelihood": 0.0, "features": ["Feature name"]},
+          "diagrams": [{"kind": "flow | timeline", "title": "3-8 words", "likelihood": 0.0}]
         }
 
         Rules:
@@ -429,6 +433,8 @@ enum AIPromptTemplates {
         "features" names each distinct feature the group refined, 2-6 words each, the one \
         that got the most time first, at most 4 — and [] when likelihood is below 0.5. \
         \(refinementFeatureRules)
+        - "diagrams" is for the final analysis only — omit it during initial and rolling \
+        analysis. \(diagramDetectionRules)
         - If there is not enough content to produce meaningful insights, return empty arrays and \
         [] for summary. Do not generate placeholder or filler text.
         - When updating a rolling analysis, ALWAYS preserve all previous action items, topics, \
@@ -499,6 +505,7 @@ enum AIPromptTemplates {
         - Correct any speaker attribution errors that are obvious from context.
         - Assess whether this meeting refined a software feature and return the \
         "refinement" object.
+        - Identify any flow or timeline worth drawing and return the "diagrams" array.
 
         ACCUMULATED INSIGHTS FROM LIVE ANALYSIS:
 
@@ -932,6 +939,181 @@ enum AIPromptTemplates {
 
     // MARK: - Topic categories
 
+    // MARK: - Diagrams
+
+    static let diagramSystemPrompt = """
+        You draw diagrams from meeting transcripts. You MUST respond with \
+        ONLY valid JSON matching the schema in the user message — no prose, \
+        no markdown, no explanation before or after.
+        """
+
+    static func diagramFlowPrompt(values: [String: String]) -> String {
+        PromptStore.render(PromptStore.shared.get(.diagramFlow, default: defaultDiagramFlowPrompt), values: values)
+    }
+
+    static func diagramTimelinePrompt(values: [String: String]) -> String {
+        PromptStore.render(PromptStore.shared.get(.diagramTimeline, default: defaultDiagramTimelinePrompt), values: values)
+    }
+
+    static func diagramClassifyPrompt(meetings: String) -> String {
+        PromptStore.render(PromptStore.shared.get(.diagramClassify, default: defaultDiagramClassifyPrompt), values: ["meetings": meetings])
+    }
+
+    static let diagramClassifySystemPrompt = """
+        You find what in past meetings could be drawn as a diagram. You MUST \
+        respond with ONLY valid JSON matching the schema in the user message \
+        — no prose, no markdown, no explanation before or after.
+        """
+
+    private static let transcriptCaveat = """
+        Each line is [timestamp] speaker: words. The transcript is automatic: \
+        expect mis-heard words, and speaker labels that are sometimes wrong \
+        or generic ("Speaker 2").
+        """
+
+    private static let citationRule = """
+        "citations": the transcript timestamps behind each item, copied from \
+        the [m:ss] stamps — "7:52" for a line, "7:01-7:10" for a stretch; the \
+        most direct first, at most three; [] when it isn't in the \
+        transcript. Never invent a timestamp.
+        """
+
+    static let defaultDiagramFlowPrompt: String = """
+        Draw a flow from this meeting: "{{diagramTitle}}" — the sequence of \
+        events or steps the group walked through for it.
+
+        MEETING
+        Title: {{meetingTitle}}
+        Date: {{meetingDate}}
+        Participants: {{participants}}
+        {{screenContext}}
+        TRANSCRIPT
+        \(transcriptCaveat)
+
+        {{transcript}}
+
+        Return JSON of exactly this shape:
+        {
+          "title": "3-8 words",
+          "summary": "1-2 sentences: what the flow does, start to finish",
+          "nodes": [{"id": "n1", "label": "short action, 2-8 words", "kind": "start | step | decision | end", \
+        "actor": "who or what does it, or null", "note": "detail worth keeping, or null", "citations": ["m:ss"]}],
+          "edges": [{"from": "n1", "to": "n2", "label": "branch label for a decision, else null", "citations": ["m:ss"]}],
+          "open_questions": ["what the meeting left unclear about the flow"]
+        }
+
+        Rules:
+        - Draw one process as it runs — what happens to the request or the \
+        work, step by step — not the meeting's conversation about it. \
+        Critiques, proposed redesigns, who should own it and what to do next \
+        are not steps: put them in "summary" and "open_questions".
+        - Draw the flow as the meeting settled it — the agreed design, not \
+        every idea floated. Where the meeting described the current process \
+        and proposed a change without agreeing it, draw the current process \
+        and name the proposal in an open question. Where a step was left \
+        undecided, keep it and add an open question.
+        - One start node: the trigger ("Lead received"). An end node wherever \
+        the flow finishes, including failure ends ("Alert on-call"). Nothing \
+        follows an end node.
+        - A decision is a real branch ("Retention call succeeded?") with at \
+        least two labelled outgoing edges ("yes" / "no"); a question with one \
+        way out is a step. A retry or loop is an edge back to an earlier node.
+        - Every path must read true from start to end: a step on a branch \
+        can only use what that branch has (on "zip missing", nothing is \
+        derived from the zip). Follow each branch once before answering.
+        - Labels are short actions in the present tense; put detail in \
+        "note". "actor" names who or what performs the step in the process \
+        — a system, a team, a role — spelled the same way every time; not \
+        whoever described it in the meeting.
+        - Keep it readable: at most 20 nodes. Merge trivial steps.
+        - \(citationRule)
+        """
+
+    static let defaultDiagramTimelinePrompt: String = """
+        Draw a timeline from this meeting: "{{diagramTitle}}" — the \
+        deliverables and milestones the meeting placed in time.
+
+        MEETING
+        Title: {{meetingTitle}}
+        Date: {{meetingDate}}, a {{meetingWeekday}}
+        Participants: {{participants}}
+        {{screenContext}}
+        TRANSCRIPT
+        \(transcriptCaveat)
+
+        {{transcript}}
+
+        Return JSON of exactly this shape:
+        {
+          "title": "3-8 words",
+          "summary": "1-2 sentences: what is being delivered, by when",
+          "items": [{"id": "d1", "name": "deliverable, 2-8 words", "owner": "person or team, or null", \
+        "start": "YYYY-MM-DD or null", "due": "YYYY-MM-DD or null", "date_text": "the date as it was said", \
+        "is_milestone": false, "depends_on": ["d0"], "confidence": "exact | estimated", "citations": ["m:ss"]}],
+          "notes": ["risks, assumptions or slips the meeting mentioned"]
+        }
+
+        Rules:
+        - Only what the meeting committed to or agreed on — not every task \
+        that came up.
+        - Resolve relative dates against the meeting date, {{meetingDate}} (a \
+        {{meetingWeekday}}): "Friday" is the coming Friday; "next week" the \
+        week after the meeting's; "end of the month" its last day; "Q4" ends \
+        on 31 December. A resolved date is "estimated", with the phrase kept \
+        in "date_text"; a date said outright is "exact".
+        - A vague time ("soon", "after the pilot", "next sprint" with no \
+        sprint dates) gets "due": null, with the phrase in "date_text" — and \
+        "depends_on" when the meeting gave an order.
+        - A milestone is a point in time — a launch, a demo, a deadline — \
+        not work: "is_milestone": true, with "due" only.
+        - Give "start" only when the meeting said when work begins.
+        - Order items by due date, undated ones last.
+        - \(citationRule)
+        """
+
+    /// Detection for one meeting, from its transcript — the final
+    /// analysis's "diagrams" field on its own, for looking again after the
+    /// rules change.
+    static func diagramDetectPrompt(values: [String: String]) -> String {
+        PromptStore.render(defaultDiagramDetectPrompt, values: values)
+    }
+
+    private static let defaultDiagramDetectPrompt: String = """
+        Find what in this meeting could be drawn as a diagram.
+
+        MEETING
+        Title: {{meetingTitle}}
+        Date: {{meetingDate}}
+        Participants: {{participants}}
+
+        TRANSCRIPT
+        \(transcriptCaveat)
+
+        {{transcript}}
+
+        \(diagramDetectionRules)
+
+        Return JSON of exactly this shape:
+        {"diagrams":[{"kind":"flow","title":"Lead intake to certificate retention","likelihood":0.8}]}
+        """
+
+    /// The backfill's counterpart to the "diagrams" field of the final
+    /// analysis. Works from stored summaries, like the refinement backfill.
+    private static let defaultDiagramClassifyPrompt: String = """
+        Below are summaries of past meetings, each with an identifier, title, \
+        date and topics.
+
+        MEETINGS
+        {{meetings}}
+
+        For every meeting: \(diagramDetectionRules)
+
+        Return JSON of exactly this shape, with every meeting exactly once:
+        {"meetings":[{"id":"M1","diagrams":[{"kind":"flow","title":"Lead intake to certificate retention","likelihood":0.8}]},{"id":"M2","diagrams":[]}]}
+
+        Use only the M identifiers given above.
+        """
+
     // MARK: - Spec from the reviewed rationale
 
     static func refinementSpecPrompt(feature: String, rationale: String) -> String {
@@ -1057,6 +1239,27 @@ enum AIPromptTemplates {
         has its own intent and its own acceptance criteria; when unsure, list \
         one. A feature that was only mentioned or given a status update does \
         not count.
+        """
+
+    /// What counts as a flow or a timeline worth drawing — shared by the
+    /// final analysis and the diagram backfill so both detect alike.
+    static let diagramDetectionRules = """
+        List what could be drawn: a "flow" is a sequence of events or steps \
+        the group walked through — how a request or a piece of work moves \
+        between systems or people, in order, with its decisions and failure \
+        paths ("the lead comes in, is written to Mongo, a Lambda picks it up, \
+        calls TrustedForm, retries on failure"); a "timeline" is a set of \
+        deliverables or milestones placed in time — dates, or an agreed order \
+        ("schema by Friday, the pipeline by end of next sprint, the pilot mid \
+        October"). List one only when the meeting gave enough to draw it: at \
+        least three connected steps for a flow, at least two dated or ordered \
+        deliverables for a timeline. A passing mention, a status update or a \
+        list of unrelated tasks does not count. One entry per process: the \
+        same process discussed twice — or its current form and a proposed \
+        redesign — is one flow, not two. "likelihood" (0.0-1.0) is how \
+        clearly the meeting laid it out. Title each in 3-8 words, naming what \
+        is drawn ("Lead intake to certificate retention", "Exhibit pipeline \
+        Q4 deliverables"). At most 3; [] when there is nothing to draw.
         """
 
     /// The backfill's counterpart to the "refinement" field of the final

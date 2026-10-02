@@ -110,6 +110,33 @@ final class MeetingPrepStatusTests: XCTestCase {
         XCTAssertEqual(prep.unresolvedItems.map(\.text), ["Still open"])
     }
 
+    /// At record start the new recording is linked to the event before prep
+    /// is rebuilt; it must not show up as its own "last time".
+    func testRecordingInProgressIsNotItsOwnHistory() throws {
+        let context = try makeContext()
+        let event = recurringEvent("series-3")
+        let recording = Meeting(title: "Weekly Sync", date: .now, status: .recording)
+        recording.calendarEventID = event.linkIdentifier
+        context.insert(recording)
+
+        let prep = MeetingPrepService().gatherPrepContext(for: event, excludingMeetingID: recording.id, in: context)
+        XCTAssertEqual(prep.provenance, .firstOccurrence(title: "Weekly Sync"))
+    }
+
+    func testExcludingTheRecordingStillFindsRealHistory() throws {
+        let context = try makeContext()
+        let event = recurringEvent("series-4")
+        _ = priorOccurrence(of: event, in: context, tasks: [])
+        _ = priorOccurrence(of: event, in: context, tasks: [])
+        let recording = Meeting(title: "Weekly Sync", date: .now, status: .recording)
+        recording.calendarEventID = event.linkIdentifier
+        context.insert(recording)
+
+        let prep = MeetingPrepService().gatherPrepContext(for: event, excludingMeetingID: recording.id, in: context)
+        guard case .history(let count, _) = prep.provenance else { return XCTFail("expected history, got \(prep.provenance)") }
+        XCTAssertEqual(count, MeetingPrepService.recentMeetingLimit)
+    }
+
     func testStatusesMapOntoTheTwoStoredFieldsExclusively() {
         let task = ActionItem(text: "x")
         PrepTaskStatus.done.apply(to: task)

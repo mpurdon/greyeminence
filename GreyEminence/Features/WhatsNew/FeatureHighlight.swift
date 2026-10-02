@@ -24,6 +24,24 @@ enum FeatureHighlightCatalog {
     /// set its `version` to that release's MARKETING_VERSION.
     static let all: [FeatureHighlight] = [
         FeatureHighlight(
+            id: "dark-mode",
+            version: "0.54.0",
+            title: "Dark mode",
+            summary: "Choose Match System, Light or Dark in Settings \u{2192} General or the View menu. It covers every window, sheet and menu; exports stay light for paper.",
+            systemImage: "circle.lefthalf.filled",
+            tint: .indigo,
+            destination: .settings
+        ),
+        FeatureHighlight(
+            id: "diagrams",
+            version: "0.54.0",
+            title: "Meetings, drawn",
+            summary: "When a meeting walks through a sequence of steps, or sets out deliverables with dates, it now shows up in the new Diagrams view. Draw it as a flow — steps, decisions, loops, who does what — or as a timeline of deliverables and milestones, with \u{201C}next Friday\u{201D} worked out from the meeting date. Click any step or deliverable to fix it or see where it was said; export as PDF or PNG, or copy as Mermaid for Jira and Confluence.",
+            systemImage: "flowchart",
+            tint: .teal,
+            destination: .diagrams
+        ),
+        FeatureHighlight(
             id: "rationale-review",
             version: "0.53.0",
             title: "Work the rationale, then write the spec",

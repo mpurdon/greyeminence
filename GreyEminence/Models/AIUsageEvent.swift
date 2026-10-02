@@ -22,6 +22,10 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
     /// Sorting meeting topics into kinds (person, service…) and spotting
     /// aliases. Once per distinct topic, on Haiku.
     case topicClassification
+    /// Drawing a flow or timeline from a transcript, on demand.
+    case diagrams
+    /// The backfill looking for flows and timelines in older meetings.
+    case diagramDetection
     case reanalysis
     case transcriptCorrection
     case ask
@@ -45,6 +49,8 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .refinementReport: "Refinement reports"
         case .refinementDetection: "Refinement detection"
         case .topicClassification: "Topic categories"
+        case .diagrams: "Diagrams"
+        case .diagramDetection: "Diagram detection"
         case .reanalysis: "Reanalysis"
         case .transcriptCorrection: "Transcript corrections"
         case .ask: "Ask"
@@ -61,7 +67,7 @@ enum AIUsagePurpose: String, Codable, Sendable, CaseIterable {
         case .transcriptInitial, .transcriptRolling: .transcript
         case .transcriptFinal, .reanalysis, .transcriptCorrection: .finalAnalysis
         case .frameAnalysis, .sessionSynthesis: .screenShare
-        case .reportFigureAnchors, .refinementReport, .refinementDetection: .reports
+        case .reportFigureAnchors, .refinementReport, .refinementDetection, .diagrams, .diagramDetection: .reports
         case .embedding: .search
         case .ask, .interview, .prep, .taskTriage, .topicClassification, .other: .other
         }

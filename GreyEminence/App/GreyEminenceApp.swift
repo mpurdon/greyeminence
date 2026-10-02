@@ -95,6 +95,7 @@ struct GreyEminenceApp: App {
     }
 
     @AppStorage("appFontSize") private var appFontSize = "medium"
+    @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.system.rawValue
 
     private var dynamicTypeSize: DynamicTypeSize {
         switch appFontSize {
@@ -115,6 +116,7 @@ struct GreyEminenceApp: App {
                 )
                     .environment(\.dynamicTypeSize, dynamicTypeSize)
                     .environment(appEnvironment)
+                    .onChange(of: appearance, initial: true) { AppAppearance.apply(appearance) }
                     .onAppear {
                         appEnvironment.configure(modelContext: container.mainContext)
                         UsageRecorder.shared.configure(container: container)
@@ -141,6 +143,10 @@ struct GreyEminenceApp: App {
                         EmbeddingBackfillService.scheduleAtLaunch(
                             mainContext: container.mainContext
                         )
+                        MeetingPrepScheduler.shared.start(
+                            recordingViewModel: recordingViewModel,
+                            modelContext: container.mainContext
+                        )
                         lifecycle.bind(
                             recordingViewModel: recordingViewModel,
                             modelContextProvider: { container.mainContext }
@@ -163,6 +169,11 @@ struct GreyEminenceApp: App {
             }
             CommandGroup(replacing: .help) {
                 HelpMenuCommands()
+            }
+            CommandGroup(after: .toolbar) {
+                Picker("Appearance", selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { Text($0.label).tag($0.rawValue) }
+                }
             }
         }
 

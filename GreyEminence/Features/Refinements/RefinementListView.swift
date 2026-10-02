@@ -42,7 +42,8 @@ struct RefinementListView: View {
         let sections = sections(for: rows)
         VStack(spacing: 0) {
             if backfill.isRunning || backfill.lastError != nil {
-                backfillBanner
+                BackfillBanner(isRunning: backfill.isRunning, checked: backfill.checked, total: backfill.total,
+                               lastError: backfill.lastError, activity: "Checking older meetings")
                 Divider()
             }
             confidenceFilter(showing: visible.count, of: candidates.count)
@@ -277,25 +278,6 @@ struct RefinementListView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .help("How sure the analysis must be that a meeting was a refinement")
-    }
-
-    @ViewBuilder
-    private var backfillBanner: some View {
-        HStack(spacing: 8) {
-            if backfill.isRunning {
-                ProgressView().controlSize(.small)
-                Text("Checking older meetings… \(backfill.checked) of \(backfill.total)")
-            } else if let error = backfill.lastError {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                Text("Couldn't check older meetings: \(error)")
-                    .lineLimit(2)
-            }
-            Spacer()
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 }
 

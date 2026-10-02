@@ -117,11 +117,8 @@ struct RefinementDetailView: View {
             }
         }
         .task(id: "\(meeting.id)-\(meeting.segments.count)-\(meeting.transcriptionModel ?? "")") {
-            currentFingerprint = RefinementReportService.fingerprint(of: RefinementReportService.transcript(for: meeting))
-            lines = meeting.segments
-                .sorted { $0.startTime < $1.startTime }
-                .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                .map { RefinementPassage.Line(id: $0.id, startTime: $0.startTime, speaker: $0.speaker.displayName, text: $0.text) }
+            currentFingerprint = MeetingPromptContext.fingerprint(of: MeetingPromptContext.transcript(for: meeting))
+            lines = RefinementPassage.lines(for: meeting)
         }
         .task(id: SourcesKey(report: report?.generatedAt, lineCount: lines.count, firstLine: lines.first?.id)) {
             sources = report.map { RefinementEvidenceSources(index: RefinementEvidenceIndex($0.content), lines: lines) }
@@ -311,23 +308,23 @@ struct RefinementDetailView: View {
     @ViewBuilder
     private var banners: some View {
         if let error = store.error(for: topic) {
-            Banner(systemImage: "exclamationmark.triangle.fill", tint: .orange, text: "Couldn't build the report: \(error)") {
+            NoticeBanner(systemImage: "exclamationmark.triangle.fill", tint: .orange, text: "Couldn't build the report: \(error)") {
                 Button("Try Again") { store.generate(for: topic) }
                 Button("Dismiss") { store.dismissError(for: topic) }
             }
         }
         if let exportMessage {
-            Banner(systemImage: "exclamationmark.triangle.fill", tint: .orange, text: exportMessage) {
+            NoticeBanner(systemImage: "exclamationmark.triangle.fill", tint: .orange, text: exportMessage) {
                 Button("Dismiss") { self.exportMessage = nil }
             }
         }
         if !isGenerating, isStale {
-            Banner(systemImage: "clock.arrow.circlepath", tint: .orange, text: "The transcript has changed since this report was written.") {
+            NoticeBanner(systemImage: "clock.arrow.circlepath", tint: .orange, text: "The transcript has changed since this report was written.") {
                 Button("Regenerate") { store.generate(for: topic) }
             }
         }
         if let report, !isGenerating, !report.content.isRefinement {
-            Banner(systemImage: "questionmark.circle", tint: .secondary, text: "This meeting doesn't look like a feature refinement.") {
+            NoticeBanner(systemImage: "questionmark.circle", tint: .secondary, text: "This meeting doesn't look like a feature refinement.") {
                 Button("Remove from Refinements") { meeting.refinementOverride = false }
             }
         }
@@ -360,18 +357,10 @@ struct RefinementDetailView: View {
 
     private var generatingState: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                ProgressView()
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Reconstructing what the meeting decided…")
-                    Text("A long meeting can take a couple of minutes. You can look at other meetings meanwhile.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+            WorkingCard(
+                title: "Reconstructing what the meeting decided…",
+                caption: "A long meeting can take a couple of minutes. You can look at other meetings meanwhile."
+            )
             meetingSummary
         }
     }
@@ -430,16 +419,8 @@ struct RefinementDetailView: View {
         }
     }
 
-    /// "Bulk Invoice Export — 2026-09-23 (refinement).md"
     nonisolated static func suggestedFilename(title: String, date: Date, suffix: String = "refinement", fileExtension: String = "md") -> String {
-        let calendar = Calendar.current
-        let day = String(
-            format: "%04d-%02d-%02d",
-            calendar.component(.year, from: date),
-            calendar.component(.month, from: date),
-            calendar.component(.day, from: date)
-        )
-        return "\(title) — \(day) (\(suffix))".sanitizedForFilename() + ".\(fileExtension)"
+        ExportFilename.suggested(title: title, date: date, suffix: suffix, fileExtension: fileExtension)
     }
 }
 
@@ -448,25 +429,4 @@ private struct SourcesKey: Equatable {
     let report: Date?
     let lineCount: Int
     let firstLine: UUID?
-}
-
-private struct Banner<Actions: View>: View {
-    let systemImage: String
-    let tint: Color
-    let text: String
-    @ViewBuilder var actions: Actions
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage).foregroundStyle(tint)
-            Text(text)
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer()
-            actions
-                .controlSize(.small)
-        }
-        .padding(10)
-        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-    }
 }

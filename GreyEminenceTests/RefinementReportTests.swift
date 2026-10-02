@@ -117,18 +117,18 @@ final class RefinementReportTests: XCTestCase {
 
     func testBackfillFlattensSectionSummariesAndCapsLength() {
         let json = #"[{"title":"Export","points":[{"label":"Format","detail":"CSV first"}]}]"#
-        XCTAssertEqual(RefinementBackfill.flatten(summary: json), "Export; Format: CSV first")
+        XCTAssertEqual(MeetingSummaryCatalogue.flatten(summary: json), "Export; Format: CSV first")
 
-        let long = String(repeating: "a", count: RefinementBackfill.summaryCharacterLimit + 50)
-        XCTAssertEqual(RefinementBackfill.flatten(summary: long).count, RefinementBackfill.summaryCharacterLimit + 1)
+        let long = String(repeating: "a", count: MeetingSummaryCatalogue.summaryCharacterLimit + 50)
+        XCTAssertEqual(MeetingSummaryCatalogue.flatten(summary: long).count, MeetingSummaryCatalogue.summaryCharacterLimit + 1)
     }
 
     func testBackfillCatalogueNumbersFromOne() {
         let entries = [
-            RefinementBackfill.Entry(title: "Grooming", date: Date(timeIntervalSince1970: 1_790_000_000), topics: ["Export"], summary: "CSV"),
-            RefinementBackfill.Entry(title: "Standup", date: Date(timeIntervalSince1970: 1_790_000_000), topics: [], summary: "Status"),
+            MeetingSummaryCatalogue.Entry(title: "Grooming", date: Date(timeIntervalSince1970: 1_790_000_000), topics: ["Export"], summary: "CSV"),
+            MeetingSummaryCatalogue.Entry(title: "Standup", date: Date(timeIntervalSince1970: 1_790_000_000), topics: [], summary: "Status"),
         ]
-        let catalogue = RefinementBackfill.catalogue(entries)
+        let catalogue = MeetingSummaryCatalogue.catalogue(entries)
         XCTAssertTrue(catalogue.hasPrefix("M1 | Grooming | "))
         XCTAssertTrue(catalogue.contains("Topics: Export"))
         XCTAssertTrue(catalogue.contains("M2 | Standup | "))
@@ -155,15 +155,15 @@ final class RefinementReportTests: XCTestCase {
     }
 
     func testScreenContextOnlyAppearsWhenThereIsSome() {
-        XCTAssertEqual(RefinementReportService.screenContextBlock(nil), "")
-        XCTAssertEqual(RefinementReportService.screenContextBlock("  \n "), "")
+        XCTAssertEqual(MeetingPromptContext.screenContextBlock(nil), "")
+        XCTAssertEqual(MeetingPromptContext.screenContextBlock("  \n "), "")
         XCTAssertFalse(RefinementReportService.userPrompt(for: input()).contains("SHARED SCREEN"))
         XCTAssertTrue(RefinementReportService.userPrompt(for: input(screenContext: "Jira UP-12")).contains("SHARED SCREEN"))
     }
 
     func testParticipantsLabelTheMeSpeaker() {
         XCTAssertEqual(
-            RefinementReportService.participants(roster: MeetingRoster(myName: "Matt", otherAttendees: ["Priya"])),
+            MeetingPromptContext.participants(roster: MeetingRoster(myName: "Matt", otherAttendees: ["Priya"])),
             ["Matt (\"Me\" in the transcript)", "Priya"]
         )
     }
@@ -242,9 +242,9 @@ final class RefinementReportTests: XCTestCase {
     }
 
     func testFingerprintIsStableAndSensitiveToTheTranscript() {
-        let a = RefinementReportService.fingerprint(of: "[00:01] Me: hello")
-        XCTAssertEqual(a, RefinementReportService.fingerprint(of: "[00:01] Me: hello"))
-        XCTAssertNotEqual(a, RefinementReportService.fingerprint(of: "[00:01] Speaker 2: hello"))
+        let a = MeetingPromptContext.fingerprint(of: "[00:01] Me: hello")
+        XCTAssertEqual(a, MeetingPromptContext.fingerprint(of: "[00:01] Me: hello"))
+        XCTAssertNotEqual(a, MeetingPromptContext.fingerprint(of: "[00:01] Speaker 2: hello"))
     }
 
     // MARK: - Markdown
@@ -294,9 +294,9 @@ final class RefinementReportTests: XCTestCase {
 
     func testModelLabelHidesInferenceProfileARNs() {
         let arn = "arn:aws:bedrock:us-east-2:111122223333:application-inference-profile/abc123"
-        XCTAssertEqual(RefinementReportService.modelLabel("claude-sonnet-5", settings: nil), "Claude Sonnet")
-        XCTAssertEqual(RefinementReportService.modelLabel("bedrock:us-east-2:\(arn)", settings: nil), "Claude via Bedrock")
-        XCTAssertEqual(RefinementReportService.modelLabel("some-other-model", settings: nil), "some-other-model")
+        XCTAssertEqual(AIPricing.modelLabel("claude-sonnet-5", settings: nil), "Claude Sonnet")
+        XCTAssertEqual(AIPricing.modelLabel("bedrock:us-east-2:\(arn)", settings: nil), "Claude via Bedrock")
+        XCTAssertEqual(AIPricing.modelLabel("some-other-model", settings: nil), "some-other-model")
     }
 
     // MARK: - PDF

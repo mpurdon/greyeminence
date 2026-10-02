@@ -218,7 +218,9 @@ final class CalendarService {
             startDate: event.startDate,
             endDate: event.endDate ?? event.startDate,
             attendees: attendeeNames(for: event),
-            isRecurring: event.hasRecurrenceRules,
+            // A moved or edited occurrence is detached from its series and
+            // can report no rules of its own — it's still part of the series.
+            isRecurring: event.hasRecurrenceRules || event.isDetached,
             isCancelled: event.status == .canceled
                 || CalendarEvent.titleIndicatesCancellation(event.title),
             source: .eventKit
@@ -339,14 +341,21 @@ final class CalendarService {
     /// prep) — keyed on the recurrence id, same join `matchToSeries` uses to
     /// build a series. Empty for a one-off event (no recurrence key). The sort +
     /// limit run in SQLite so a long series doesn't hydrate every occurrence.
-    nonisolated static func priorOccurrences(of event: CalendarEvent, limit: Int, in context: ModelContext) -> [Meeting] {
+    nonisolated static func priorOccurrences(
+        of event: CalendarEvent,
+        limit: Int,
+        excludingMeetingID: UUID? = nil,
+        in context: ModelContext
+    ) -> [Meeting] {
         guard let recurrenceID = event.recurrenceID else { return [] }
         var descriptor = FetchDescriptor<Meeting>(
             predicate: #Predicate<Meeting> { $0.calendarEventID == recurrenceID },
             sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
-        descriptor.fetchLimit = limit
-        return (try? context.fetch(descriptor)) ?? []
+        // One spare, so dropping the excluded meeting still leaves `limit`.
+        descriptor.fetchLimit = limit + (excludingMeetingID == nil ? 0 : 1)
+        let found = (try? context.fetch(descriptor)) ?? []
+        return Array(found.filter { $0.id != excludingMeetingID }.prefix(limit))
     }
 
     /// Find existing meetings with the same recurring event ID and assign a shared series.

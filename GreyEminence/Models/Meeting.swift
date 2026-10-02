@@ -192,10 +192,10 @@ final class Meeting {
         return (refinementLikelihood ?? 0) >= Self.refinementThreshold
     }
 
-    /// What every analysis pass records on the meeting itself, beyond the
-    /// insight: its title and refinement judgement. One call so a new save
-    /// site can't record one and forget the other.
-    func applyAnalysisMetadata(_ result: AnalysisResult) {
+    /// The analysis fields that live on the meeting itself: title and
+    /// refinement judgement. Save sites call `MeetingAnalysisRecorder`,
+    /// which also records what lives elsewhere.
+    func applyAnalysisFields(_ result: AnalysisResult) {
         if let title = result.title { applyGeneratedTitle(title) }
         applyRefinementSignal(result.refinement)
     }

@@ -175,7 +175,7 @@ enum RefinementReportLayout {
     /// "Generated Sep 23, 2026 at 4:12 PM · Claude Sonnet" — under the
     /// title on screen and in the PDF.
     static func generatedLine(_ report: RefinementReport) -> String {
-        "Generated \(report.generatedAt.formatted(date: .abbreviated, time: .shortened)) · \(RefinementReportService.modelLabel(report.modelIdentifier))"
+        "Generated \(report.generatedAt.formatted(date: .abbreviated, time: .shortened)) · \(AIPricing.modelLabel(report.modelIdentifier))"
     }
 
     /// The report's title block, for the PDF — the app shows the same facts

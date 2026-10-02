@@ -18,6 +18,10 @@ struct MeetingPrepContext: Sendable {
     let unresolvedItems: [PrepActionItem]
     let previousTopics: [String]
     let followUps: [String]
+    /// What other meetings say about this one's subject — filled in
+    /// asynchronously, beside (never mixed into) the series sections.
+    /// See `MeetingPrepRelated`.
+    var related: RelatedPrepStatus = .notRequested
 
     /// Whether there is carried-over content from prior occurrences. Gates both
     /// the populated UI sections and the AI prompt injection.
@@ -25,14 +29,16 @@ struct MeetingPrepContext: Sendable {
         !unresolvedItems.isEmpty || !previousTopics.isEmpty || !followUps.isEmpty
     }
 
-    /// Whether the card should appear at all. One-offs show nothing; recurring
-    /// meetings always show *something* (real prep, or a stated "no history yet").
+    /// Whether the card should appear at all. Recurring meetings always show
+    /// *something* (real prep, or a stated "no history yet"); a one-off shows
+    /// only once related context has turned up.
     var shouldDisplay: Bool {
         switch provenance {
-        case .notApplicable: return false
+        case .notApplicable: return related.prep != nil
         case .firstOccurrence, .history: return true
         }
     }
+
 }
 
 struct PrepActionItem: Sendable, Identifiable {
@@ -58,7 +64,15 @@ final class MeetingPrepService {
     /// produces nonsense (e.g. a "Client Data" meeting showing "US Politics"
     /// topics from an unrelated chat with the same two people). When there's no
     /// recorded history of *this* meeting, we say so rather than inventing prep.
-    func gatherPrepContext(for event: CalendarEvent, in context: ModelContext) -> MeetingPrepContext {
+    ///
+    /// `excludingMeetingID` is the recording in progress: at record start it
+    /// is linked to the event *before* prep is rebuilt, and must not count as
+    /// its own "last time".
+    func gatherPrepContext(
+        for event: CalendarEvent,
+        excludingMeetingID: UUID? = nil,
+        in context: ModelContext
+    ) -> MeetingPrepContext {
         func empty(_ provenance: MeetingPrepContext.Provenance) -> MeetingPrepContext {
             MeetingPrepContext(provenance: provenance, unresolvedItems: [], previousTopics: [], followUps: [])
         }
@@ -70,7 +84,12 @@ final class MeetingPrepService {
         }
 
         // Prior recorded occurrences of this same series (newest first, bounded).
-        let recent = CalendarService.priorOccurrences(of: event, limit: Self.recentMeetingLimit, in: context)
+        let recent = CalendarService.priorOccurrences(
+            of: event,
+            limit: Self.recentMeetingLimit,
+            excludingMeetingID: excludingMeetingID,
+            in: context
+        )
         guard !recent.isEmpty else {
             return empty(.firstOccurrence(title: event.title ?? "this meeting"))
         }
@@ -107,6 +126,15 @@ final class MeetingPrepService {
             previousTopics: Self.dedupePreservingOrder(previousTopics),
             followUps: Self.dedupePreservingOrder(followUps)
         )
+    }
+
+    /// Every recorded occurrence of `event`'s series. Related context skips
+    /// them — what the series itself left open is the series prep's job.
+    static func seriesMeetingIDs(for event: CalendarEvent, in context: ModelContext) -> Set<UUID> {
+        guard let recurrenceID = event.recurrenceID else { return [] }
+        var descriptor = FetchDescriptor<Meeting>(predicate: #Predicate { $0.calendarEventID == recurrenceID })
+        descriptor.propertiesToFetch = [\.id]
+        return Set(((try? context.fetch(descriptor)) ?? []).map(\.id))
     }
 
     // MARK: - Pure helpers (unit-tested without SwiftData)

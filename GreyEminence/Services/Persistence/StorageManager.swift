@@ -186,6 +186,34 @@ final class StorageManager: Sendable {
         saveSidecar(catalog, to: topicCatalogURL)
     }
 
+    /// Which meetings have a flow or timeline to draw. Library-wide, like
+    /// the topic catalog.
+    var diagramIndexURL: URL {
+        derivedURL.appendingPathComponent("diagram-index.json")
+    }
+
+    func loadDiagramIndex() -> DiagramIndex {
+        loadSidecar(DiagramIndex.self, at: diagramIndexURL) ?? DiagramIndex()
+    }
+
+    func saveDiagramIndex(_ index: DiagramIndex) {
+        saveSidecar(index, to: diagramIndexURL)
+    }
+
+    /// A meeting's drawn diagrams. Derived from the transcript, so it
+    /// outlives the audio.
+    func diagramShelfURL(for meetingID: UUID) -> URL {
+        derivedURL.appendingPathComponent("\(meetingID.uuidString)-diagrams.json")
+    }
+
+    func loadDiagramShelf(for meetingID: UUID) -> DiagramShelf {
+        loadSidecar(DiagramShelf.self, at: diagramShelfURL(for: meetingID)) ?? DiagramShelf()
+    }
+
+    func saveDiagramShelf(_ shelf: DiagramShelf, for meetingID: UUID) {
+        saveSidecar(shelf, to: diagramShelfURL(for: meetingID))
+    }
+
     /// Cached report figure-anchoring plan. A sidecar file rather than a
     /// SwiftData field: it is derived data that can always be recomputed, so
     /// storing it here buys the cache without a schema version bump.

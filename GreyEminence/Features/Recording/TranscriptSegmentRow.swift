@@ -22,7 +22,10 @@ struct TranscriptSegmentRow: View {
                         }
                     }
                     .popover(isPresented: $showContactPicker) {
-                        ContactPicker(excludedContacts: []) { contact in
+                        ContactPicker(
+                            excludedContacts: [],
+                            prioritizedContacts: segment.meeting?.presentAttendees ?? []
+                        ) { contact in
                             onLinkSpeaker?(segment.speaker)
                             showContactPicker = false
                         }

@@ -8,6 +8,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
     case recording = "New Recording"
     case tasks = "Tasks"
     case refinements = "Refinements"
+    case diagrams = "Diagrams"
     case interviews = "Interviews"
     case people = "People"
     case topicMap = "Topic Map"
@@ -23,6 +24,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .recording: "record.circle"
         case .tasks: "checkmark.circle"
         case .refinements: "compass.drawing"
+        case .diagrams: DiagramStyle.symbol
         case .interviews: "person.badge.shield.checkmark"
         case .people: "person.2"
         case .topicMap: "bubble.left.and.bubble.right"
@@ -40,6 +42,7 @@ enum SidebarDestination: String, Hashable, CaseIterable {
         case .recording: .red
         case .tasks: .orange
         case .refinements: .yellow
+        case .diagrams: DiagramStyle.sidebarColor
         case .interviews: .cyan
         case .people: .green
         case .topicMap: .purple
@@ -86,6 +89,7 @@ struct ContentView: View {
     @State private var whatsNew: WhatsNewPresentation?
     @State private var selectedInterview: Interview?
     @State private var selectedRefinement: RefinementTopic?
+    @State private var selectedDiagram: DiagramTopic?
     var recordingViewModel: RecordingViewModel
     var interviewRecordingViewModel: InterviewRecordingViewModel
 
@@ -127,6 +131,11 @@ struct ContentView: View {
                 }
             }
         }
+        // A meeting's Diagrams section opening one in the Diagrams view.
+        .environment(\.openDiagram, OpenDiagramAction { topic in
+            selectedDiagram = topic
+            selectedDestination = .diagrams
+        })
         .onChange(of: recordingViewModel.completedMeeting) { _, meeting in
             guard let meeting else { return }
             if meeting.isInterviewMeeting {
@@ -729,6 +738,24 @@ struct ContentView: View {
                         "No Refinement Selected",
                         systemImage: RefinementStyle.symbol,
                         description: Text("Pick a meeting to build or read its refinement report")
+                    )
+                }
+            }
+        case .diagrams:
+            NavigationSplitView {
+                DiagramListView(selectedTopic: $selectedDiagram, onOpenMeeting: { openRefinementMeeting($0, segmentID: nil) })
+                    .navigationSplitViewColumnWidth(min: 260, ideal: 320)
+            } detail: {
+                if let topic = selectedDiagram {
+                    DiagramDetailView(topic: topic, onOpenMeeting: { meeting, segmentID in
+                        openRefinementMeeting(meeting, segmentID: segmentID)
+                    })
+                    .id(topic.id)
+                } else {
+                    ContentUnavailableView(
+                        "No Diagram Selected",
+                        systemImage: DiagramStyle.symbol,
+                        description: Text("Pick a flow or a timeline to draw or read it")
                     )
                 }
             }

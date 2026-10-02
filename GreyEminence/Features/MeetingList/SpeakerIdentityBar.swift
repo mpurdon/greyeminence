@@ -15,6 +15,9 @@ struct SpeakerIdentityBar: View {
     /// voice is listening to it first, and a minute of speech in a two-hour
     /// call is otherwise unfindable.
     var onFilterSpeaker: ((String) -> Void)?
+    /// A voice was named: `label`'s lines now belong to `name`. Relabelling
+    /// leaves the line count unchanged, so the parent can't see it otherwise.
+    var onIdentified: ((_ label: String, _ name: String) -> Void)?
 
     @Environment(\.modelContext) private var modelContext
     @State private var picking: SpeakerIdentityService.Unidentified?
@@ -61,7 +64,7 @@ struct SpeakerIdentityBar: View {
                 excludedContacts: [],
                 prioritizedContacts: meeting.presentAttendees
             ) { contact in
-                SpeakerIdentityService.identify(
+                let relabelled = SpeakerIdentityService.identify(
                     label: speaker.label,
                     as: contact,
                     in: meeting,
@@ -69,6 +72,9 @@ struct SpeakerIdentityBar: View {
                 )
                 picking = nil
                 reload()
+                if relabelled > 0 {
+                    onIdentified?(speaker.label, contact.name)
+                }
             }
         }
     }

@@ -466,7 +466,7 @@ struct RefinementSpecPane: View {
                 RefinementSpecCard(spec: spec, showsCopy: true)
                     .opacity(review?.specIsStale == true ? 0.6 : 1)
             } else if report.isRationaleAccepted {
-                notice(
+                NoticeBanner(
                     "The rationale is accepted, but the spec hasn't been written yet.",
                     systemImage: "exclamationmark.triangle",
                     tint: .orange
@@ -474,7 +474,7 @@ struct RefinementSpecPane: View {
                     Button("Write Spec", action: onRetry).buttonStyle(.borderedProminent)
                 }
             } else {
-                notice(
+                NoticeBanner(
                     "The spec is written from the rationale once you've reviewed and accepted it — so it carries your priorities, answers and wording, and leaves out what you left out.",
                     systemImage: "lock",
                     tint: .secondary
@@ -496,7 +496,7 @@ struct RefinementSpecPane: View {
     @ViewBuilder
     private var statusBar: some View {
         if review?.specIsStale == true {
-            notice("The rationale has changed since this spec was written.", systemImage: "clock.arrow.circlepath", tint: .orange) {
+            NoticeBanner("The rationale has changed since this spec was written.", systemImage: "clock.arrow.circlepath", tint: .orange) {
                 if report.isRationaleAccepted {
                     Button("Rewrite Spec", action: onRetry).buttonStyle(.borderedProminent)
                 } else {
@@ -505,11 +505,11 @@ struct RefinementSpecPane: View {
                 }
             }
         } else if let verified = review?.specVerifiedAt {
-            notice("Verified \(verified.formatted(date: .abbreviated, time: .shortened)).", systemImage: "checkmark.seal.fill", tint: .green) {
+            NoticeBanner("Verified \(verified.formatted(date: .abbreviated, time: .shortened)).", systemImage: "checkmark.seal.fill", tint: .green) {
                 Button("Rewrite Spec", action: onRetry)
             }
         } else {
-            notice("Written from your accepted rationale. Check it says what was decided, then verify it.", systemImage: "checkmark.circle", tint: .accentColor) {
+            NoticeBanner("Written from your accepted rationale. Check it says what was decided, then verify it.", systemImage: "checkmark.circle", tint: .accentColor) {
                 Button("Rewrite", action: onRetry)
                 Button(action: onVerify) {
                     Label("Verify Spec", systemImage: "checkmark.seal")
@@ -517,24 +517,6 @@ struct RefinementSpecPane: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-    }
-
-    private func notice<Actions: View>(
-        _ text: String,
-        systemImage: String,
-        tint: Color,
-        @ViewBuilder actions: () -> Actions
-    ) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage).foregroundStyle(tint)
-            Text(text)
-                .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 8)
-            actions().controlSize(.small)
-        }
-        .padding(10)
-        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

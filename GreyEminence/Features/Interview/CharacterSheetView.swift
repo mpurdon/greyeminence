@@ -43,6 +43,9 @@ struct CharacterSheetView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(.brown.opacity(0.4), lineWidth: 1)
         )
+        // Paper in either appearance: secondary and primary text are read
+        // against the parchment, not the window.
+        .environment(\.colorScheme, .light)
     }
 
     // MARK: - Header

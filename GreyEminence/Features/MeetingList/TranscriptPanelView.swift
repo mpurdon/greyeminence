@@ -79,7 +79,15 @@ struct TranscriptPanelView: View {
             SpeakerIdentityBar(
                 meeting: meeting,
                 refreshToken: speakerIdentityRefresh,
-                onFilterSpeaker: { label in filteredSpeaker = .other(label) }
+                onFilterSpeaker: { label in filteredSpeaker = .other(label) },
+                onIdentified: { label, name in
+                    // Follow the voice to its name rather than letting the
+                    // rebuild drop a filter whose label no longer exists.
+                    if filteredSpeaker == .other(label) {
+                        filteredSpeaker = .other(name)
+                    }
+                    rebuildSegments()
+                }
             )
                 .onChange(of: meeting.segments.count) { _, _ in speakerIdentityRefresh += 1 }
             if meeting.status == .completed && !sortedSegments.isEmpty {
@@ -166,7 +174,10 @@ struct TranscriptPanelView: View {
             Text("This cannot be undone.")
         }
         .popover(isPresented: $showBulkSpeakerPicker) {
-            ContactPicker(excludedContacts: []) { contact in
+            ContactPicker(
+                excludedContacts: [],
+                prioritizedContacts: meeting.presentAttendees
+            ) { contact in
                 reassignSelectedSegments(to: .other(contact.name))
                 showBulkSpeakerPicker = false
             }
@@ -841,7 +852,7 @@ struct TranscriptPanelView: View {
                 return try await service.performFinalAnalysis(segments: snapshots, roster: roster)
             }
             if let result = finalResult {
-                target.applyAnalysisMetadata(result)
+                MeetingAnalysisRecorder.record(result, on: target)
                 let insight = MeetingInsight(
                     summary: result.summary,
                     followUpQuestions: result.followUps,

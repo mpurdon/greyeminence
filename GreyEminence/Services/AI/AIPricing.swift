@@ -45,6 +45,18 @@ struct AIPricing: Sendable, Equatable {
         return nil
     }
 
+    /// "Claude Sonnet" rather than a Bedrock inference-profile ARN, which is
+    /// what the model identifier is on an org that routes through profiles —
+    /// found by the same matching as the price family.
+    static func modelLabel(_ identifier: String, settings: TrajectorSettings? = TrajectorSettings.load()) -> String {
+        switch family(forModelIdentifier: identifier, settings: settings) {
+        case AIPricing.opus: "Claude Opus"
+        case AIPricing.sonnet: "Claude Sonnet"
+        case AIPricing.haiku: "Claude Haiku"
+        default: identifier.contains("arn:") ? "Claude via Bedrock" : identifier
+        }
+    }
+
     func cost(of usage: AIUsage) -> Double {
         let input = Double(usage.inputTokens) * inputPerMTok
         let output = Double(usage.outputTokens) * outputPerMTok

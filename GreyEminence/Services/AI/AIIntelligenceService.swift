@@ -12,18 +12,24 @@ struct SegmentSnapshot: Sendable, Codable {
     var startTime: TimeInterval = 0
 }
 
+/// Fields are `var` so a step that adjusts one (filtering action items,
+/// keeping a previous summary) copies the result and changes only that —
+/// every other field, including ones added later, flows through untouched.
 struct AnalysisResult: Sendable {
-    let title: String?
-    let summary: String          // JSON-encoded [SummarySection], or legacy "- bullet" string
-    let actionItems: [ParsedActionItem]
-    let followUps: [String]
-    let topics: [String]
+    var title: String?
+    var summary: String          // JSON-encoded [SummarySection], or legacy "- bullet" string
+    var actionItems: [ParsedActionItem]
+    var followUps: [String]
+    var topics: [String]
     /// Raw text returned by the model, kept alongside the parsed result so callers
     /// can persist it for debugging / replay. Present whenever parsing succeeded.
-    let rawResponse: String
+    var rawResponse: String
     /// Whether the meeting refined a software feature. Final pass only; nil
     /// from live passes and whenever the model left it out.
     var refinement: RefinementSignal? = nil
+    /// Flows and timelines worth drawing. Final pass only; nil when the
+    /// model left it out, [] when it found none.
+    var diagrams: [DiagramSignal]? = nil
 }
 
 /// The final analysis's judgement of whether a meeting refined features —
@@ -233,15 +239,12 @@ actor AIIntelligenceService {
         let isEmptySummary = parsed.summary.isEmpty || parsed.summary == "[]"
         guard isEmptySummary, !previousSummary.isEmpty else { return parsed }
         LogManager.send("AI returned empty summary — keeping previous accumulated state", category: .ai, level: .warning, meetingID: meetingID)
-        return AnalysisResult(
-            title: parsed.title,
-            summary: previousSummary,
-            actionItems: parsed.actionItems.isEmpty ? previousActionItems : parsed.actionItems,
-            followUps: parsed.followUps.isEmpty ? previousFollowUps : parsed.followUps,
-            topics: parsed.topics.isEmpty ? previousTopics : parsed.topics,
-            rawResponse: parsed.rawResponse,
-            refinement: parsed.refinement
-        )
+        var kept = parsed
+        kept.summary = previousSummary
+        if parsed.actionItems.isEmpty { kept.actionItems = previousActionItems }
+        if parsed.followUps.isEmpty { kept.followUps = previousFollowUps }
+        if parsed.topics.isEmpty { kept.topics = previousTopics }
+        return kept
     }
 
     /// `screenObservations` is the full session-grouped observation block for
@@ -317,15 +320,9 @@ actor AIIntelligenceService {
         let dropped = result.actionItems.count - kept.count
         guard dropped > 0 else { return result }
         LogManager.send("Dropped \(dropped) action item(s) owned by other attendees", category: .ai, meetingID: meetingID)
-        return AnalysisResult(
-            title: result.title,
-            summary: result.summary,
-            actionItems: kept,
-            followUps: result.followUps,
-            topics: result.topics,
-            rawResponse: result.rawResponse,
-            refinement: result.refinement
-        )
+        var filtered = result
+        filtered.actionItems = kept
+        return filtered
     }
 
     /// The roster used for filtering. When no attendee roster is available
@@ -402,7 +399,8 @@ actor AIIntelligenceService {
             followUps: followUps,
             topics: topics,
             rawResponse: raw,
-            refinement: RefinementSignal.parse(json["refinement"])
+            refinement: RefinementSignal.parse(json["refinement"]),
+            diagrams: DiagramSignal.parseList(json["diagrams"])
         )
     }
 }

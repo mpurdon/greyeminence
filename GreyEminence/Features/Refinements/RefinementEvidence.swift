@@ -189,6 +189,16 @@ enum RefinementPassage {
     static let followOnSeconds: TimeInterval = 20
     static let maxLines = 8
 
+    /// A meeting's transcript as lines, in order, empty ones dropped — what
+    /// passages are picked from.
+    @MainActor
+    static func lines(for meeting: Meeting) -> [Line] {
+        meeting.segments
+            .sorted { $0.startTime < $1.startTime }
+            .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map { Line(id: $0.id, startTime: $0.startTime, speaker: $0.speaker.displayName, text: $0.text) }
+    }
+
     /// `lines` must be sorted by start time.
     static func lines(for citation: RefinementCitation, in lines: [Line]) -> [Line] {
         guard !lines.isEmpty else { return [] }
