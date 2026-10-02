@@ -15,12 +15,19 @@ struct DiagramListView: View {
     private var store: DiagramStore { .shared }
     private var backfill: DiagramBackfill { .shared }
 
+    private static func topics(in meetings: [Meeting], index: DiagramIndexStore, kind: DiagramKind?) -> [DiagramTopic] {
+        var topics: [DiagramTopic] = []
+        for meeting in meetings where meeting.status == .completed && !meeting.isInterviewMeeting {
+            for signal in index.signals(for: meeting.id) where kind == nil || signal.kind == kind {
+                topics.append(DiagramTopic(meeting: meeting, signal: signal))
+            }
+        }
+        return topics
+    }
+
     var body: some View {
         let kind = DiagramKind(rawValue: kindFilter)
-        let topics = meetings
-            .filter { $0.status == .completed && !$0.isInterviewMeeting }
-            .flatMap { meeting in index.signals(for: meeting.id).map { DiagramTopic(meeting: meeting, signal: $0) } }
-            .filter { kind == nil || $0.signal.kind == kind }
+        let topics = Self.topics(in: meetings, index: index, kind: kind)
         let byMeeting = Dictionary(grouping: topics, by: \.meeting.id)
         let sections = MeetingListView.groupDateSections(for: meetings.filter { byMeeting[$0.id] != nil }, now: .now)
         VStack(spacing: 0) {

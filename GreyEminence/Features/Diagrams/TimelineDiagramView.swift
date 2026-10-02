@@ -335,10 +335,14 @@ struct TimelineRows {
 
     init(_ timeline: TimelineDiagram) {
         var counts: [String: Int] = [:]
-        let parsed = timeline.shown
-            .map { (item: $0, start: $0.startDate, due: $0.dueDate) }
+        // Spelled out step by step: as one chain, CI's compiler gave up
+        // type-checking it.
+        typealias Entry = (item: TimelineDiagram.Item, start: Date?, due: Date?)
+        func sortDate(_ entry: Entry) -> Date { entry.due ?? entry.start ?? .distantFuture }
+        let entries: [Entry] = timeline.shown.map { item in (item: item, start: item.startDate, due: item.dueDate) }
+        let parsed: [Entry] = entries
             .filter { $0.start != nil || $0.due != nil }
-            .sorted { ($0.due ?? $0.start ?? .distantFuture) < ($1.due ?? $1.start ?? .distantFuture) }
+            .sorted { sortDate($0) < sortDate($1) }
         dated = parsed.map { entry in
             counts[entry.item.name, default: 0] += 1
             let n = counts[entry.item.name] ?? 1
