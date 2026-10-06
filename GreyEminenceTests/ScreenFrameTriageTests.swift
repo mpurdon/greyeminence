@@ -532,51 +532,65 @@ final class ScreenFrameTriageTests: XCTestCase {
         ))
     }
 
-    // MARK: - Placeholder cooldown
+    // MARK: - Share lifecycle
 
-    private func candidate(_ id: CGWindowID, title: String) -> WindowCandidate {
-        WindowCandidate(
-            id: id, title: title, appName: "Microsoft Teams", bundleID: "com.microsoft.teams2",
-            frame: CGRect(x: 0, y: 0, width: 1600, height: 1000), score: 160
-        )
+    private static let content: UInt64 = 0x0F0F_0F0F_0F0F_0F0F
+    private static let otherContent: UInt64 = 0xFFFF_0000_FFFF_0000
+    private static let placeholder: UInt64 = 0x0000_0000_0000_00FF
+
+    /// Feeds frames through the gate the way the capture loop does and
+    /// returns what happened, as text.
+    private func run(_ frames: [(UInt64, Bool)], gate: inout ShareFrameGate) -> [String] {
+        frames.map { hash, isPlaceholder in
+            switch gate.precheck(hash) {
+            case .stillPlaceholder: return "skip placeholder"
+            case .unchanged: return "unchanged"
+            case .readText:
+                switch gate.decide(hash, isPlaceholder: isPlaceholder) {
+                case .placeholder(let closes): return closes ? "close" : "wait"
+                case .keep(let opens): return opens ? "open+keep" : "keep"
+                }
+            }
+        }
     }
 
-    /// Teams tears the placeholder pop-out down and puts it back between
-    /// polls. The ignore must survive the window's absence, or the next poll
-    /// adopts the replacement and the cycle repeats every few seconds.
-    private func sighting(_ id: CGWindowID, title: String, at: Date) -> ScreenShareCaptureService.PlaceholderIgnore {
-        .init(id: id, title: title, at: at)
+    /// The handover: the presenter stops, Teams shows its placeholder in the
+    /// same pop-out, and the next share appears there.
+    func testTheNextShareInTheSameWindowOpensANewShare() {
+        var gate = ShareFrameGate(threshold: 8)
+        let steps = run([
+            (Self.content, false), (Self.content, false),
+            (Self.placeholder, true), (Self.placeholder, true),
+            (Self.otherContent, false),
+        ], gate: &gate)
+        XCTAssertEqual(steps, ["open+keep", "unchanged", "close", "skip placeholder", "open+keep"])
+        XCTAssertFalse(gate.isWaitingOnPlaceholder)
     }
 
-    func testPlaceholderSightingSurvivesTheWindowVanishingDuringCooldown() {
-        let t0 = Date(timeIntervalSince1970: 1_000_000)
-        let sightings = [sighting(42, title: "Shared content | Daily | Microsoft Teams", at: t0)]
-        let live = ScreenShareCaptureService.liveSightings(sightings, candidates: [], now: t0.addingTimeInterval(30), cooldown: 60)
-        XCTAssertEqual(live.count, 1)
+    /// Re-sharing the same thing after a pause is a new share, and its first
+    /// frame is kept even though it looks like the last one.
+    func testTheSameContentSharedAgainIsKept() {
+        var gate = ShareFrameGate(threshold: 8)
+        let steps = run([(Self.content, false), (Self.placeholder, true), (Self.content, false)], gate: &gate)
+        XCTAssertEqual(steps, ["open+keep", "close", "open+keep"])
     }
 
-    func testPlaceholderSightingIsDroppedAfterCooldownOnceTheWindowIsGone() {
-        let t0 = Date(timeIntervalSince1970: 1_000_000)
-        let title = "Shared content | Daily | Microsoft Teams"
-        let sightings = [sighting(42, title: title, at: t0)]
-        let later = t0.addingTimeInterval(61)
-        XCTAssertTrue(ScreenShareCaptureService.liveSightings(sightings, candidates: [], now: later, cooldown: 60).isEmpty)
-        XCTAssertEqual(
-            ScreenShareCaptureService.liveSightings(sightings, candidates: [candidate(42, title: title)], now: later, cooldown: 60).count,
-            1, "still there under the same title — still the placeholder"
-        )
-        XCTAssertTrue(
-            ScreenShareCaptureService.liveSightings(sightings, candidates: [candidate(42, title: "Shared content | Other")], now: later, cooldown: 60).isEmpty,
-            "retitled — re-evaluate"
-        )
+    /// Teams rebuilding a pop-out that only shows the placeholder: each new
+    /// window starts from a reset gate, and none of them opens a share.
+    func testAPlaceholderOnlyWindowNeverOpensAShare() {
+        for _ in 0..<15 {
+            var gate = ShareFrameGate(threshold: 8)
+            let steps = run([(Self.placeholder, true), (Self.placeholder, true)], gate: &gate)
+            XCTAssertEqual(steps, ["wait", "skip placeholder"])
+            XCTAssertTrue(gate.isWaitingOnPlaceholder, "checked often until content shows")
+        }
     }
 
-    /// The replacement window has a fresh ID; the title is what carries over.
-    func testAReplacementWindowWithTheSameTitleIsSuppressed() {
-        let title = "Shared content | Daily | Microsoft Teams"
-        let sightings = [sighting(42, title: title, at: Date())]
-        XCTAssertTrue(ScreenShareCaptureService.isSuppressed(candidate(43, title: title), by: sightings), "new id, same title")
-        XCTAssertFalse(ScreenShareCaptureService.isSuppressed(candidate(43, title: "Shared content | Other"), by: sightings))
-        XCTAssertTrue(ScreenShareCaptureService.isSuppressed(candidate(42, title: "anything"), by: sightings), "same id")
+    func testTeamsNotificationCenterIsNeverACandidate() {
+        XCTAssertTrue(ScreenShareCaptureService.isNotificationSurface(
+            appName: "Microsoft Teams (Notification Center)", bundleID: "com.microsoft.teams2.notificationcenter"
+        ))
+        XCTAssertTrue(ScreenShareCaptureService.isNotificationSurface(appName: "Microsoft Teams (Notification Center)", bundleID: ""))
+        XCTAssertFalse(ScreenShareCaptureService.isNotificationSurface(appName: "Microsoft Teams", bundleID: "com.microsoft.teams2"))
     }
 }

@@ -70,6 +70,84 @@ enum ScreenCaptureEvent: Sendable {
     case candidatesChanged([WindowCandidate])
 }
 
+// MARK: - Frame gate
+
+/// What happens to each screenshot of the watched window — pure, so the
+/// share lifecycle is testable without ScreenCaptureKit.
+///
+/// A share is content, not a window: watching a window opens nothing, the
+/// first frame of real content opens a share, and the app's "sharing has
+/// ended" placeholder closes it. The placeholder is skipped, never captured,
+/// and the window stays watched — presenters stop to share something else
+/// or to hand over, and the next share often lands in the same pop-out.
+struct ShareFrameGate: Equatable, Sendable {
+    enum Step: Equatable, Sendable {
+        /// The placeholder seen before, by image alone — no OCR needed.
+        case stillPlaceholder
+        /// Too like the last kept frame to keep.
+        case unchanged
+        /// Read the text, then call `decide`.
+        case readText
+    }
+
+    enum Outcome: Equatable, Sendable {
+        /// The placeholder: drop the frame; `closesShare` when a share was open.
+        case placeholder(closesShare: Bool)
+        /// Content: keep the frame; `opensShare` when it starts a new share.
+        case keep(opensShare: Bool)
+    }
+
+    let threshold: Int
+    private(set) var shareOpen = false
+    private(set) var lastKeptHash: UInt64?
+    /// The placeholder's image while it's showing, so the wait for the next
+    /// share costs a screenshot and a hash, not OCR.
+    private(set) var placeholderHash: UInt64?
+
+    init(threshold: Int) { self.threshold = threshold }
+
+    /// Waiting on a placeholder: check often so a new share is caught fast.
+    var isWaitingOnPlaceholder: Bool { placeholderHash != nil }
+
+    func precheck(_ hash: UInt64) -> Step {
+        if let placeholderHash, ScreenFrameTriage.hammingDistance(hash, placeholderHash) < threshold {
+            return .stillPlaceholder
+        }
+        if shareOpen, !ScreenFrameTriage.shouldKeep(hash: hash, lastKeptHash: lastKeptHash, threshold: threshold) {
+            return .unchanged
+        }
+        return .readText
+    }
+
+    mutating func decide(_ hash: UInt64, isPlaceholder: Bool) -> Outcome {
+        if isPlaceholder {
+            placeholderHash = hash
+            let closes = shareOpen
+            shareOpen = false
+            lastKeptHash = nil
+            return .placeholder(closesShare: closes)
+        }
+        placeholderHash = nil
+        let opens = !shareOpen
+        shareOpen = true
+        lastKeptHash = hash
+        return .keep(opensShare: opens)
+    }
+
+    /// A different window, or none: nothing is open or remembered.
+    mutating func reset() {
+        shareOpen = false
+        lastKeptHash = nil
+        placeholderHash = nil
+    }
+
+    /// The share closed for another reason (the window went, the cap).
+    mutating func closeShare() {
+        shareOpen = false
+        lastKeptHash = nil
+    }
+}
+
 // MARK: - Capture service
 
 /// Watches for a popped-out Teams screen-share window during a recording and
@@ -101,6 +179,9 @@ actor ScreenShareCaptureService {
     }
 
     private static let discoveryInterval: Double = 3.0
+    /// How often the watched window is checked while it shows the
+    /// placeholder — the gap between one share and the next.
+    static let placeholderCheckInterval: Double = 3.0
     /// Consecutive failed polls before the session is declared over
     /// (~6–10s grace for compositor hiccups and brief occlusion).
     private static let missedPollLimit = 2
@@ -117,40 +198,22 @@ actor ScreenShareCaptureService {
 
     /// Manual picker override; wins over auto-detect. `nil` = auto.
     private var manualWindowID: CGWindowID?
+    /// The window being watched. A share (`currentSessionID`) is open only
+    /// while it shows content — see `ShareFrameGate`.
     private var currentWindowID: CGWindowID?
+    private var currentWindowCandidate: WindowCandidate?
     private var currentSessionID: UUID?
     private var currentWindowTitle: String = ""
-    /// Profile of the app owning the session's window, so share-ended
+    /// Profile of the app owning the watched window, so share-ended
     /// detection uses that app's placeholder wording.
     private var currentProfile: ShareAppProfile?
+    private var gate = ShareFrameGate(threshold: ScreenShareSettings.defaultChangeThreshold)
     private var sequence = 0
-    private var lastKeptHash: UInt64?
     private var lastKeptOCR: String?
     private var keptCount = 0
     private var missedPolls = 0
     private var lastCaptureAt: Date?
     private var lastReportedCandidateIDs: [CGWindowID] = []
-    /// Placeholder sightings: each is "window `id` titled `title` showed the
-    /// share-ended placeholder at `at`". Auto-detect skips a candidate that
-    /// matches one for at least `placeholderCooldown` — matched on *either*
-    /// id or title, because Teams tears the pop-out down and puts it back
-    /// between polls under a fresh window id, and an id-only ignore was
-    /// pruned the moment the window blinked out (15 sessions in 50 s on
-    /// 2026-09-14, the UI flipping capturing/watching throughout). After the
-    /// cooldown a sighting survives only while its exact window+title is
-    /// still on screen. Manual selection always overrides.
-    private var placeholderSightings: [PlaceholderIgnore] = []
-
-    struct PlaceholderIgnore: Equatable, Sendable {
-        let id: CGWindowID
-        let title: String
-        let at: Date
-    }
-
-    /// How long a window or title that showed the placeholder stays out of
-    /// auto-detect no matter what the window server does with the window.
-    static let placeholderCooldown: TimeInterval = 60
-
     // MARK: Lifecycle
 
     func start(meetingID: UUID, config: Config) -> AsyncStream<ScreenCaptureEvent> {
@@ -162,7 +225,7 @@ actor ScreenShareCaptureService {
         self.frameCapReached = false
         self.manualWindowID = nil
         self.keptCount = 0
-        self.placeholderSightings = []
+        self.gate = ShareFrameGate(threshold: config.changeThreshold)
 
         let (stream, continuation) = AsyncStream.makeStream(of: ScreenCaptureEvent.self)
         self.continuation = continuation
@@ -188,19 +251,15 @@ actor ScreenShareCaptureService {
     /// Manual window selection from the picker. `nil` returns to auto-detect.
     func selectWindow(_ windowID: CGWindowID?) {
         manualWindowID = windowID
-        if let windowID {
-            // The user insisting on a window beats the placeholder ignore.
-            placeholderSightings.removeAll { $0.id == windowID }
-        }
         LogManager.send(
             windowID.map { "Manual window selected (id \($0))" } ?? "Returned to auto-detect",
             category: .screen,
             meetingID: meetingID
         )
-        // Force re-evaluation: end the current session so the next poll
-        // starts one on the newly selected window.
-        if let sessionID = currentSessionID, windowID != currentWindowID {
-            endSession(sessionID, reason: .windowGone)
+        // Force re-evaluation: let go of the current window so the next
+        // poll watches the newly selected one.
+        if windowID != currentWindowID {
+            detach(reason: .windowGone)
         }
     }
 
@@ -227,9 +286,7 @@ actor ScreenShareCaptureService {
     }
 
     private func stopInternal(reason: SessionEndReason) {
-        if let sessionID = currentSessionID {
-            endSession(sessionID, reason: reason)
-        }
+        detach(reason: reason)
         loopTask?.cancel()
         loopTask = nil
         continuation?.finish()
@@ -251,8 +308,9 @@ actor ScreenShareCaptureService {
                     lastDiscoveryAt = now
                     await discoverWindow()
                 }
+                let interval = gate.isWaitingOnPlaceholder ? Self.placeholderCheckInterval : config.intervalSeconds
                 if currentWindowID != nil,
-                   now.timeIntervalSince(lastCaptureAt ?? .distantPast) >= config.intervalSeconds {
+                   now.timeIntervalSince(lastCaptureAt ?? .distantPast) >= interval {
                     lastCaptureAt = now
                     await captureFrame()
                 }
@@ -285,15 +343,12 @@ actor ScreenShareCaptureService {
         )
         reportCandidatesIfChanged(candidates)
 
-        let now = Date()
-        placeholderSightings = Self.liveSightings(placeholderSightings, candidates: candidates, now: now)
-
         let selected: WindowCandidate?
         if let manualID = manualWindowID {
             selected = candidates.first { $0.id == manualID }
         } else if config.autoDetect {
             selected = candidates
-                .filter { $0.score >= 100 && !Self.isSuppressed($0, by: placeholderSightings) }
+                .filter { $0.score >= 100 }
                 .max { $0.score < $1.score }
         } else {
             selected = nil
@@ -302,66 +357,58 @@ actor ScreenShareCaptureService {
         if let selected {
             missedPolls = 0
             if selected.id != currentWindowID {
-                if let sessionID = currentSessionID {
-                    endSession(sessionID, reason: .windowGone)
-                }
-                startSession(with: selected)
+                detach(reason: .windowGone)
+                attach(to: selected)
             }
         } else if currentWindowID != nil {
             missedPolls += 1
-            if missedPolls >= Self.missedPollLimit, let sessionID = currentSessionID {
-                endSession(sessionID, reason: .windowGone)
+            if missedPolls >= Self.missedPollLimit {
+                detach(reason: .windowGone)
             }
         }
-    }
-
-    /// The sightings still worth keeping. Inside the cooldown, all of them —
-    /// the window blinking out of the list is exactly the case the cooldown
-    /// exists for. After it, only those whose exact window+title is still on
-    /// screen; a closed or retitled window is no longer the screen that was
-    /// blacklisted.
-    static func liveSightings(
-        _ sightings: [PlaceholderIgnore],
-        candidates: [WindowCandidate],
-        now: Date,
-        cooldown: TimeInterval = placeholderCooldown
-    ) -> [PlaceholderIgnore] {
-        sightings.filter { sighting in
-            if now.timeIntervalSince(sighting.at) < cooldown { return true }
-            return candidates.contains { $0.id == sighting.id && $0.title == sighting.title }
-        }
-    }
-
-    /// A candidate auto-detect must leave alone: within the cooldown a
-    /// sighting suppresses any candidate sharing its window id or its title
-    /// (the pop-out reappears under a new id but the same title); after the
-    /// cooldown `liveSightings` has already dropped the stale ones, so an
-    /// id-or-title match still means "this is the placeholder".
-    static func isSuppressed(_ candidate: WindowCandidate, by sightings: [PlaceholderIgnore]) -> Bool {
-        sightings.contains { $0.id == candidate.id || $0.title == candidate.title }
     }
 
     private func handleDiscoveryFailure(_ error: Error) {
         guard !permissionDenied else { return }
         permissionDenied = true
-        if let sessionID = currentSessionID {
-            endSession(sessionID, reason: .windowGone)
-        }
+        detach(reason: .windowGone)
         continuation?.yield(.permissionDenied)
         LogManager.send("Screen-share capture disabled: \(error.localizedDescription)", category: .screen, level: .warning, meetingID: meetingID)
     }
 
-    private func startSession(with candidate: WindowCandidate) {
-        let sessionID = UUID()
-        currentSessionID = sessionID
+    /// Watch a window. Nothing is announced: a share opens on its first
+    /// frame of content, so a pop-out that only ever shows the placeholder —
+    /// Teams tears it down and rebuilds it under new ids — opens nothing.
+    private func attach(to candidate: WindowCandidate) {
         currentWindowID = candidate.id
+        currentWindowCandidate = candidate
         currentWindowTitle = candidate.title
         currentProfile = ShareAppProfiles.profile(for: candidate.bundleID)
-        sequence = 0
-        lastKeptHash = nil
-        lastKeptOCR = nil
+        gate.reset()
         missedPolls = 0
-        lastCaptureAt = nil  // capture immediately on the next tick
+        lastCaptureAt = nil  // look at it on the next tick
+        LogManager.send("Watching window \"\(candidate.title)\" (\(candidate.appName), window \(candidate.id))", category: .screen, meetingID: meetingID)
+    }
+
+    /// Stop watching the window, closing its share if one is open.
+    private func detach(reason: SessionEndReason) {
+        if let sessionID = currentSessionID {
+            endSession(sessionID, reason: reason)
+        }
+        currentWindowID = nil
+        currentWindowCandidate = nil
+        currentWindowTitle = ""
+        currentProfile = nil
+        missedPolls = 0
+        gate.reset()
+    }
+
+    private func startSession() {
+        guard let candidate = currentWindowCandidate else { return }
+        let sessionID = UUID()
+        currentSessionID = sessionID
+        sequence = 0
+        lastKeptOCR = nil
         continuation?.yield(.sessionStarted(
             sessionID: sessionID,
             windowTitle: candidate.title,
@@ -370,12 +417,11 @@ actor ScreenShareCaptureService {
         LogManager.send("Share session started: \"\(candidate.title)\" (\(candidate.appName), window \(candidate.id))", category: .screen, meetingID: meetingID)
     }
 
+    /// Close the open share; the window stays watched unless `detach` is
+    /// what called this.
     private func endSession(_ sessionID: UUID, reason: SessionEndReason) {
         currentSessionID = nil
-        currentWindowID = nil
-        currentWindowTitle = ""
-        currentProfile = nil
-        missedPolls = 0
+        gate.closeShare()
         continuation?.yield(.sessionEnded(sessionID: sessionID, reason: reason))
         LogManager.send("Screen capture stopped: \(reason.logReason)", category: .screen, meetingID: meetingID)
     }
@@ -429,6 +475,7 @@ actor ScreenShareCaptureService {
             guard window.isOnScreen, window.windowLayer >= 0 else { return nil }
             // Windows failing the size floor are never candidates at all.
             guard window.frame.width >= 300, window.frame.height >= 200 else { return nil }
+            guard !isNotificationSurface(appName: app.applicationName, bundleID: app.bundleIdentifier) else { return nil }
             return (window, app)
         }
 
@@ -458,6 +505,14 @@ actor ScreenShareCaptureService {
                 windowLayer: window.windowLayer
             )
         }
+    }
+
+    /// Teams posts its toasts from a helper — "Microsoft Teams (Notification
+    /// Center)" — whose window, titled just "Window", scored as a share and
+    /// was captured for a minute at the start of most meetings.
+    static func isNotificationSurface(appName: String, bundleID: String) -> Bool {
+        appName.localizedCaseInsensitiveContains("notification center")
+            || bundleID.lowercased().contains("notificationcenter")
     }
 
     /// Heuristic score for "is this window the shared content".
@@ -523,9 +578,7 @@ actor ScreenShareCaptureService {
     // MARK: Capture
 
     private func captureFrame() async {
-        guard let windowID = currentWindowID,
-              let sessionID = currentSessionID,
-              let meetingID else { return }
+        guard let windowID = currentWindowID, let meetingID else { return }
 
         // Fresh SCWindow each time — stale references go invalid when the
         // window server recycles state.
@@ -533,7 +586,7 @@ actor ScreenShareCaptureService {
               let window = content.windows.first(where: { $0.windowID == windowID }) else {
             missedPolls += 1
             if missedPolls >= Self.missedPollLimit {
-                endSession(sessionID, reason: .windowGone)
+                detach(reason: .windowGone)
             }
             return
         }
@@ -558,18 +611,23 @@ actor ScreenShareCaptureService {
             missedPolls += 1
             LogManager.send("Frame capture failed: \(error.localizedDescription)", category: .screen, level: .warning, meetingID: meetingID)
             if missedPolls >= Self.missedPollLimit {
-                endSession(sessionID, reason: .windowGone)
+                detach(reason: .windowGone)
             }
             return
         }
         missedPolls = 0
 
         let hash = ScreenFrameTriage.dHash(image)
-        let distance = lastKeptHash.map { ScreenFrameTriage.hammingDistance(hash, $0) }
-        guard ScreenFrameTriage.shouldKeep(hash: hash, lastKeptHash: lastKeptHash, threshold: config.changeThreshold) else {
-            continuation?.yield(.frameDropped(sessionID: sessionID))
+        let distance = gate.lastKeptHash.map { ScreenFrameTriage.hammingDistance(hash, $0) }
+        switch gate.precheck(hash) {
+        case .stillPlaceholder:
+            return
+        case .unchanged:
+            if let sessionID = currentSessionID { continuation?.yield(.frameDropped(sessionID: sessionID)) }
             LogManager.send("Frame dropped: unchanged (Δ\(distance ?? 0) < \(config.changeThreshold))", category: .screen, meetingID: meetingID)
             return
+        case .readText:
+            break
         }
 
         var ocrText: String?
@@ -578,23 +636,34 @@ actor ScreenShareCaptureService {
         } catch {
             LogManager.send("Frame OCR failed (keeping frame without text): \(error.localizedDescription)", category: .screen, level: .warning, meetingID: meetingID)
         }
+        // The window may have changed while OCR ran.
+        guard windowID == currentWindowID else { return }
 
-        // Teams leaves a "Content sharing has ended" placeholder in the
-        // pop-out after the presenter stops. That's the end of the share,
-        // not content: drop the frame, close the session, and ignore this
-        // window until it closes or its title changes.
-        if ScreenFrameTriage.isShareEndedPlaceholder(
+        // The app's "sharing has ended" placeholder is never content. It
+        // closes the share, but the window stays watched: the next
+        // presenter, or the next thing shared, often lands in the same
+        // pop-out, and it's checked every few seconds until it does.
+        let wasOpen = currentSessionID
+        let isPlaceholder = ScreenFrameTriage.isShareEndedPlaceholder(
             ocrText: ocrText,
             phrases: currentProfile?.shareEndedPhrases ?? ScreenFrameTriage.shareEndedPhrases
-        ) {
-            placeholderSightings.append(PlaceholderIgnore(id: windowID, title: currentWindowTitle, at: Date()))
-            continuation?.yield(.frameDropped(sessionID: sessionID))
-            LogManager.send("Share-ended placeholder detected (\"\(currentWindowTitle)\", window \(windowID)) — frame dropped, session closed, not re-adopting this window or title for \(Int(Self.placeholderCooldown))s", category: .screen, meetingID: meetingID)
-            endSession(sessionID, reason: .shareEnded)
+        )
+        switch gate.decide(hash, isPlaceholder: isPlaceholder) {
+        case .placeholder(let closesShare):
+            if closesShare, let sessionID = wasOpen {
+                continuation?.yield(.frameDropped(sessionID: sessionID))
+                LogManager.send("Share-ended placeholder in \"\(currentWindowTitle)\" (window \(windowID)) — share closed, frame dropped, still watching the window for the next share", category: .screen, meetingID: meetingID)
+                endSession(sessionID, reason: .shareEnded)
+            } else {
+                LogManager.send("Placeholder showing in \"\(currentWindowTitle)\" (window \(windowID)) — waiting for content", category: .screen, meetingID: meetingID)
+            }
             return
+        case .keep(let opensShare):
+            if opensShare { startSession() }
         }
+        guard let sessionID = currentSessionID else { return }
 
-        let visualOnly = lastKeptHash != nil
+        let visualOnly = sequence > 0
             && ScreenFrameTriage.isVisualOnlyChange(previousOCR: lastKeptOCR, currentOCR: ocrText)
 
         guard let jpeg = Self.encodeJPEG(image, quality: config.jpegQuality) else {
@@ -626,7 +695,6 @@ actor ScreenShareCaptureService {
         )
         sequence += 1
         keptCount += 1
-        lastKeptHash = hash
         lastKeptOCR = ocrText
         continuation?.yield(.frameKept(frame))
         LogManager.send(
@@ -637,7 +705,7 @@ actor ScreenShareCaptureService {
 
         if keptCount >= config.maxKeptFrames {
             frameCapReached = true
-            endSession(sessionID, reason: .capReached)
+            detach(reason: .capReached)
             LogManager.send("Frame cap reached (\(keptCount)) — capture stopped for this recording", category: .screen, level: .warning, meetingID: meetingID)
         }
     }

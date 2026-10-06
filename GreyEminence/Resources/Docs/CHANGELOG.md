@@ -4,6 +4,22 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.54.1 — 2026-10-06
+
+**Screen-share capture keeps going after a share ends**
+- When a presenter stops sharing — to share something else, or to hand
+  over — Teams shows "Content sharing has ended" in the pop-out. That
+  screen is skipped, never captured, and the window stays watched,
+  checked every 3 seconds, so the next share in it is picked up within
+  seconds as a new share with its own recap. Since 0.23.5 the placeholder
+  shut the window out for the rest of the meeting, because Teams keeps the
+  same pop-out and title, and every share after the first was lost.
+- A share now starts on its first frame of content, not when a likely
+  window appears, so a pop-out that only ever shows the placeholder opens
+  nothing however often Teams rebuilds it.
+- Teams' notification pop-ups ("Microsoft Teams (Notification Center)")
+  are no longer captured as a share at the start of meetings.
+
 ## 0.54.0 — 2026-10-02
 
 **Dark mode**
