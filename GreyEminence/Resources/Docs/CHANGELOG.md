@@ -4,6 +4,16 @@ All notable changes are listed here, newest first. Recent releases have
 full detail; older ones are summarized. The version number tracks
 `MARKETING_VERSION` in `project.yml`.
 
+## 0.54.2 — 2026-10-09
+
+**Screen-share capture no longer grabs the Teams meeting window**
+- A Teams update stopped suffixing its windows "| Microsoft Teams", so
+  the meeting window — now titled with just the meeting's name — read as
+  a shared-content pop-out and was captured. Teams windows now
+  auto-capture only on a share title ("Shared content | …", "… is
+  presenting"), which the pop-out has always carried; any other Teams
+  window can still be picked by hand.
+
 ## 0.54.1 — 2026-10-06
 
 **Screen-share capture keeps going after a share ends**

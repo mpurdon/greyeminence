@@ -42,6 +42,11 @@ struct ShareAppProfile: Sendable, Equatable {
     /// a whole display is likely the share.
     var fullscreenIsShare: Bool = false
 
+    /// A window of this app with an unfamiliar title — not its chrome, not a
+    /// known share title — is probably the share. Only sound while the app
+    /// brands every chrome window; Teams stopped doing that (2026-10-09).
+    var unbrandedTitleIsShare: Bool = true
+
     /// Shown in the picker and settings to explain how to get a clean capture.
     let popOutHint: String
 }
@@ -64,8 +69,18 @@ enum ShareAppProfiles {
         mainWindowPatterns: [
             "| microsoft teams",
             "microsoft teams",
+            "chat |",
+            "calendar |",
+            "activity |",
         ],
+        mainWindowExactTitles: ["chat", "calendar", "activity", "calls", "teams", "onedrive", "apps"],
         shareEndedPhrases: ScreenFrameTriage.shareEndedPhrases,
+        // Since a Teams update on 2026-10-09 its windows are no longer
+        // suffixed "| Microsoft Teams": the meeting window is titled with
+        // just the meeting's name, so an unfamiliar title is no longer a
+        // share. Only the share titles above auto-capture; the pop-out has
+        // always carried one ("Shared content | …").
+        unbrandedTitleIsShare: false,
         popOutHint: "Pop out the shared content in Teams for the cleanest capture."
     )
 

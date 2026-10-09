@@ -272,14 +272,28 @@ final class ScreenFrameTriageTests: XCTestCase {
         XCTAssertLessThan(score, 100)    // but never auto-captured
     }
 
-    func testUnbrandedTeamsWindowIsAutoSelectable() {
-        // The pop-out often carries just the shared content's name.
-        let score = ScreenShareCaptureService.scoreWindow(
-            title: "Q3 Roadmap.pptx",
-            bundleID: "com.microsoft.teams2",
-            frame: CGRect(x: 0, y: 0, width: 1400, height: 900)
-        )
-        XCTAssertGreaterThanOrEqual(score, 100)
+    /// Teams dropped the "| Microsoft Teams" suffix on 2026-10-09: the main
+    /// meeting window is titled with the meeting's name alone and was
+    /// captured as the share. Unfamiliar Teams titles stay picker-only.
+    func testUnbrandedTeamsWindowsAreNotAutoCaptured() {
+        for title in ["First Team -- Weekly", "Matt and Walter design things on a Friday", "Chat | Teancum Besendorfer", "Calendar", "Q3 Roadmap.pptx"] {
+            let score = ScreenShareCaptureService.scoreWindow(
+                title: title,
+                bundleID: "com.microsoft.teams2",
+                frame: CGRect(x: 0, y: 0, width: 1700, height: 1100),
+                context: .init(sameAppWindowCount: 2)
+            )
+            XCTAssertGreaterThan(score, 0, title)
+            XCTAssertLessThan(score, 100, "\(title) must not be auto-captured")
+        }
+    }
+
+    func testTeamsSharedContentStillAutoCapturesWithoutTheSuffix() {
+        for title in ["Shared content | First Team -- Weekly", "Shared content | Architecture Team Weekly | Microsoft Teams"] {
+            XCTAssertGreaterThanOrEqual(ScreenShareCaptureService.scoreWindow(
+                title: title, bundleID: "com.microsoft.teams2", frame: CGRect(x: 0, y: 0, width: 1700, height: 1100)
+            ), 100, title)
+        }
     }
 
     func testNonTeamsWindowScoresZero() {

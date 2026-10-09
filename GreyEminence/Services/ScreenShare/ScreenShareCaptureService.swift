@@ -556,12 +556,13 @@ actor ScreenShareCaptureService {
             // The main meeting/chat window, or an untitled window (overlays,
             // placeholders) — plausible for the picker, never auto-selected.
             score -= 40
-        } else {
+        } else if profile.unbrandedTitleIsShare {
             // Known app with an unrecognized real title: the pop-out content
             // window often carries just the shared app/monitor name, so an
             // unbranded title is itself a share signal.
             score += 40
         }
+        // Otherwise plausible for the picker, never auto-captured.
         return score
     }
 
