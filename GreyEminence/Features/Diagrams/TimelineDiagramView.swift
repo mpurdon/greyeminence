@@ -3,8 +3,10 @@ import SwiftUI
 /// Deliverables as a Gantt chart: names and owners in a column on the
 /// left, each on its own row across a real date axis — a bar from start to
 /// due, a dot for a due date alone, a diamond for a milestone. Estimated
-/// dates — resolved from "next Friday" — are drawn lighter. The meeting and
-/// today are marked; undated items are listed below, to date or ignore.
+/// dates — resolved from "next Friday" — are drawn lighter. Times the
+/// meeting gave ("3pm IST") place marks within the day, on an hourly axis.
+/// The meeting and today are marked; undated items are listed below, to
+/// date or ignore.
 struct TimelineDiagramView: View {
     let timeline: TimelineDiagram
     let meetingDate: Date
@@ -105,7 +107,7 @@ struct TimelineDiagramView: View {
 }
 
 /// The dated rows: a label column, then a track where x is the date.
-private struct GanttChart: View {
+struct GanttChart: View {
     let rows: TimelineRows
     let domain: ClosedRange<Date>
     let meetingDate: Date
@@ -129,12 +131,12 @@ private struct GanttChart: View {
                     rowBackground(row, index: index, width: geo.size.width)
                 }
                 // Gridlines and date labels.
-                ForEach(Self.ticks(in: domain, width: track), id: \.self) { tick in
+                ForEach(Self.ticks(in: domain, width: track, hours: rows.hasTimes), id: \.self) { tick in
                     Rectangle()
                         .fill(Color.secondary.opacity(0.15))
                         .frame(width: 1, height: bodyHeight)
                         .offset(x: x(tick), y: axisHeight)
-                    Text(tick.formatted(.dateTime.month(.abbreviated).day()))
+                    Text(Self.tickLabel(tick))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .fixedSize()
@@ -146,7 +148,7 @@ private struct GanttChart: View {
                 }
                 // Marks.
                 ForEach(Array(rows.dated.enumerated()), id: \.element.item.id) { index, row in
-                    mark(row, x: x)
+                    mark(row, x: x, width: geo.size.width)
                         .frame(height: rowHeight)
                         .offset(y: axisHeight + CGFloat(index) * rowHeight)
                         .allowsHitTesting(false)
@@ -186,49 +188,75 @@ private struct GanttChart: View {
         .offset(y: axisHeight + CGFloat(index) * rowHeight)
     }
 
+    /// The date sits right of its mark; where that would run off the chart
+    /// — a late bar with a long label, in a fixed-width export — it sits
+    /// left of the mark instead.
     @ViewBuilder
-    private func mark(_ row: TimelineRows.Row, x: (Date) -> CGFloat) -> some View {
+    private func mark(_ row: TimelineRows.Row, x: (Date) -> CGFloat, width: CGFloat) -> some View {
         let item = row.item
         let isSelected = item.id == selectedItemID
         let tint = isSelected ? Color.accentColor : (item.isMilestone == true ? Color.purple : Color.teal)
         let opacity = item.isEstimated ? 0.5 : 0.9
-        let label = Text(dateLabel(item, row))
+        let text = dateLabel(item, row)
+        let label = Text(text)
             .font(.caption2)
             .foregroundStyle(.secondary)
             .fixedSize()
-        if let start = row.start, let due = row.due, start < due {
-            HStack(spacing: 6) {
+        let isBar = row.start.flatMap { start in row.due.map { start < $0 } } ?? false
+        let shape = Group {
+            if isBar, let start = row.start, let due = row.due {
                 Capsule()
                     .fill(tint.opacity(opacity))
                     .frame(width: max(x(due) - x(start), 8), height: 12)
-                label
+            } else if item.isMilestone == true {
+                Diamond().fill(tint.opacity(opacity)).frame(width: 14, height: 14)
+            } else {
+                Circle().fill(tint.opacity(opacity)).frame(width: 12, height: 12).frame(width: 14)
             }
-            .offset(x: x(start))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        } else if let day = row.due ?? row.start {
-            HStack(spacing: 6) {
-                Group {
-                    if item.isMilestone == true {
-                        Diamond().fill(tint.opacity(opacity)).frame(width: 14, height: 14)
-                    } else {
-                        Circle().fill(tint.opacity(opacity)).frame(width: 12, height: 12)
-                    }
+        }
+        if let first = isBar ? row.start : (row.due ?? row.start) {
+            let left = isBar ? x(first) : x(first) - 7
+            let right = isBar ? max(x(row.due ?? first), left + 8) : left + 14
+            let flips = Self.labelFlips(text, markLeft: left, markRight: right, chartWidth: width)
+            if flips {
+                // Ends at the mark's right edge, whatever the label measures.
+                HStack(spacing: 6) {
+                    label
+                    shape
                 }
-                .frame(width: 14)
-                label
+                .frame(width: right, alignment: .trailing)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            } else {
+                HStack(spacing: 6) {
+                    shape
+                    label
+                }
+                .offset(x: left)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-            .offset(x: x(day) - 7)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
 
+    /// Left of the mark when the label would run off the right edge and
+    /// fits between the name column and the mark. Its width is estimated,
+    /// a little generously, rather than measured.
+    static func labelFlips(_ text: String, markLeft: CGFloat, markRight: CGFloat, chartWidth: CGFloat) -> Bool {
+        let width = CGFloat(text.count) * 6 + 4
+        return markRight + 6 + width > chartWidth && markLeft - 6 - width >= TimelineDiagramView.labelWidth
+    }
+
     private func dateLabel(_ item: TimelineDiagram.Item, _ row: TimelineRows.Row) -> String {
-        let format: (Date) -> String = { $0.formatted(.dateTime.month(.abbreviated).day()) }
         var text: String
         if let start = row.start, let due = row.due, start < due {
-            text = "\(format(start)) – \(format(due))"
+            let sameDay = Calendar.current.isDate(start, inSameDayAs: due)
+            let end = sameDay && row.dueHasTime
+                ? due.formatted(date: .omitted, time: .shortened)
+                : TimelineRows.format(due, withTime: row.dueHasTime)
+            text = "\(TimelineRows.format(start, withTime: row.startHasTime)) – \(end)"
+        } else if let due = row.due {
+            text = TimelineRows.format(due, withTime: row.dueHasTime)
         } else {
-            text = (row.due ?? row.start).map(format) ?? ""
+            text = row.start.map { TimelineRows.format($0, withTime: row.startHasTime) } ?? ""
         }
         if item.isEstimated { text += " (est.)" }
         return text
@@ -252,11 +280,33 @@ private struct GanttChart: View {
         .allowsHitTesting(false)
     }
 
-    /// Day, week or month gridlines, whichever leaves room for the labels.
-    static func ticks(in domain: ClosedRange<Date>, width: CGFloat) -> [Date] {
+    /// Midnight shows the day; any other tick, the hour.
+    static func tickLabel(_ tick: Date) -> String {
+        tick == Calendar.current.startOfDay(for: tick)
+            ? tick.formatted(.dateTime.month(.abbreviated).day())
+            : tick.formatted(.dateTime.hour())
+    }
+
+    /// Hour, day, week or month gridlines, whichever leaves room for the
+    /// labels; hours only when the timeline gave times.
+    static func ticks(in domain: ClosedRange<Date>, width: CGFloat, hours: Bool = false) -> [Date] {
         let calendar = Calendar.current
-        let days = max(domain.upperBound.timeIntervalSince(domain.lowerBound) / 86_400, 1)
         let room = Double(max(width / 64, 1))
+        let spanHours = domain.upperBound.timeIntervalSince(domain.lowerBound) / 3_600
+        if hours, let step = [1, 2, 3, 6, 12].first(where: { spanHours / Double($0) <= room }) {
+            // On the hour, at multiples of the step from midnight.
+            var tick = calendar.dateInterval(of: .hour, for: domain.lowerBound)?.end ?? domain.lowerBound
+            while calendar.component(.hour, from: tick) % step != 0 {
+                tick = calendar.date(byAdding: .hour, value: 1, to: tick) ?? domain.upperBound
+            }
+            var ticks: [Date] = []
+            while tick < domain.upperBound {
+                ticks.append(tick)
+                tick = calendar.date(byAdding: .hour, value: step, to: tick) ?? domain.upperBound
+            }
+            return ticks
+        }
+        let days = max(spanHours / 24, 1)
         guard let first = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: domain.lowerBound)) else { return [] }
         if days / 30 > room {
             var month = calendar.dateInterval(of: .month, for: domain.lowerBound)?.end ?? first
@@ -329,17 +379,29 @@ struct TimelineRows {
         /// Parsed once here; the chart reads them on every render.
         let start: Date?
         let due: Date?
+        var startHasTime: Bool { item.start.map(TimelineDiagram.hasTime) ?? false }
+        var dueHasTime: Bool { item.due.map(TimelineDiagram.hasTime) ?? false }
     }
 
     let dated: [Row]
+    /// Some item gave a time of day: the axis runs in hours.
+    let hasTimes: Bool
 
     init(_ timeline: TimelineDiagram) {
         var counts: [String: Int] = [:]
+        let hasTimes = timeline.shown.contains { $0.hasTime }
+        self.hasTimes = hasTimes
         // Spelled out step by step: as one chain, CI's compiler gave up
         // type-checking it.
         typealias Entry = (item: TimelineDiagram.Item, start: Date?, due: Date?)
         func sortDate(_ entry: Entry) -> Date { entry.due ?? entry.start ?? .distantFuture }
-        let entries: [Entry] = timeline.shown.map { item in (item: item, start: item.startDate, due: item.dueDate) }
+        // Beside timed items, a due day alone means by the end of that day.
+        func due(_ item: TimelineDiagram.Item) -> Date? {
+            guard let date = item.dueDate else { return nil }
+            guard hasTimes, let text = item.due, !TimelineDiagram.hasTime(text) else { return date }
+            return Calendar.current.date(byAdding: .day, value: 1, to: date)?.addingTimeInterval(-60) ?? date
+        }
+        let entries: [Entry] = timeline.shown.map { item in (item: item, start: item.startDate, due: due(item)) }
         let parsed: [Entry] = entries
             .filter { $0.start != nil || $0.due != nil }
             .sorted { sortDate($0) < sortDate($1) }
@@ -349,6 +411,14 @@ struct TimelineRows {
             let label = n == 1 ? entry.item.name : "\(entry.item.name) (\(n))"
             return Row(item: entry.item, label: label, start: entry.start, due: entry.due)
         }
+    }
+
+    /// "Oct 15", or "Oct 15, 3:00 PM" when a time was given — in this
+    /// Mac's zone.
+    static func format(_ date: Date, withTime: Bool) -> String {
+        withTime
+            ? date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+            : date.formatted(.dateTime.month(.abbreviated).day())
     }
 
     func id(forLabel label: String) -> String? {
@@ -362,7 +432,7 @@ struct TimelineRows {
         if let today { dates.append(today) }
         let low = dates.min() ?? meetingDate
         let high = dates.max() ?? meetingDate
-        let pad = max(high.timeIntervalSince(low) * 0.08, 2 * 86_400)
+        let pad = max(high.timeIntervalSince(low) * 0.08, hasTimes ? 3_600 : 2 * 86_400)
         // Room on the right for the date beside the last mark.
         return low.addingTimeInterval(-pad)...high.addingTimeInterval(pad * 2)
     }

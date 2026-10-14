@@ -496,12 +496,14 @@ private struct DiagramSidebar: View {
     }
 
     private func dateLine(_ item: TimelineDiagram.Item) -> String {
-        let format = { (date: Date) in date.formatted(date: .abbreviated, time: .omitted) }
+        let format = { (date: Date, text: String?) in
+            date.formatted(date: .abbreviated, time: text.map(TimelineDiagram.hasTime) == true ? .shortened : .omitted)
+        }
         let estimate = item.isEstimated ? " (estimated)" : ""
         switch (item.startDate, item.dueDate) {
-        case let (start?, due?): return "\(format(start)) – \(format(due))\(estimate)"
-        case let (nil, due?): return "Due \(format(due))\(estimate)"
-        case let (start?, nil): return "Starts \(format(start))\(estimate)"
+        case let (start?, due?): return "\(format(start, item.start)) – \(format(due, item.due))\(estimate)"
+        case let (nil, due?): return "Due \(format(due, item.due))\(estimate)"
+        case let (start?, nil): return "Starts \(format(start, item.start))\(estimate)"
         case (nil, nil): return "No date given"
         }
     }
@@ -600,10 +602,12 @@ private struct DiagramSidebar: View {
             .gridColumnAlignment(.trailing)
     }
 
-    /// A date you can turn on and off; a date you set is exact.
+    /// A date you can turn on and off; a date you set is exact. One the
+    /// meeting gave a time for keeps it, editable.
     private func dateField(_ item: TimelineDiagram.Item, _ keyPath: WritableKeyPath<TimelineDiagram.Item, String?>) -> some View {
         let id = item.id
         let current = item[keyPath: keyPath].flatMap(TimelineDiagram.date(from:))
+        let timed = item[keyPath: keyPath].map(TimelineDiagram.hasTime) ?? false
         return HStack(spacing: 6) {
             Toggle("", isOn: Binding(
                 get: { current != nil },
@@ -620,11 +624,11 @@ private struct DiagramSidebar: View {
                     get: { current },
                     set: { date in
                         editItem(id) { item in
-                            item[keyPath: keyPath] = TimelineDiagram.string(from: date)
+                            item[keyPath: keyPath] = timed ? TimelineDiagram.timeString(from: date) : TimelineDiagram.string(from: date)
                             item.confidence = "exact"
                         }
                     }
-                ), displayedComponents: .date)
+                ), displayedComponents: timed ? [.date, .hourAndMinute] : .date)
                 .labelsHidden()
             } else {
                 Text("None").font(.caption).foregroundStyle(.tertiary)

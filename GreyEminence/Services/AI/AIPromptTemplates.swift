@@ -1035,7 +1035,7 @@ enum AIPromptTemplates {
 
         MEETING
         Title: {{meetingTitle}}
-        Date: {{meetingDate}}, a {{meetingWeekday}}
+        Date: {{meetingDate}}, a {{meetingWeekday}}, starting {{meetingTime}}
         Participants: {{participants}}
         {{screenContext}}
         TRANSCRIPT
@@ -1048,7 +1048,7 @@ enum AIPromptTemplates {
           "title": "3-8 words",
           "summary": "1-2 sentences: what is being delivered, by when",
           "items": [{"id": "d1", "name": "deliverable, 2-8 words", "owner": "person or team, or null", \
-        "start": "YYYY-MM-DD or null", "due": "YYYY-MM-DD or null", "date_text": "the date as it was said", \
+        "start": "YYYY-MM-DD, YYYY-MM-DDTHH:mm±HH:MM, or null", "due": "same as start", "date_text": "the date as it was said", \
         "is_milestone": false, "depends_on": ["d0"], "confidence": "exact | estimated", "citations": ["m:ss"]}],
           "notes": ["risks, assumptions or slips the meeting mentioned"]
         }
@@ -1066,6 +1066,13 @@ enum AIPromptTemplates {
         "depends_on" when the meeting gave an order.
         - A milestone is a point in time — a launch, a demo, a deadline — \
         not work: "is_milestone": true, with "due" only.
+        - When the meeting gave a time of day ("9:30 AM IST", "by 3pm", \
+        "after close of business"), add it with its zone's offset: \
+        "2026-10-15T15:00+05:30" for 3pm IST. Use the zone the speaker named \
+        or plainly meant; with none, the meeting's offset. A time \
+        resolved from a phrase or a duration ("in an hour", "two to three \
+        hours after 9:30") is "estimated". Leave the time off when none was \
+        said.
         - Give "start" only when the meeting said when work begins.
         - Order items by due date, undated ones last.
         - \(citationRule)

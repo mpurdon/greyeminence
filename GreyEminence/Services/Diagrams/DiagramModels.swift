@@ -242,9 +242,10 @@ struct TimelineDiagram: Codable, Sendable, Equatable {
         var id: String
         var name: String
         var owner: String?
-        /// "YYYY-MM-DD". Nil when only a due date was given.
+        /// "YYYY-MM-DD", or "YYYY-MM-DDTHH:mm±HH:MM" when a time was said.
+        /// Nil when only a due date was given.
         var start: String?
-        /// "YYYY-MM-DD". Nil when the meeting gave no usable date.
+        /// As `start`. Nil when the meeting gave no usable date.
         var due: String?
         /// The date as it was said: "end of next sprint", "before the pilot".
         var dateText: String?
@@ -259,6 +260,7 @@ struct TimelineDiagram: Codable, Sendable, Equatable {
 
         var startDate: Date? { start.flatMap(TimelineDiagram.date(from:)) }
         var dueDate: Date? { due.flatMap(TimelineDiagram.date(from:)) }
+        var hasTime: Bool { [start, due].contains { $0.map(TimelineDiagram.hasTime) ?? false } }
         var isEstimated: Bool { confidence?.lowercased().hasPrefix("est") ?? false }
     }
 
@@ -281,12 +283,34 @@ struct TimelineDiagram: Codable, Sendable, Equatable {
         return formatter
     }()
 
+    /// A time of day with the zone it was said in ("2026-10-15T15:00+05:30"),
+    /// so "3pm IST" lands at the right moment wherever the chart is read.
+    private static let timeFormatters: [DateFormatter] = ["yyyy-MM-dd'T'HH:mmXXXXX", "yyyy-MM-dd'T'HH:mm:ssXXXXX", "yyyy-MM-dd'T'HH:mm"].map { format in
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = format
+        return formatter
+    }
+
     static func date(from text: String) -> Date? {
-        dayFormatter.date(from: text.trimmingCharacters(in: .whitespaces))
+        let text = text.trimmingCharacters(in: .whitespaces)
+        if let day = dayFormatter.date(from: text) { return day }
+        return timeFormatters.lazy.compactMap { $0.date(from: text) }.first
+    }
+
+    static func hasTime(_ text: String) -> Bool {
+        text.contains("T") && date(from: text) != nil
     }
 
     static func string(from date: Date) -> String {
         dayFormatter.string(from: date)
+    }
+
+    /// With the time, in this Mac's zone.
+    static func timeString(from date: Date) -> String {
+        timeFormatters[0].string(from: date)
     }
 }
 

@@ -3,7 +3,7 @@ import Foundation
 /// Draws one detected diagram from a meeting's transcript.
 struct DiagramService: Sendable {
     /// Bump on any change to the default prompts.
-    static let promptVersion = "diagrams.v3"
+    static let promptVersion = "diagrams.v4"
     static let maxTokens = 8192
     static let timeoutSeconds = 180
 
@@ -106,6 +106,7 @@ struct DiagramService: Sendable {
             "meetingTitle": input.meetingTitle,
             "meetingDate": day,
             "meetingWeekday": weekday,
+            "meetingTime": Self.meetingTime(input.date),
             "participants": input.participants.isEmpty ? "Not recorded" : input.participants.joined(separator: ", "),
             "diagramTitle": input.title,
             "screenContext": MeetingPromptContext.screenContextBlock(input.screenContext),
@@ -115,6 +116,16 @@ struct DiagramService: Sendable {
         case .flow: return AIPromptTemplates.diagramFlowPrompt(values: common)
         case .timeline: return AIPromptTemplates.diagramTimelinePrompt(values: common)
         }
+    }
+
+    /// "11:00 (UTC-04:00)": when the meeting started, and the offset a time
+    /// said without a zone is in.
+    static func meetingTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "HH:mm '(UTC'xxxxx')'"
+        return formatter.string(from: date)
     }
 
     static func parseFlow(response: String) -> FlowDiagram? {
@@ -183,18 +194,28 @@ enum DiagramMermaid {
     }
 
     static func timeline(_ timeline: TimelineDiagram) -> String {
-        var lines = ["gantt", "    title \(escape(timeline.title))", "    dateFormat YYYY-MM-DD", "    section Deliverables"]
+        // Mermaid takes one date format: with times, every date carries one,
+        // in this Mac's zone.
+        let timed = timeline.dated.contains { $0.hasTime }
+        var lines = ["gantt", "    title \(escape(timeline.title))"]
+        lines += timed ? ["    dateFormat YYYY-MM-DD HH:mm", "    axisFormat %b %d %H:%M"] : ["    dateFormat YYYY-MM-DD"]
+        lines.append("    section Deliverables")
+        let point = timed ? "30m" : "1d"
+        func value(_ text: String?) -> String? {
+            guard let text, let date = TimelineDiagram.date(from: text) else { return nil }
+            return timed ? mermaidTime.string(from: date) : text
+        }
         for item in timeline.dated {
             let id = safeID(item.id)
             let name = escape(item.owner.map { "\(item.name) (\($0))" } ?? item.name)
                 .replacingOccurrences(of: ":", with: " -")
-            if item.isMilestone == true || item.startDate == nil, let due = item.due {
+            if item.isMilestone == true || item.startDate == nil, let due = value(item.due) {
                 let tags = item.isMilestone == true ? "milestone, " : ""
-                lines.append("    \(name) :\(tags)\(id), \(due), \(item.isMilestone == true ? "0d" : "1d")")
-            } else if let start = item.start, let due = item.due {
+                lines.append("    \(name) :\(tags)\(id), \(due), \(item.isMilestone == true ? "0d" : point)")
+            } else if let start = value(item.start), let due = value(item.due) {
                 lines.append("    \(name) :\(id), \(start), \(due)")
-            } else if let start = item.start {
-                lines.append("    \(name) :\(id), \(start), 1d")
+            } else if let start = value(item.start) {
+                lines.append("    \(name) :\(id), \(start), \(point)")
             }
         }
         for item in timeline.undated {
@@ -202,6 +223,14 @@ enum DiagramMermaid {
         }
         return lines.joined(separator: "\n") + "\n"
     }
+
+    private static let mermaidTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter
+    }()
 
     private static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "\"", with: "#quot;")

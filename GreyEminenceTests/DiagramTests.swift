@@ -94,6 +94,66 @@ final class DiagramTests: XCTestCase {
         XCTAssertNil(DiagramService.parseTimeline(response: "Sorry."))
     }
 
+    func testTimelineReadsTimesInTheZoneTheyWereSaid() throws {
+        let timeline = try XCTUnwrap(DiagramService.parseTimeline(response: """
+        {"title":"Go-live","items":[
+          {"id":"d1","name":"Migration","start":"2026-10-15T09:30+05:30","due":"2026-10-15T12:30+05:30"},
+          {"id":"d2","name":"Release","due":"2026-10-15T15:00+05:30","is_milestone":true},
+          {"id":"d3","name":"Forms","due":"2026-10-15"}
+        ]}
+        """))
+        let release = try XCTUnwrap(timeline.items[1].dueDate)
+        XCTAssertEqual(release, Date(timeIntervalSince1970: 1_792_056_600), "3pm IST is 09:30 UTC")
+        XCTAssertEqual(timeline.items[0].startDate.map { release.timeIntervalSince($0) }, 5.5 * 3_600)
+        XCTAssertTrue(timeline.items[1].hasTime)
+        XCTAssertFalse(timeline.items[2].hasTime)
+        XCTAssertNil(TimelineDiagram.date(from: "2026-10-15T25:00+05:30"))
+        XCTAssertEqual(TimelineDiagram.date(from: TimelineDiagram.timeString(from: release)), release)
+    }
+
+    func testTimedRowsSitWithinTheDayAndDueDaysRunToItsEnd() throws {
+        let rows = TimelineRows(TimelineDiagram(title: "t", items: [
+            .init(id: "forms", name: "Forms", due: "2026-10-15"),
+            .init(id: "release", name: "Release", due: "2026-10-15T15:00+05:30"),
+            .init(id: "migration", name: "Migration", start: "2026-10-15T09:30+05:30", due: "2026-10-15T12:30+05:30"),
+        ]))
+        XCTAssertTrue(rows.hasTimes)
+        XCTAssertEqual(rows.dated.map(\.item.id), ["migration", "release", "forms"])
+        let forms = try XCTUnwrap(rows.dated.last?.due)
+        XCTAssertEqual(Calendar.current.startOfDay(for: forms), TimelineDiagram.date(from: "2026-10-15"), "still that day")
+        XCTAssertGreaterThan(forms, TimelineDiagram.date(from: "2026-10-15T23:00")!)
+        let meeting = TimelineDiagram.date(from: "2026-10-14T11:00")!
+        let domain = rows.domain(including: meeting, today: nil)
+        XCTAssertLessThan(domain.upperBound.timeIntervalSince(domain.lowerBound), 4 * 86_400, "hours, not days of padding")
+
+        let dayOnly = TimelineRows(TimelineDiagram(title: "t", items: [.init(id: "a", name: "A", due: "2026-10-15")]))
+        XCTAssertFalse(dayOnly.hasTimes)
+        XCTAssertEqual(dayOnly.dated.first?.due, TimelineDiagram.date(from: "2026-10-15"), "day charts unchanged")
+    }
+
+    func testALabelThatWouldRunOffTheChartGoesLeftOfItsMark() {
+        let label = "Oct 15 at 7:00 PM – Oct 16 at 10:00 AM (est.)"
+        XCTAssertFalse(GanttChart.labelFlips(label, markLeft: 400, markRight: 500, chartWidth: 1_200), "room on the right")
+        XCTAssertTrue(GanttChart.labelFlips(label, markLeft: 700, markRight: 800, chartWidth: 900), "the export's cut-off bar")
+        XCTAssertFalse(GanttChart.labelFlips(label, markLeft: 300, markRight: 800, chartWidth: 900), "no room left either: stays right")
+    }
+
+    func testTimedTimelineExportsTimesToMermaid() {
+        let release = TimelineDiagram.date(from: "2026-10-15T15:00+05:30")!
+        let local = { (date: Date) in
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd HH:mm"
+            return formatter.string(from: date)
+        }
+        let gantt = DiagramMermaid.timeline(TimelineDiagram(title: "Go-live", items: [
+            .init(id: "d1", name: "Release", due: "2026-10-15T15:00+05:30", isMilestone: true),
+            .init(id: "d2", name: "Forms", due: "2026-10-15"),
+        ]))
+        XCTAssertTrue(gantt.contains("dateFormat YYYY-MM-DD HH:mm"))
+        XCTAssertTrue(gantt.contains("Release :milestone, d1, \(local(release)), 0d"))
+        XCTAssertTrue(gantt.contains("Forms :d2, 2026-10-15 00:00, 30m"))
+    }
+
     func testPromptsCarryTheMeetingDateAndLeaveNoPlaceholders() {
         let date = TimelineDiagram.date(from: "2026-09-22")!
         for kind in DiagramKind.allCases {
@@ -107,6 +167,7 @@ final class DiagramTests: XCTestCase {
         let timeline = DiagramService.userPrompt(for: .init(meetingTitle: "x", date: date, participants: [], screenContext: nil,
                                                             transcript: "t", kind: .timeline, title: "t"))
         XCTAssertTrue(timeline.contains("Tuesday"), "relative dates need the weekday")
+        XCTAssertTrue(timeline.contains("starting 00:00 (UTC"), "times need the meeting's start and offset")
     }
 
     // MARK: - Layout

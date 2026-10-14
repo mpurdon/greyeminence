@@ -91,8 +91,10 @@ enum PromptKey: String, CaseIterable, Identifiable, Sendable {
             ["meetings"]
         case .refinementSpec:
             ["feature", "rationale"]
-        case .diagramFlow, .diagramTimeline:
+        case .diagramFlow:
             ["meetingTitle", "meetingDate", "meetingWeekday", "participants", "diagramTitle", "screenContext", "transcript"]
+        case .diagramTimeline:
+            ["meetingTitle", "meetingDate", "meetingWeekday", "meetingTime", "participants", "diagramTitle", "screenContext", "transcript"]
         case .diagramClassify:
             ["meetings"]
         case .topicClassify:
